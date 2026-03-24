@@ -1447,6 +1447,8 @@ static void open_dice_screen(void)
 
 static void back_to_main()
 {
+    life_preview_commit_cb(NULL);
+    multiplayer_life_preview_commit_cb(NULL);
     refresh_main_ui();
     load_screen_if_needed(screen_main);
 }
