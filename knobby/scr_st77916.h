@@ -27,15 +27,11 @@ static lv_disp_draw_buf_t draw_buf;
 static lv_disp_drv_t disp_drv;
 static lv_disp_t *disp_handle = NULL;
 static lv_indev_t *indev_touchpad;
-lv_indev_t *indev_knob;
 static bool disp_flush_uses_callback = false;
 static ESP_PanelBacklightPWM_LEDC *backlight = NULL;
 static ESP_PanelLcd *lcd = NULL;
 static ESP_PanelTouch *touch = NULL;
 static knob_handle_t knob_handle = NULL;
-static int32_t ctx_diff;
-static lv_indev_state_t encoder_state;
-int encoder_cont = 0;
 #define USE_CUSTOM_INIT_CMD 0 // 是否用自定义的初始化代码
 
 #if TOUCH_PIN_NUM_INT >= 0
@@ -348,70 +344,18 @@ static void touchpad_read(lv_indev_drv_t *indev_drv, lv_indev_data_t *data)
   }
 }
 
-static int32_t _knob_calculate_diff(knob_handle_t knob, knob_event_t event)
-{
-   static int32_t last_v = 0;
-
-    int32_t diff = 0;
-    int32_t invd = iot_knob_get_count_value(knob);
-    knob_change(event,invd);       
-    if (last_v ^ invd) {
-
-        diff = (int32_t)((uint32_t)invd - (uint32_t)last_v);
-        diff += (event == KNOB_RIGHT && invd < last_v) ? 16 :
-                (event == KNOB_LEFT && invd > last_v) ? -16 : 0;
-        last_v = invd;
-    }
-
-    return diff;
-}
-
 static void _knob_right_cb(void *arg, void *data)
 {
     knob_handle_t knob = (knob_handle_t)arg;
-    // int32_t ctx = (int32_t )data;
-    int32_t diff = _knob_calculate_diff(knob,KNOB_RIGHT);
-    
-    
-    ctx_diff = (ctx_diff < 0)? diff : ctx_diff + diff;
-
+    (void)data;
+    knob_change(KNOB_RIGHT, iot_knob_get_count_value(knob));
 }
 
 static void _knob_left_cb(void *arg, void *data)
 {
     knob_handle_t knob = (knob_handle_t)arg;
-    // int32_t ctx = (int32_t )data; 
-    int32_t diff = _knob_calculate_diff(knob,KNOB_LEFT);
-    
-    ctx_diff = (ctx_diff > 0) ? ctx_diff : ctx_diff + diff;
-
-}
-
-
-
-static void knob_read(lv_indev_drv_t *indev_drv, lv_indev_data_t *data)
-{
-  knob_handle_t *knob = (knob_handle_t *)indev_drv -> user_data;
-  data->enc_diff = ctx_diff;
-  // data->state = (ctx_diff == 0) ? LV_INDEV_STATE_REL : LV_INDEV_STATE_PR;
-  data->state = LV_INDEV_STATE_REL;
-  // printf("ctx_diff = %d\r\n",ctx_diff);
-  ctx_diff = 0;
-  
-}
-
-static lv_indev_t *indev_knob_init(knob_handle_t *knob)
-{
-  if (knob == NULL || *knob == NULL) {
-    return NULL;
-  }
-
-  static lv_indev_drv_t indev_drv_knob;
-  lv_indev_drv_init(&indev_drv_knob);
-  indev_drv_knob.type = LV_INDEV_TYPE_ENCODER;
-  indev_drv_knob.read_cb = knob_read;
-  indev_drv_knob.user_data = (void *)knob;
-  return lv_indev_drv_register(&indev_drv_knob);
+    (void)data;
+    knob_change(KNOB_LEFT, iot_knob_get_count_value(knob));
 }
 
 static lv_indev_t *indev_init(ESP_PanelTouch *tp)
@@ -431,17 +375,12 @@ static lv_indev_t *indev_init(ESP_PanelTouch *tp)
 
 static void scr_cleanup_failed_init(lv_disp_t *disp,
                                     lv_indev_t *touch_indev,
-                                    lv_indev_t *knob_indev_local,
                                     knob_handle_t knob_handle_local,
                                     lv_color_t *draw_buf_local,
                                     ESP_PanelTouch *touch_local,
                                     ESP_PanelLcd *lcd_local,
                                     ESP_PanelBacklightPWM_LEDC *backlight_local)
 {
-  if (knob_indev_local != NULL) {
-    lv_indev_delete(knob_indev_local);
-  }
-
   if (touch_indev != NULL) {
     lv_indev_delete(touch_indev);
   }
@@ -476,7 +415,6 @@ bool scr_lvgl_init()
 {
   lv_disp_t *disp = NULL;
   lv_indev_t *new_indev_touchpad = NULL;
-  lv_indev_t *new_indev_knob = NULL;
   lv_color_t *new_disp_draw_buf = NULL;
   knob_handle_t new_knob_handle = NULL;
   ESP_PanelBacklightPWM_LEDC *new_backlight = NULL;
@@ -625,18 +563,12 @@ bool scr_lvgl_init()
         ESP_LOGE(SCR_TAG, "Knob create failed");
         goto cleanup;
     }
-  if (iot_knob_register_cb(new_knob_handle, KNOB_LEFT, _knob_left_cb, &ctx_diff) != ESP_OK) {
+  if (iot_knob_register_cb(new_knob_handle, KNOB_LEFT, _knob_left_cb, NULL) != ESP_OK) {
     ESP_LOGE(SCR_TAG, "Knob left callback registration failed");
     goto cleanup;
   }
-  if (iot_knob_register_cb(new_knob_handle, KNOB_RIGHT, _knob_right_cb, &ctx_diff) != ESP_OK) {
+  if (iot_knob_register_cb(new_knob_handle, KNOB_RIGHT, _knob_right_cb, NULL) != ESP_OK) {
     ESP_LOGE(SCR_TAG, "Knob right callback registration failed");
-    goto cleanup;
-  }
-  
-  new_indev_knob = indev_knob_init(&new_knob_handle);
-  if (new_indev_knob == NULL) {
-    ESP_LOGE(SCR_TAG, "Knob input registration failed");
     goto cleanup;
   }
 
@@ -646,7 +578,6 @@ bool scr_lvgl_init()
   disp_draw_buf = new_disp_draw_buf;
   disp_handle = disp;
   indev_touchpad = new_indev_touchpad;
-  indev_knob = new_indev_knob;
   knob_handle = new_knob_handle;
   ok = true;
 
@@ -654,7 +585,6 @@ cleanup:
   if (!ok) {
     scr_cleanup_failed_init(disp,
                             new_indev_touchpad,
-                            new_indev_knob,
                             new_knob_handle,
                             new_disp_draw_buf,
                             new_touch,
