@@ -2129,18 +2129,18 @@ static void build_main_screen()
     lv_obj_set_scrollbar_mode(menu_panel, LV_SCROLLBAR_MODE_OFF);
     lv_obj_clear_flag(menu_panel, LV_OBJ_FLAG_CLICKABLE);
 
-    reset_btn = make_button(menu_overlay, "Reset", 50, 50, event_menu_reset);
-    lv_obj_set_style_radius(reset_btn, LV_RADIUS_CIRCLE, 0);
-    lv_obj_set_style_pad_all(reset_btn, 0, 0);
-    lv_obj_align(reset_btn, LV_ALIGN_CENTER, -148, -4);
+    btn = make_button(menu_overlay, "Reset", 50, 50, event_menu_reset);
+    lv_obj_set_style_radius(btn, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_pad_all(btn, 0, 0);
+    lv_obj_align(btn, LV_ALIGN_CENTER, -148, -4);
 
-    back_btn = make_button(menu_overlay, "Back", 50, 50, event_menu_back);
-    lv_obj_set_style_radius(back_btn, LV_RADIUS_CIRCLE, 0);
-    lv_obj_set_style_pad_all(back_btn, 0, 0);
-    lv_obj_align(back_btn, LV_ALIGN_CENTER, 148, -4);
+    btn = make_button(menu_overlay, "Back", 50, 50, event_menu_back);
+    lv_obj_set_style_radius(btn, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_pad_all(btn, 0, 0);
+    lv_obj_align(btn, LV_ALIGN_CENTER, 148, -4);
 
-    commander_btn = make_button(menu_panel, "Commander", 128, 32, event_menu_cmd_damage);
-    lv_obj_align(commander_btn, LV_ALIGN_TOP_MID, 0, 36);
+    btn = make_button(menu_panel, "Commander", 128, 32, event_menu_cmd_damage);
+    lv_obj_align(btn, LV_ALIGN_TOP_MID, 0, 36);
 
     menu_button_dice = make_button(menu_panel, "D20", 128, 32, event_menu_dice);
     lv_obj_align(menu_button_dice, LV_ALIGN_TOP_MID, 0, 82);
