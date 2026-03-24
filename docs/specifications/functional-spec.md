@@ -309,7 +309,7 @@ The multiplayer commander damage flow is organized around the currently opened p
 
 ### 14.2 Damage editing
 
-Selecting a source player opens a damage editor screen with the title `<source> -> <target>`.
+Selecting a source player opens a damage editor screen with the title `<target> -> <source>`.
 
 Rotary behavior:
 

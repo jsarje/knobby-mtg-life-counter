@@ -944,7 +944,7 @@ static void refresh_multiplayer_cmd_select_ui()
     int row = 0;
 
     if (label_multiplayer_cmd_select_title != NULL) {
-        snprintf(buf, sizeof(buf), "%s -> target", multiplayer_names[multiplayer_menu_player]);
+        snprintf(buf, sizeof(buf), "? -> %s", multiplayer_names[multiplayer_menu_player]);
         lv_label_set_text(label_multiplayer_cmd_select_title, buf);
     }
 
