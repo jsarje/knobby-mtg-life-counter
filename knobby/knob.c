@@ -1,5 +1,6 @@
 #include "knob.h"
 #include "driver/ledc.h"
+#include "esp_log.h"
 #include "esp_random.h"
 #include "freertos/FreeRTOS.h"
 #include <stdint.h>
@@ -17,6 +18,9 @@
 #define INTRO_CHAR_COUNT 7
 #define MULTIPLAYER_COUNT 4
 #define KNOB_EVENT_QUEUE_SIZE 32
+#define KNOB_EVENT_PROCESS_BUDGET 8U
+#define KNOB_EVENT_BURST_BUDGET 16U
+#define KNOB_EVENT_DROP_LOG_INTERVAL 8U
 
 #define BACKLIGHT_PIN 47
 #define BACKLIGHT_LEDC_MODE LEDC_LOW_SPEED_MODE
@@ -43,6 +47,8 @@ typedef enum
     MULTIPLAYER_MENU_PLAYER,
     MULTIPLAYER_MENU_GLOBAL
 } multiplayer_menu_mode_t;
+
+static const char *KNOB_GUI_TAG = "knob_gui";
 
 static int life_total = DEFAULT_LIFE_TOTAL;
 static int brightness_percent = DEFAULT_BRIGHTNESS_PERCENT;
@@ -155,7 +161,10 @@ static bool knob_initialized = false;
 static knob_input_event_t knob_event_queue[KNOB_EVENT_QUEUE_SIZE];
 static volatile uint8_t knob_event_head = 0;
 static volatile uint8_t knob_event_tail = 0;
+static volatile uint32_t knob_event_overflow_count = 0;
+static volatile uint8_t knob_event_high_watermark = 0;
 static portMUX_TYPE knob_event_queue_lock = portMUX_INITIALIZER_UNLOCKED;
+static uint32_t knob_event_overflow_reported = 0;
 
 static bool turn_timer_enabled = false;
 static bool turn_indicator_visible = true;
@@ -198,6 +207,44 @@ static const uint32_t intro_colors[INTRO_CHAR_COUNT] = {0x9C5CFF, 0xF6C945, 0x42
 static const lv_coord_t intro_x[INTRO_CHAR_COUNT] = {56, 98, 140, 182, 214, 246, 284};
 
 static void back_to_main(void);
+
+static uint8_t knob_queue_count_unsafe(void)
+{
+    if (knob_event_head >= knob_event_tail) {
+        return (uint8_t)(knob_event_head - knob_event_tail);
+    }
+
+    return (uint8_t)(KNOB_EVENT_QUEUE_SIZE - knob_event_tail + knob_event_head);
+}
+
+static void report_knob_queue_status(void)
+{
+    uint32_t overflow_count;
+    uint8_t high_watermark;
+    uint8_t pending_count;
+
+    taskENTER_CRITICAL(&knob_event_queue_lock);
+    overflow_count = knob_event_overflow_count;
+    high_watermark = knob_event_high_watermark;
+    pending_count = knob_queue_count_unsafe();
+    taskEXIT_CRITICAL(&knob_event_queue_lock);
+
+    if (overflow_count == knob_event_overflow_reported) {
+        return;
+    }
+
+    if ((overflow_count - knob_event_overflow_reported) < KNOB_EVENT_DROP_LOG_INTERVAL && pending_count != 0U) {
+        return;
+    }
+
+    ESP_LOGW(KNOB_GUI_TAG,
+             "Knob queue overflow: dropped=%lu pending=%u high_water=%u capacity=%u",
+             (unsigned long)overflow_count,
+             (unsigned int)pending_count,
+             (unsigned int)high_watermark,
+             (unsigned int)(KNOB_EVENT_QUEUE_SIZE - 1));
+    knob_event_overflow_reported = overflow_count;
+}
 
 // ----------------------------------------------------
 // 7-segment map
@@ -2390,6 +2437,7 @@ static void handle_knob_event(knob_event_t k)
 void knob_change(knob_event_t k, int cont)
 {
     uint8_t next_head;
+    uint8_t pending_count;
 
     if (!knob_initialized)
     {
@@ -2403,19 +2451,31 @@ void knob_change(knob_event_t k, int cont)
     next_head = (uint8_t)((knob_event_head + 1U) % KNOB_EVENT_QUEUE_SIZE);
     if (next_head == knob_event_tail) {
         knob_event_tail = (uint8_t)((knob_event_tail + 1U) % KNOB_EVENT_QUEUE_SIZE);
+        knob_event_overflow_count++;
     }
 
     knob_event_queue[knob_event_head].event = k;
     knob_event_queue[knob_event_head].cont = cont;
     knob_event_head = next_head;
+    pending_count = knob_queue_count_unsafe();
+    if (pending_count > knob_event_high_watermark) {
+        knob_event_high_watermark = pending_count;
+    }
     taskEXIT_CRITICAL(&knob_event_queue_lock);
 }
 
 void knob_process_pending(void)
 {
     uint8_t processed = 0;
+    uint8_t process_budget = KNOB_EVENT_PROCESS_BUDGET;
 
-    while (processed < 8U) {
+    taskENTER_CRITICAL(&knob_event_queue_lock);
+    if (knob_queue_count_unsafe() > KNOB_EVENT_PROCESS_BUDGET) {
+        process_budget = KNOB_EVENT_BURST_BUDGET;
+    }
+    taskEXIT_CRITICAL(&knob_event_queue_lock);
+
+    while (processed < process_budget) {
         knob_event_t event;
 
         taskENTER_CRITICAL(&knob_event_queue_lock);
@@ -2431,4 +2491,6 @@ void knob_process_pending(void)
         handle_knob_event(event);
         processed++;
     }
+
+    report_knob_queue_status();
 }
