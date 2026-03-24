@@ -257,7 +257,7 @@ Multiplayer life changes shall use a deferred commit preview similar to the main
 
 ### 11.4 Menu gesture
 
-- An upward swipe with vertical movement greater than `80` pixels and horizontal drift less than `90` pixels shall open the selected player's menu
+- An upward swipe with vertical movement greater than `80` pixels and horizontal drift less than `90` pixels shall open the multiplayer global menu for the currently selected player context
 
 ## 12. Multiplayer Player Menu
 
@@ -267,11 +267,21 @@ The player menu shall provide:
 
 - `rename`
 - `Cmd.dmg`
-- `all.dmg`
-- `main`
 - `back`
 
-## 13. Multiplayer Rename Flow
+## 13. Multiplayer Global Menu
+
+Swiping upward on the multiplayer overview shall open the multiplayer global menu.
+
+The global menu shall provide:
+
+- `all.dmg`
+- `back`
+- `menu`
+
+Selecting `menu` shall return to the main screen and reopen the main overlay menu.
+
+## 14. Multiplayer Rename Flow
 
 The rename screen shall:
 
@@ -287,7 +297,7 @@ Saving shall behave as follows:
 - Non-empty text replaces the player name exactly as entered
 - All dependent screens shall refresh to reflect the new name
 
-## 14. Multiplayer Commander Damage Flow
+## 15. Multiplayer Commander Damage Flow
 
 The multiplayer commander damage flow is organized around the currently opened player menu.
 
@@ -312,7 +322,7 @@ Applying a change shall:
 - Immediately subtract the delta from the target player's committed life total
 - Refresh multiplayer overview values and commander damage screens immediately
 
-## 15. Multiplayer All-Damage Flow
+## 16. Multiplayer All-Damage Flow
 
 The all-damage screen shall:
 
@@ -320,9 +330,13 @@ The all-damage screen shall:
 - Allow knob-based adjustment with a floor at `0`
 - Provide `apply` and `back` buttons
 
+The all-damage flow shall be entered from the multiplayer global menu.
+
+Selecting `back` on the all-damage screen shall return to the multiplayer global menu.
+
 Selecting `apply` shall subtract the pending damage value from all four players immediately.
 
-## 16. Reset Semantics
+## 17. Reset Semantics
 
 Global reset shall restore the following defaults:
 

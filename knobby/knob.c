@@ -37,6 +37,12 @@ typedef struct
     int cont;
 } knob_input_event_t;
 
+typedef enum
+{
+    MULTIPLAYER_MENU_PLAYER,
+    MULTIPLAYER_MENU_GLOBAL
+} multiplayer_menu_mode_t;
+
 static int life_total = DEFAULT_LIFE_TOTAL;
 static int brightness_percent = DEFAULT_BRIGHTNESS_PERCENT;
 
@@ -120,6 +126,11 @@ static lv_obj_t *multiplayer_quadrants[MULTIPLAYER_COUNT];
 static lv_obj_t *label_multiplayer_life[MULTIPLAYER_COUNT];
 static lv_obj_t *label_multiplayer_name[MULTIPLAYER_COUNT];
 static lv_obj_t *label_multiplayer_menu_title = NULL;
+static lv_obj_t *button_multiplayer_menu_rename = NULL;
+static lv_obj_t *button_multiplayer_menu_cmd_damage = NULL;
+static lv_obj_t *button_multiplayer_menu_all_damage = NULL;
+static lv_obj_t *button_multiplayer_menu_menu = NULL;
+static lv_obj_t *button_multiplayer_menu_back = NULL;
 static lv_obj_t *label_multiplayer_name_title = NULL;
 static lv_obj_t *textarea_multiplayer_name = NULL;
 static lv_obj_t *keyboard_multiplayer_name = NULL;
@@ -168,6 +179,7 @@ static int multiplayer_cmd_delta = 0;
 static int multiplayer_cmd_target_choices[MULTIPLAYER_COUNT - 1] = {-1, -1, -1};
 static int multiplayer_cmd_damage_totals[MULTIPLAYER_COUNT][MULTIPLAYER_COUNT] = {{0}};
 static int multiplayer_all_damage_value = 0;
+static multiplayer_menu_mode_t multiplayer_menu_mode = MULTIPLAYER_MENU_PLAYER;
 static bool multiplayer_swipe_tracking = false;
 static bool main_swipe_tracking = false;
 static int multiplayer_pending_life_delta = 0;
@@ -873,11 +885,42 @@ static void refresh_multiplayer_ui()
 static void refresh_multiplayer_menu_ui()
 {
     char buf[32];
+    bool player_menu;
 
     if (label_multiplayer_menu_title == NULL) return;
 
-    snprintf(buf, sizeof(buf), "%s menu", multiplayer_names[multiplayer_menu_player]);
+    player_menu = (multiplayer_menu_mode == MULTIPLAYER_MENU_PLAYER);
+
+    if (player_menu) {
+        snprintf(buf, sizeof(buf), "%s menu", multiplayer_names[multiplayer_menu_player]);
+    } else {
+        snprintf(buf, sizeof(buf), "multiplayer");
+    }
     lv_label_set_text(label_multiplayer_menu_title, buf);
+
+    if (button_multiplayer_menu_rename != NULL) {
+        if (player_menu) lv_obj_clear_flag(button_multiplayer_menu_rename, LV_OBJ_FLAG_HIDDEN);
+        else lv_obj_add_flag(button_multiplayer_menu_rename, LV_OBJ_FLAG_HIDDEN);
+    }
+
+    if (button_multiplayer_menu_cmd_damage != NULL) {
+        if (player_menu) lv_obj_clear_flag(button_multiplayer_menu_cmd_damage, LV_OBJ_FLAG_HIDDEN);
+        else lv_obj_add_flag(button_multiplayer_menu_cmd_damage, LV_OBJ_FLAG_HIDDEN);
+    }
+
+    if (button_multiplayer_menu_all_damage != NULL) {
+        if (player_menu) lv_obj_add_flag(button_multiplayer_menu_all_damage, LV_OBJ_FLAG_HIDDEN);
+        else lv_obj_clear_flag(button_multiplayer_menu_all_damage, LV_OBJ_FLAG_HIDDEN);
+    }
+
+    if (button_multiplayer_menu_menu != NULL) {
+        if (player_menu) lv_obj_add_flag(button_multiplayer_menu_menu, LV_OBJ_FLAG_HIDDEN);
+        else lv_obj_clear_flag(button_multiplayer_menu_menu, LV_OBJ_FLAG_HIDDEN);
+    }
+
+    if (button_multiplayer_menu_back != NULL) {
+        lv_obj_clear_flag(button_multiplayer_menu_back, LV_OBJ_FLAG_HIDDEN);
+    }
 }
 
 static void refresh_multiplayer_name_ui()
@@ -1289,9 +1332,10 @@ static void open_multiplayer_screen()
     load_screen_if_needed(screen_multiplayer);
 }
 
-static void open_multiplayer_menu_screen(int player_index)
+static void open_multiplayer_menu_screen(int player_index, multiplayer_menu_mode_t mode)
 {
     multiplayer_menu_player = player_index;
+    multiplayer_menu_mode = mode;
     refresh_multiplayer_menu_ui();
     load_screen_if_needed(screen_multiplayer_menu);
 }
@@ -1517,7 +1561,7 @@ static void event_multiplayer_open_menu(lv_event_t *e)
 
     multiplayer_selected = new_selected;
     refresh_multiplayer_ui();
-    open_multiplayer_menu_screen(multiplayer_selected);
+    open_multiplayer_menu_screen(multiplayer_selected, MULTIPLAYER_MENU_PLAYER);
 }
 
 static void event_multiplayer_swipe_menu(lv_event_t *e)
@@ -1539,7 +1583,7 @@ static void event_multiplayer_swipe_menu(lv_event_t *e)
 
         if ((multiplayer_swipe_start.y - point.y) > 80 &&
             LV_ABS(point.x - multiplayer_swipe_start.x) < 90) {
-            open_multiplayer_menu_screen(multiplayer_selected);
+            open_multiplayer_menu_screen(multiplayer_selected, MULTIPLAYER_MENU_GLOBAL);
         }
     }
 }
@@ -1554,6 +1598,7 @@ static void event_multiplayer_menu_main(lv_event_t *e)
 {
     (void)e;
     back_to_main();
+    show_main_menu();
 }
 
 static void event_multiplayer_menu_rename(lv_event_t *e)
@@ -1577,7 +1622,7 @@ static void event_multiplayer_menu_all_damage(lv_event_t *e)
 static void event_multiplayer_name_back(lv_event_t *e)
 {
     (void)e;
-    open_multiplayer_menu_screen(multiplayer_menu_player);
+    open_multiplayer_menu_screen(multiplayer_menu_player, MULTIPLAYER_MENU_PLAYER);
 }
 
 static void event_multiplayer_name_save(lv_event_t *e)
@@ -1605,13 +1650,13 @@ static void event_multiplayer_name_save(lv_event_t *e)
     refresh_multiplayer_cmd_damage_ui();
     refresh_select_ui();
     refresh_damage_ui();
-    open_multiplayer_menu_screen(multiplayer_menu_player);
+    open_multiplayer_menu_screen(multiplayer_menu_player, MULTIPLAYER_MENU_PLAYER);
 }
 
 static void event_multiplayer_cmd_select_back(lv_event_t *e)
 {
     (void)e;
-    open_multiplayer_menu_screen(multiplayer_menu_player);
+    open_multiplayer_menu_screen(multiplayer_menu_player, MULTIPLAYER_MENU_PLAYER);
 }
 
 static void event_multiplayer_cmd_target_pick(lv_event_t *e)
@@ -1633,7 +1678,7 @@ static void event_multiplayer_cmd_damage_back(lv_event_t *e)
 static void event_multiplayer_all_damage_back(lv_event_t *e)
 {
     (void)e;
-    open_multiplayer_menu_screen(multiplayer_menu_player);
+    open_multiplayer_menu_screen(multiplayer_menu_player, MULTIPLAYER_MENU_GLOBAL);
 }
 
 static void event_multiplayer_all_damage_apply(lv_event_t *e)
@@ -1757,20 +1802,22 @@ static void build_multiplayer_menu_screen()
     lv_obj_set_style_text_font(label_multiplayer_menu_title, &lv_font_montserrat_22, 0);
     lv_obj_align(label_multiplayer_menu_title, LV_ALIGN_TOP_MID, 0, 26);
 
-    lv_obj_t *btn = make_button(screen_multiplayer_menu, "rename", 180, 44, event_multiplayer_menu_rename);
-    lv_obj_align(btn, LV_ALIGN_CENTER, 0, -56);
+    button_multiplayer_menu_rename = make_button(screen_multiplayer_menu, "rename", 180, 44, event_multiplayer_menu_rename);
+    lv_obj_align(button_multiplayer_menu_rename, LV_ALIGN_CENTER, 0, -56);
 
-    btn = make_button(screen_multiplayer_menu, "Cmd.dmg", 180, 44, event_multiplayer_menu_cmd_damage);
-    lv_obj_align(btn, LV_ALIGN_CENTER, 0, -4);
+    button_multiplayer_menu_cmd_damage = make_button(screen_multiplayer_menu, "Cmd.dmg", 180, 44, event_multiplayer_menu_cmd_damage);
+    lv_obj_align(button_multiplayer_menu_cmd_damage, LV_ALIGN_CENTER, 0, -4);
 
-    btn = make_button(screen_multiplayer_menu, "all.dmg", 180, 44, event_multiplayer_menu_all_damage);
-    lv_obj_align(btn, LV_ALIGN_CENTER, 0, 48);
+    button_multiplayer_menu_all_damage = make_button(screen_multiplayer_menu, "all.dmg", 180, 44, event_multiplayer_menu_all_damage);
+    lv_obj_align(button_multiplayer_menu_all_damage, LV_ALIGN_CENTER, 0, -4);
 
-    btn = make_button(screen_multiplayer_menu, "main", 88, 42, event_multiplayer_menu_main);
-    lv_obj_align(btn, LV_ALIGN_BOTTOM_LEFT, 34, -26);
+    button_multiplayer_menu_menu = make_button(screen_multiplayer_menu, "menu", 88, 42, event_multiplayer_menu_main);
+    lv_obj_align(button_multiplayer_menu_menu, LV_ALIGN_BOTTOM_LEFT, 34, -26);
 
-    btn = make_button(screen_multiplayer_menu, "back", 88, 42, event_multiplayer_menu_back);
-    lv_obj_align(btn, LV_ALIGN_BOTTOM_RIGHT, -34, -26);
+    button_multiplayer_menu_back = make_button(screen_multiplayer_menu, "back", 88, 42, event_multiplayer_menu_back);
+    lv_obj_align(button_multiplayer_menu_back, LV_ALIGN_BOTTOM_RIGHT, -34, -26);
+
+    refresh_multiplayer_menu_ui();
 }
 
 static void build_multiplayer_name_screen()

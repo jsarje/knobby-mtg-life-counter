@@ -165,7 +165,7 @@ The current firmware builds and retains all screens at startup:
 - Commander damage edit screen
 - Settings screen
 - Multiplayer overview screen
-- Multiplayer player menu screen
+- Multiplayer menu screen with player and global action variants
 - Multiplayer rename screen
 - Multiplayer commander-damage target selection screen
 - Multiplayer commander-damage edit screen
@@ -188,6 +188,7 @@ All major product state is held in file-scope static variables in `knob.c`, incl
 - Dice result
 - Battery voltage and percent cache
 - Multiplayer life totals, names, selection, and commander-damage matrix
+- Multiplayer menu mode for player-specific vs. global actions
 
 There is no persistence layer in the current implementation. All state is reset on reboot.
 
@@ -282,11 +283,21 @@ When the player menu for target `T` opens commander-damage selection:
 - Each row shows `damage[S][T]`
 - The editor screen mutates `damage[S][T]`
 
-## 12. Randomness
+## 12. Multiplayer Menu Modes
+
+The multiplayer overview uses one menu screen implementation with two interaction modes.
+
+- Long-press on quadrant `Q` opens the player menu for player `Q`
+- The player menu exposes `rename`, `Cmd.dmg`, and `back`
+- Upward swipe on the multiplayer overview opens the global multiplayer menu
+- The global menu exposes `all.dmg`, `back`, and `menu`
+- Selecting `menu` returns to the main screen and reopens the main overlay menu
+
+## 13. Randomness
 
 The d20 feature uses `esp_random()` and maps it into the range `1..20` with modulo arithmetic.
 
-## 13. Reset Model
+## 14. Reset Model
 
 The global reset path restores in-memory state only. It does not:
 

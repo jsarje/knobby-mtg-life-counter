@@ -61,7 +61,8 @@ The product shall:
 - Support four players simultaneously on one screen
 - Show each player's name and life total
 - Allow the user to select which player's life total is being adjusted
-- Provide player-specific menu actions
+- Provide a player-specific long-press menu with rename and commander-damage actions
+- Provide a swipe-up multiplayer global menu with all-damage and main-menu access
 - Allow player names to be edited on-device
 
 ### 3.5 Multiplayer commander damage
