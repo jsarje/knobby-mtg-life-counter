@@ -25,12 +25,14 @@ static const char *SCR_TAG = "scr_st77916";
 static lv_color_t *disp_draw_buf;
 static lv_disp_draw_buf_t draw_buf;
 static lv_disp_drv_t disp_drv;
+static lv_disp_t *disp_handle = NULL;
 static lv_indev_t *indev_touchpad;
 lv_indev_t *indev_knob;
 static bool disp_flush_uses_callback = false;
 static ESP_PanelBacklightPWM_LEDC *backlight = NULL;
 static ESP_PanelLcd *lcd = NULL;
 static ESP_PanelTouch *touch = NULL;
+static knob_handle_t knob_handle = NULL;
 static int32_t ctx_diff;
 static lv_indev_state_t encoder_state;
 int encoder_cont = 0;
@@ -400,7 +402,10 @@ static void knob_read(lv_indev_drv_t *indev_drv, lv_indev_data_t *data)
 
 static lv_indev_t *indev_knob_init(knob_handle_t *knob)
 {
-  assert(knob);
+  if (knob == NULL || *knob == NULL) {
+    return NULL;
+  }
+
   static lv_indev_drv_t indev_drv_knob;
   lv_indev_drv_init(&indev_drv_knob);
   indev_drv_knob.type = LV_INDEV_TYPE_ENCODER;
@@ -411,13 +416,11 @@ static lv_indev_t *indev_knob_init(knob_handle_t *knob)
 
 static lv_indev_t *indev_init(ESP_PanelTouch *tp)
 {
-  // ESP_PANEL_CHECK_FALSE_RET(tp != nullptr, nullptr, "Invalid touch device");
-  // ESP_PANEL_CHECK_FALSE_RET(tp->getHandle() != nullptr, nullptr, "Touch device is not initialized");
-  assert(tp);
-  if(tp->getHandle() == nullptr)
-  {
-    printf("getHandle failed");
+  if (tp == NULL || tp->getHandle() == nullptr) {
+    ESP_LOGE(SCR_TAG, "Touch device is not initialized");
+    return NULL;
   }
+
   static lv_indev_drv_t indev_drv_tp;
   lv_indev_drv_init(&indev_drv_tp);
   indev_drv_tp.type = LV_INDEV_TYPE_POINTER;
@@ -426,11 +429,65 @@ static lv_indev_t *indev_init(ESP_PanelTouch *tp)
   return lv_indev_drv_register(&indev_drv_tp);
 }
 
-void scr_lvgl_init()
+static void scr_cleanup_failed_init(lv_disp_t *disp,
+                                    lv_indev_t *touch_indev,
+                                    lv_indev_t *knob_indev_local,
+                                    knob_handle_t knob_handle_local,
+                                    lv_color_t *draw_buf_local,
+                                    ESP_PanelTouch *touch_local,
+                                    ESP_PanelLcd *lcd_local,
+                                    ESP_PanelBacklightPWM_LEDC *backlight_local)
 {
-  lv_disp_t *disp;
+  if (knob_indev_local != NULL) {
+    lv_indev_delete(knob_indev_local);
+  }
+
+  if (touch_indev != NULL) {
+    lv_indev_delete(touch_indev);
+  }
+
+  if (knob_handle_local != NULL) {
+    iot_knob_delete(knob_handle_local);
+  }
+
+  if (disp != NULL) {
+    lv_disp_remove(disp);
+  }
+
+  if (draw_buf_local != NULL) {
+    heap_caps_free(draw_buf_local);
+  }
+
+  if (backlight_local != NULL) {
+    backlight_local->off();
+    delete backlight_local;
+  }
+
+  if (touch_local != NULL) {
+    delete touch_local;
+  }
+
+  if (lcd_local != NULL) {
+    delete lcd_local;
+  }
+}
+
+bool scr_lvgl_init()
+{
+  lv_disp_t *disp = NULL;
+  lv_indev_t *new_indev_touchpad = NULL;
+  lv_indev_t *new_indev_knob = NULL;
+  lv_color_t *new_disp_draw_buf = NULL;
+  knob_handle_t new_knob_handle = NULL;
+  ESP_PanelBacklightPWM_LEDC *new_backlight = NULL;
+  ESP_PanelLcd *new_lcd = NULL;
+  ESP_PanelTouch *new_touch = NULL;
+  ESP_PanelBusI2C *touch_bus = NULL;
+  ESP_PanelBusQSPI *panel_bus = NULL;
+  knob_config_t cfg = {0};
   size_t lv_cache_rows = 72;
   size_t draw_buffer_size;
+  bool ok = false;
 
   ledc_timer_config_t ledc_timer = {
       .speed_mode = LEDC_LOW_SPEED_MODE,
@@ -438,7 +495,10 @@ void scr_lvgl_init()
       .timer_num = LEDC_TIMER_0,
       .freq_hz = 5000,
       .clk_cfg = LEDC_AUTO_CLK};
-  ESP_ERROR_CHECK(ledc_timer_config(&ledc_timer));
+  if (ledc_timer_config(&ledc_timer) != ESP_OK) {
+    ESP_LOGE(SCR_TAG, "Backlight LEDC timer configuration failed");
+    return false;
+  }
 
   ledc_channel_config_t ledc_channel = {
       .gpio_num = (TFT_BLK),
@@ -449,94 +509,167 @@ void scr_lvgl_init()
       .duty = 0,
       .hpoint = 0};
 
-  ESP_ERROR_CHECK(ledc_channel_config(&ledc_channel));
+  if (ledc_channel_config(&ledc_channel) != ESP_OK) {
+    ESP_LOGE(SCR_TAG, "Backlight LEDC channel configuration failed");
+    return false;
+  }
 
-  backlight = new ESP_PanelBacklightPWM_LEDC(TFT_BLK, 1);
-  backlight->begin();
-  backlight->off();
+  new_backlight = new ESP_PanelBacklightPWM_LEDC(TFT_BLK, 1);
+  if (new_backlight == NULL) {
+    ESP_LOGE(SCR_TAG, "Backlight allocation failed");
+    return false;
+  }
+  new_backlight->begin();
+  new_backlight->off();
 
-  ESP_PanelBusI2C *touch_bus = new ESP_PanelBusI2C(TOUCH_PIN_NUM_I2C_SCL, TOUCH_PIN_NUM_I2C_SDA, ESP_LCD_TOUCH_IO_I2C_CST816S_CONFIG());
+  touch_bus = new ESP_PanelBusI2C(TOUCH_PIN_NUM_I2C_SCL, TOUCH_PIN_NUM_I2C_SDA, ESP_LCD_TOUCH_IO_I2C_CST816S_CONFIG());
+  if (touch_bus == NULL) {
+    ESP_LOGE(SCR_TAG, "Touch bus allocation failed");
+    goto cleanup;
+  }
   // touch_bus->configI2C_Address(0x15);
   touch_bus->configI2cFreqHz(400000);
   // touch_bus->configI2C_PullupEnable(EXAMPLE_TOUCH_I2C_SDA_PULLUP, EXAMPLE_TOUCH_I2C_SCL_PULLUP);
   
-  bool tt = touch_bus->begin();
-  printf("begin return = %d\r\n",tt);
+  if (!touch_bus->begin()) {
+    ESP_LOGE(SCR_TAG, "Touch bus begin failed");
+    goto cleanup;
+  }
 
-  touch = new ESP_PanelTouch_CST816S(touch_bus, SCREEN_RES_HOR, SCREEN_RES_VER, TOUCH_PIN_NUM_RST, TOUCH_PIN_NUM_INT);
+  new_touch = new ESP_PanelTouch_CST816S(touch_bus, SCREEN_RES_HOR, SCREEN_RES_VER, TOUCH_PIN_NUM_RST, TOUCH_PIN_NUM_INT);
+  if (new_touch == NULL) {
+    ESP_LOGE(SCR_TAG, "Touch allocation failed");
+    goto cleanup;
+  }
 
-  touch->init();
-  touch->begin();
+  new_touch->init();
+  new_touch->begin();
+  if (new_touch->getHandle() == nullptr) {
+    ESP_LOGE(SCR_TAG, "Touch initialization failed");
+    goto cleanup;
+  }
 
 #if TOUCH_PIN_NUM_INT >= 0
-  touch->attachInterruptCallback(onTouchInterruptCallback, NULL);
+  new_touch->attachInterruptCallback(onTouchInterruptCallback, NULL);
 #endif
 
-  ESP_PanelBusQSPI *panel_bus = new ESP_PanelBusQSPI(TFT_CS, TFT_SCK, TFT_SDA0, TFT_SDA1, TFT_SDA2, TFT_SDA3);
+  panel_bus = new ESP_PanelBusQSPI(TFT_CS, TFT_SCK, TFT_SDA0, TFT_SDA1, TFT_SDA2, TFT_SDA3);
+  if (panel_bus == NULL) {
+    ESP_LOGE(SCR_TAG, "Display bus allocation failed");
+    goto cleanup;
+  }
   panel_bus->configQspiFreqHz(TFT_SPI_FREQ_HZ);
-  panel_bus->begin();
+  if (!panel_bus->begin()) {
+    ESP_LOGE(SCR_TAG, "Display bus begin failed");
+    goto cleanup;
+  }
 
-  lcd = new ESP_PanelLcd_ST77916(panel_bus, 16, TFT_RST);
+  new_lcd = new ESP_PanelLcd_ST77916(panel_bus, 16, TFT_RST);
+  if (new_lcd == NULL) {
+    ESP_LOGE(SCR_TAG, "Display allocation failed");
+    goto cleanup;
+  }
   // 注意，初始化代码的设置必须在INIT之前
-  lcd->configVendorCommands(lcd_init_cmd, sizeof(lcd_init_cmd) / sizeof(lcd_init_cmd[0]));
-  lcd->init();
-  lcd->reset();
-  lcd->begin();
+  new_lcd->configVendorCommands(lcd_init_cmd, sizeof(lcd_init_cmd) / sizeof(lcd_init_cmd[0]));
+  new_lcd->init();
+  new_lcd->reset();
+  new_lcd->begin();
 
-  lcd->invertColor(true);
+  new_lcd->invertColor(true);
   // setRotation(0);  //设置屏幕方向
-  lcd->displayOn();
+  new_lcd->displayOn();
 
-  backlight->setBrightness(DEFAULT_UI_BRIGHTNESS_PERCENT);
-  screen_switch(true);
+  new_backlight->setBrightness(DEFAULT_UI_BRIGHTNESS_PERCENT);
+  new_backlight->on();
 
   lv_init();
   draw_buffer_size = lv_cache_rows * SCREEN_RES_HOR * sizeof(lv_color_t);
-  disp_draw_buf = (lv_color_t *)heap_caps_malloc(draw_buffer_size, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
-  if (disp_draw_buf == NULL) {
+  new_disp_draw_buf = (lv_color_t *)heap_caps_malloc(draw_buffer_size, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+  if (new_disp_draw_buf == NULL) {
     ESP_LOGE(SCR_TAG, "LVGL draw buffer allocation failed (%u bytes)", (unsigned int)draw_buffer_size);
-    return;
+    goto cleanup;
   }
 
-  lv_disp_draw_buf_init(&draw_buf, disp_draw_buf, NULL, SCREEN_RES_HOR * lv_cache_rows);
+  lv_disp_draw_buf_init(&draw_buf, new_disp_draw_buf, NULL, SCREEN_RES_HOR * lv_cache_rows);
 
   lv_disp_drv_init(&disp_drv);
   disp_drv.hor_res = SCREEN_RES_HOR;
   disp_drv.ver_res = SCREEN_RES_VER;
   disp_drv.flush_cb = my_disp_flush;
   disp_drv.draw_buf = &draw_buf;
-  disp_drv.user_data = (void *)lcd;
+  disp_drv.user_data = (void *)new_lcd;
   disp = lv_disp_drv_register(&disp_drv);
   if (disp == NULL) {
     ESP_LOGE(SCR_TAG, "LVGL display driver registration failed");
-    heap_caps_free(disp_draw_buf);
-    disp_draw_buf = NULL;
-    return;
+    goto cleanup;
   }
 
   disp_flush_uses_callback = false;
-  if (lcd->getBus()->getType() != ESP_PANEL_BUS_TYPE_RGB)
+  if (new_lcd->getBus()->getType() != ESP_PANEL_BUS_TYPE_RGB)
   {
     // lcd->attachRefreshFinishCallback(onRefreshFinishCallback, (void *)disp->driver);attachDrawBitmapFinishCallback
-    lcd->attachDrawBitmapFinishCallback(onRefreshFinishCallback, (void *)disp->driver);
+    new_lcd->attachDrawBitmapFinishCallback(onRefreshFinishCallback, (void *)disp->driver);
     disp_flush_uses_callback = true;
   }
-  indev_touchpad = indev_init(touch);
+  new_indev_touchpad = indev_init(new_touch);
+  if (new_indev_touchpad == NULL) {
+    ESP_LOGE(SCR_TAG, "Touch input registration failed");
+    goto cleanup;
+  }
 
-  knob_handle_t s_knob = 0;
-  knob_config_t cfg = {
-        .gpio_encoder_a = ROTARY_ENC_PIN_A,
-        .gpio_encoder_b = ROTARY_ENC_PIN_B};
-  s_knob = iot_knob_create(&cfg);
-  if (NULL == s_knob)
+    cfg.gpio_encoder_a = ROTARY_ENC_PIN_A;
+    cfg.gpio_encoder_b = ROTARY_ENC_PIN_B;
+  new_knob_handle = iot_knob_create(&cfg);
+  if (new_knob_handle == NULL)
     {
-        Serial.printf("knob create failed\n");
-        return;
+        ESP_LOGE(SCR_TAG, "Knob create failed");
+        goto cleanup;
     }
-  iot_knob_register_cb(s_knob, KNOB_LEFT, _knob_left_cb, &ctx_diff);
-  iot_knob_register_cb(s_knob, KNOB_RIGHT, _knob_right_cb, &ctx_diff);
+  if (iot_knob_register_cb(new_knob_handle, KNOB_LEFT, _knob_left_cb, &ctx_diff) != ESP_OK) {
+    ESP_LOGE(SCR_TAG, "Knob left callback registration failed");
+    goto cleanup;
+  }
+  if (iot_knob_register_cb(new_knob_handle, KNOB_RIGHT, _knob_right_cb, &ctx_diff) != ESP_OK) {
+    ESP_LOGE(SCR_TAG, "Knob right callback registration failed");
+    goto cleanup;
+  }
   
-  indev_knob = indev_knob_init(&s_knob);
+  new_indev_knob = indev_knob_init(&new_knob_handle);
+  if (new_indev_knob == NULL) {
+    ESP_LOGE(SCR_TAG, "Knob input registration failed");
+    goto cleanup;
+  }
+
+  backlight = new_backlight;
+  lcd = new_lcd;
+  touch = new_touch;
+  disp_draw_buf = new_disp_draw_buf;
+  disp_handle = disp;
+  indev_touchpad = new_indev_touchpad;
+  indev_knob = new_indev_knob;
+  knob_handle = new_knob_handle;
+  ok = true;
+
+cleanup:
+  if (!ok) {
+    scr_cleanup_failed_init(disp,
+                            new_indev_touchpad,
+                            new_indev_knob,
+                            new_knob_handle,
+                            new_disp_draw_buf,
+                            new_touch,
+                            new_lcd,
+                            new_backlight);
+    if (touch_bus != NULL && new_touch == NULL) {
+      delete touch_bus;
+    }
+    if (panel_bus != NULL && new_lcd == NULL) {
+      delete panel_bus;
+    }
+    disp_flush_uses_callback = false;
+  }
+
+  return ok;
 }
 
 #endif

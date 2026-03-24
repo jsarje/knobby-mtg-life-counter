@@ -9,6 +9,7 @@
  */
 
 #include <stdio.h>
+#include "freertos/FreeRTOS.h"
 #include "driver/gpio.h"
 #include "esp_attr.h"
 #include "esp_log.h"
@@ -59,6 +60,7 @@ typedef struct Knob
 static knob_dev_t *s_head_handle = NULL;
 static esp_timer_handle_t s_knob_timer_handle;
 static bool s_is_timer_running = false;
+static portMUX_TYPE s_knob_lock = portMUX_INITIALIZER_UNLOCKED;
 
 // 判定函数
 static void process_knob_channel(uint8_t current_level, uint8_t *prev_level,
@@ -105,10 +107,13 @@ static void knob_handler(knob_dev_t *knob)
 static void knob_cb(void *args)
 {
     knob_dev_t *target;
+
+    taskENTER_CRITICAL(&s_knob_lock);
     for (target = s_head_handle; target; target = target->next)
     {
         knob_handler(target);
     }
+    taskEXIT_CRITICAL(&s_knob_lock);
 }
 
 knob_handle_t iot_knob_create(const knob_config_t *config)
@@ -134,6 +139,7 @@ knob_handle_t iot_knob_create(const knob_config_t *config)
 
     knob->event = KNOB_NONE;
 
+    taskENTER_CRITICAL(&s_knob_lock);
     knob->next = s_head_handle;
     s_head_handle = knob;
 
@@ -152,6 +158,7 @@ knob_handle_t iot_knob_create(const knob_config_t *config)
         esp_timer_start_periodic(s_knob_timer_handle, TICKS_INTERVAL * 1000U);
         s_is_timer_running = true;
     }
+    taskEXIT_CRITICAL(&s_knob_lock);
 
     ESP_LOGI(TAG, "Iot Knob Config Succeed, encoder A:%d, encoder B:%d", config->gpio_encoder_a, config->gpio_encoder_b);
     return (knob_handle_t)knob;
@@ -171,6 +178,8 @@ esp_err_t iot_knob_delete(knob_handle_t knob_handle)
     KNOB_CHECK(ESP_OK == ret, "encoder A deinit failed", ESP_FAIL);
     ret = knob_gpio_deinit((uint32_t)(uintptr_t)knob->encoder_b);
     KNOB_CHECK(ESP_OK == ret, "encoder B deinit failed", ESP_FAIL);
+
+    taskENTER_CRITICAL(&s_knob_lock);
     knob_dev_t **curr;
     for (curr = &s_head_handle; *curr;)
     {
@@ -203,6 +212,7 @@ esp_err_t iot_knob_delete(knob_handle_t knob_handle)
         s_is_timer_running = false;
         s_knob_timer_handle = NULL;
     }
+    taskEXIT_CRITICAL(&s_knob_lock);
 
     return ESP_OK;
 }
