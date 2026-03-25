@@ -159,10 +159,6 @@ The entire current UI state machine is implemented in `knob.c`.
 The current firmware builds and retains all screens at startup:
 
 - Intro screen
-- Main screen
-- Dice screen
-- Commander damage select screen
-- Commander damage edit screen
 - Settings screen
 - Multiplayer overview screen
 - Multiplayer menu screen with player and global action variants
@@ -174,6 +170,7 @@ The current firmware builds and retains all screens at startup:
 ### 7.2 Navigation model
 
 - Screens are created once during startup
+- The intro screen transitions directly to the multiplayer overview
 - Navigation is implemented by loading prebuilt screens with `lv_scr_load(...)`
 - UI refresh functions update labels, colors, and state before screen load where needed
 
@@ -181,14 +178,11 @@ The current firmware builds and retains all screens at startup:
 
 All major product state is held in file-scope static variables in `knob.c`, including:
 
-- Single-player life total and pending preview delta
 - Brightness percentage
-- Commander damage values
-- Turn timer state
-- Dice result
 - Battery voltage and percent cache
 - Multiplayer life totals, names, selection, and commander-damage matrix
 - Multiplayer menu mode for player-specific vs. global actions
+- Multiplayer pending preview state
 
 There is no persistence layer in the current implementation. All state is reset on reboot.
 
@@ -198,15 +192,12 @@ The UI uses LVGL timers for several behaviors.
 
 ### 8.1 Timer inventory
 
-- Turn timer refresh: `1000 ms`
-- Turn blink animation: `500 ms`
 - Intro animation: `500 ms`
-- Single-player life preview commit: `4000 ms`
 - Multiplayer life preview commit: `4000 ms`
 
 ### 8.2 Commit semantics
 
-Single-player and multiplayer life previews are implemented as delayed commits rather than immediate writes. The user sees the pending delta first, and the committed total changes only when the timer expires.
+Multiplayer life preview is implemented as a delayed commit rather than an immediate write. The user sees the pending delta first, and the committed total changes only when the timer expires.
 
 ### 8.3 Immediate-write exceptions
 
