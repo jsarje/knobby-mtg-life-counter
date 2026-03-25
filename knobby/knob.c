@@ -6,14 +6,10 @@
 #include <stdio.h>
 #include <string.h>
 
-#define ENEMY_COUNT 3
 #define LIFE_MIN -999
 #define LIFE_MAX 999
 #define DEFAULT_LIFE_TOTAL 40
 #define DEFAULT_BRIGHTNESS_PERCENT 25
-#define BATTERY_FULL_VOLTAGE 4.18f
-#define BATTERY_EMPTY_VOLTAGE 3.35f
-#define KNOBBY_LETTER_COUNT 6
 #define INTRO_CHAR_COUNT 7
 #define MULTIPLAYER_COUNT 4
 #define KNOB_EVENT_QUEUE_SIZE 32
@@ -31,14 +27,7 @@
 
 typedef struct
 {
-    const char *name;
-    int damage;
-} enemy_state_t;
-
-typedef struct
-{
     knob_event_t event;
-    int cont;
 } knob_input_event_t;
 
 typedef enum
@@ -49,23 +38,10 @@ typedef enum
 
 static const char *KNOB_GUI_TAG = "knob_gui";
 
-static int life_total = DEFAULT_LIFE_TOTAL;
 static int brightness_percent = DEFAULT_BRIGHTNESS_PERCENT;
-
-static enemy_state_t enemies[ENEMY_COUNT] = {
-    {"P1", 0},
-    {"P2", 0},
-    {"P3", 0}
-};
-
-static int selected_enemy = -1;
 
 // ---------- screens ----------
 static lv_obj_t *screen_intro = NULL;
-static lv_obj_t *screen_main = NULL;
-static lv_obj_t *screen_dice = NULL;
-static lv_obj_t *screen_select = NULL;
-static lv_obj_t *screen_damage = NULL;
 static lv_obj_t *screen_settings = NULL;
 static lv_obj_t *screen_multiplayer = NULL;
 static lv_obj_t *screen_multiplayer_menu = NULL;
@@ -74,50 +50,8 @@ static lv_obj_t *screen_multiplayer_cmd_select = NULL;
 static lv_obj_t *screen_multiplayer_cmd_damage = NULL;
 static lv_obj_t *screen_multiplayer_all_damage = NULL;
 
-// ---------- main UI ----------
+// ---------- intro UI ----------
 static lv_obj_t *intro_letters[INTRO_CHAR_COUNT];
-static lv_obj_t *arc_life = NULL;
-static lv_obj_t *title_icon = NULL;
-static lv_obj_t *title_sun_core = NULL;
-static lv_obj_t *title_sun_rays[12];
-static lv_obj_t *label_knobby_arc[KNOBBY_LETTER_COUNT];
-static lv_obj_t *label_dice_result = NULL;
-static lv_obj_t *label_dice_hint = NULL;
-static lv_obj_t *life_container = NULL;
-static lv_obj_t *life_hitbox = NULL;
-static lv_obj_t *menu_open_button = NULL;
-static lv_obj_t *menu_dot = NULL;
-static lv_obj_t *turn_container = NULL;
-static lv_obj_t *label_turn = NULL;
-static lv_obj_t *label_turn_time = NULL;
-static lv_obj_t *turn_live_dot = NULL;
-static lv_obj_t *menu_overlay = NULL;
-static lv_obj_t *menu_panel = NULL;
-static lv_obj_t *menu_button_dice = NULL;
-static lv_obj_t *menu_button_timer = NULL;
-static lv_obj_t *menu_button_multiplayer = NULL;
-
-// 7-segment digits
-static lv_obj_t *digit_hundreds[7];
-static lv_obj_t *digit_tens[7];
-static lv_obj_t *digit_ones[7];
-static lv_obj_t *digit_sign[7];
-static lv_obj_t *digit_sign_plus_vert = NULL;
-
-static lv_obj_t *digit_box_sign = NULL;
-static lv_obj_t *digit_box_hundreds = NULL;
-static lv_obj_t *digit_box_tens = NULL;
-static lv_obj_t *digit_box_ones = NULL;
-
-// ---------- select UI ----------
-static lv_obj_t *label_select_title = NULL;
-static lv_obj_t *label_enemy_name[ENEMY_COUNT];
-static lv_obj_t *label_enemy_damage[ENEMY_COUNT];
-
-// ---------- damage UI ----------
-static lv_obj_t *label_damage_title = NULL;
-static lv_obj_t *label_damage_value = NULL;
-static lv_obj_t *label_damage_hint = NULL;
 
 // ---------- settings UI ----------
 static lv_obj_t *label_settings_title = NULL;
@@ -151,12 +85,8 @@ static lv_obj_t *label_multiplayer_all_damage_title = NULL;
 static lv_obj_t *label_multiplayer_all_damage_value = NULL;
 static lv_obj_t *label_multiplayer_all_damage_hint = NULL;
 
-static lv_timer_t *turn_timer = NULL;
-static lv_timer_t *turn_blink_timer = NULL;
 static lv_timer_t *intro_timer = NULL;
-static lv_timer_t *life_preview_timer = NULL;
 static lv_timer_t *multiplayer_life_preview_timer = NULL;
-static int last_knob_cont = 0;
 static bool knob_initialized = false;
 static knob_input_event_t knob_event_queue[KNOB_EVENT_QUEUE_SIZE];
 static volatile uint8_t knob_event_head = 0;
@@ -166,21 +96,11 @@ static volatile uint8_t knob_event_high_watermark = 0;
 static portMUX_TYPE knob_event_queue_lock = portMUX_INITIALIZER_UNLOCKED;
 static uint32_t knob_event_overflow_reported = 0;
 
-static bool turn_timer_enabled = false;
-static bool turn_indicator_visible = true;
-static bool turn_ui_visible = false;
-static uint32_t turn_elapsed_ms = 0;
-static uint32_t turn_started_ms = 0;
-static int turn_number = 0;
-static int dice_result = 0;
 static int battery_percent = -1;
 static float battery_voltage = 0.0f;
 static uint32_t battery_sample_tick = 0;
 static bool battery_sample_valid = false;
-static uint8_t turn_blink_steps_remaining = 0;
 static uint8_t intro_step = 0;
-static int pending_life_delta = 0;
-static bool life_preview_active = false;
 static int multiplayer_life[MULTIPLAYER_COUNT] = {40, 40, 40, 40};
 static int multiplayer_selected = 0;
 static int multiplayer_menu_player = 0;
@@ -192,11 +112,9 @@ static int multiplayer_cmd_damage_totals[MULTIPLAYER_COUNT][MULTIPLAYER_COUNT] =
 static int multiplayer_all_damage_value = 0;
 static multiplayer_menu_mode_t multiplayer_menu_mode = MULTIPLAYER_MENU_PLAYER;
 static bool multiplayer_swipe_tracking = false;
-static bool main_swipe_tracking = false;
 static int multiplayer_pending_life_delta = 0;
 static int multiplayer_preview_player = -1;
 static bool multiplayer_life_preview_active = false;
-static lv_point_t main_swipe_start = {0, 0};
 static lv_point_t multiplayer_swipe_start = {0, 0};
 static char multiplayer_names[MULTIPLAYER_COUNT][16] = {"P1", "P2", "P3", "P4"};
 
@@ -206,7 +124,6 @@ static const char *intro_text[INTRO_CHAR_COUNT] = {"k", "n", "o", "b", "b", "y",
 static const uint32_t intro_colors[INTRO_CHAR_COUNT] = {0x9C5CFF, 0xF6C945, 0x42A5F5, 0x43A047, 0x43A047, 0xE53935, 0xFFFFFF};
 static const lv_coord_t intro_x[INTRO_CHAR_COUNT] = {56, 98, 140, 182, 214, 246, 284};
 
-static void back_to_multiplayer(void);
 static void open_multiplayer_screen(void);
 
 static uint8_t knob_queue_count_unsafe(void)
@@ -247,39 +164,6 @@ static void report_knob_queue_status(void)
     knob_event_overflow_reported = overflow_count;
 }
 
-// ----------------------------------------------------
-// 7-segment map
-// segment order:
-// 0 top
-// 1 upper-left
-// 2 upper-right
-// 3 middle
-// 4 lower-left
-// 5 lower-right
-// 6 bottom
-// ----------------------------------------------------
-
-static const uint8_t seg_map[10][7] = {
-    {1,1,1,0,1,1,1}, // 0
-    {0,0,1,0,0,1,0}, // 1
-    {1,0,1,1,1,0,1}, // 2
-    {1,0,1,1,0,1,1}, // 3
-    {0,1,1,1,0,1,0}, // 4
-    {1,1,0,1,0,1,1}, // 5
-    {1,1,0,1,1,1,1}, // 6
-    {1,0,1,0,0,1,0}, // 7
-    {1,1,1,1,1,1,1}, // 8
-    {1,1,1,1,0,1,1}  // 9
-};
-
-static lv_color_t get_life_color(int value)
-{
-    if (value > 40)  return lv_palette_main(LV_PALETTE_PURPLE);
-    if (value >= 30) return lv_palette_main(LV_PALETTE_GREEN);
-    if (value >= 11) return lv_palette_main(LV_PALETTE_YELLOW);
-    return lv_palette_main(LV_PALETTE_RED);
-}
-
 static int clamp_life(int value)
 {
     if (value < LIFE_MIN) return LIFE_MIN;
@@ -291,13 +175,6 @@ static int clamp_brightness(int value)
 {
     if (value < 5) return 5;
     if (value > 100) return 100;
-    return value;
-}
-
-static int get_arc_display_value(int value)
-{
-    if (value < 0) return 0;
-    if (value > 40) return 40;
     return value;
 }
 
@@ -412,27 +289,6 @@ static lv_obj_t *make_button(lv_obj_t *parent, const char *txt, lv_coord_t w, lv
     return btn;
 }
 
-static lv_obj_t *make_plain_box(lv_obj_t *parent, lv_coord_t w, lv_coord_t h)
-{
-    lv_obj_t *obj = lv_obj_create(parent);
-    lv_obj_remove_style_all(obj);
-    lv_obj_set_size(obj, w, h);
-    lv_obj_clear_flag(obj, LV_OBJ_FLAG_SCROLLABLE);
-    return obj;
-}
-
-static lv_obj_t *make_seg(lv_obj_t *parent, lv_coord_t x, lv_coord_t y, lv_coord_t w, lv_coord_t h)
-{
-    lv_obj_t *obj = lv_obj_create(parent);
-    lv_obj_remove_style_all(obj);
-    lv_obj_set_size(obj, w, h);
-    lv_obj_set_pos(obj, x, y);
-    lv_obj_set_style_radius(obj, 2, 0);
-    lv_obj_set_style_bg_opa(obj, LV_OPA_COVER, 0);
-    lv_obj_clear_flag(obj, LV_OBJ_FLAG_SCROLLABLE);
-    return obj;
-}
-
 static void refresh_intro_ui(void)
 {
     int i;
@@ -445,28 +301,6 @@ static void refresh_intro_ui(void)
         } else {
             lv_obj_add_flag(intro_letters[i], LV_OBJ_FLAG_HIDDEN);
         }
-    }
-}
-
-static void create_digit(lv_obj_t *parent, lv_obj_t **seg)
-{
-    seg[0] = make_seg(parent, 10,   0, 40,  8);  // top
-    seg[1] = make_seg(parent,  0,   8,  8, 44);  // upper-left
-    seg[2] = make_seg(parent, 52,   8,  8, 44);  // upper-right
-    seg[3] = make_seg(parent, 10,  52, 40,  8);  // middle
-    seg[4] = make_seg(parent,  0,  60,  8, 44);  // lower-left
-    seg[5] = make_seg(parent, 52,  60,  8, 44);  // lower-right
-    seg[6] = make_seg(parent, 10, 104, 40,  8);  // bottom
-}
-
-static void set_seg_style(lv_obj_t *seg, lv_color_t color, bool on)
-{
-    if (on) {
-        lv_obj_set_style_bg_color(seg, color, 0);
-        lv_obj_set_style_bg_opa(seg, LV_OPA_COVER, 0);
-    } else {
-        lv_obj_set_style_bg_color(seg, lv_color_hex(0x101010), 0);
-        lv_obj_set_style_bg_opa(seg, LV_OPA_30, 0);
     }
 }
 
@@ -497,110 +331,6 @@ static lv_color_t get_player_preview_color(int index, int delta)
     return (delta < 0) ? lv_palette_main(LV_PALETTE_RED) : lv_palette_main(LV_PALETTE_GREEN);
 }
 
-static int get_main_player_index(void)
-{
-    int i;
-
-    for (i = 0; i < MULTIPLAYER_COUNT; i++) {
-        if (strcmp(multiplayer_names[i], "m") == 0) {
-            return i;
-        }
-    }
-
-    return -1;
-}
-
-static int get_cmd_target_player_index(int row)
-{
-    int main_player = get_main_player_index();
-    int count = 0;
-    int i;
-
-    if (row < 0 || row >= ENEMY_COUNT) return row;
-
-    if (main_player < 0) {
-        return row;
-    }
-
-    for (i = 0; i < MULTIPLAYER_COUNT; i++) {
-        if (i == main_player) continue;
-        if (count == row) return i;
-        count++;
-    }
-
-    return row;
-}
-
-static void set_digit_segments(lv_obj_t **seg, int value, lv_color_t color, bool visible)
-{
-    int i;
-
-    for (i = 0; i < 7; i++) {
-        if (!visible) {
-            lv_obj_add_flag(seg[i], LV_OBJ_FLAG_HIDDEN);
-        } else {
-            lv_obj_clear_flag(seg[i], LV_OBJ_FLAG_HIDDEN);
-            set_seg_style(seg[i], color, seg_map[value][i] ? true : false);
-        }
-    }
-}
-
-static void set_minus_segments(lv_obj_t **seg, lv_color_t color, bool visible)
-{
-    int i;
-
-    if (digit_sign_plus_vert != NULL) {
-        lv_obj_add_flag(digit_sign_plus_vert, LV_OBJ_FLAG_HIDDEN);
-    }
-
-    for (i = 0; i < 7; i++) {
-        if (!visible) {
-            lv_obj_add_flag(seg[i], LV_OBJ_FLAG_HIDDEN);
-        } else {
-            lv_obj_clear_flag(seg[i], LV_OBJ_FLAG_HIDDEN);
-            set_seg_style(seg[i], color, (i == 3));
-        }
-    }
-}
-
-static void set_plus_segments(lv_obj_t **seg, lv_color_t color, bool visible)
-{
-    int i;
-
-    if (digit_sign_plus_vert != NULL) {
-        if (!visible) {
-            lv_obj_add_flag(digit_sign_plus_vert, LV_OBJ_FLAG_HIDDEN);
-        } else {
-            lv_obj_clear_flag(digit_sign_plus_vert, LV_OBJ_FLAG_HIDDEN);
-            lv_obj_set_style_bg_color(digit_sign_plus_vert, color, 0);
-            lv_obj_set_style_bg_opa(digit_sign_plus_vert, LV_OPA_COVER, 0);
-        }
-    }
-
-    for (i = 0; i < 7; i++) {
-        if (!visible) {
-            lv_obj_add_flag(seg[i], LV_OBJ_FLAG_HIDDEN);
-        } else {
-            lv_obj_clear_flag(seg[i], LV_OBJ_FLAG_HIDDEN);
-            set_seg_style(seg[i], color, (i == 3));
-        }
-    }
-}
-
-static void refresh_ring()
-{
-    lv_color_t c = get_life_color(life_total);
-
-    lv_arc_set_value(arc_life, get_arc_display_value(life_total));
-
-    lv_obj_set_style_arc_color(arc_life, lv_color_hex(0x202020), LV_PART_MAIN);
-    lv_obj_set_style_arc_width(arc_life, 20, LV_PART_MAIN);
-
-    lv_obj_set_style_arc_color(arc_life, c, LV_PART_INDICATOR);
-    lv_obj_set_style_arc_width(arc_life, 20, LV_PART_INDICATOR);
-    lv_obj_set_style_arc_rounded(arc_life, true, LV_PART_INDICATOR);
-}
-
 static void refresh_brightness_ring()
 {
     lv_arc_set_value(arc_brightness, brightness_percent);
@@ -611,273 +341,6 @@ static void refresh_brightness_ring()
     lv_obj_set_style_arc_color(arc_brightness, lv_palette_main(LV_PALETTE_BLUE), LV_PART_INDICATOR);
     lv_obj_set_style_arc_width(arc_brightness, 18, LV_PART_INDICATOR);
     lv_obj_set_style_arc_rounded(arc_brightness, true, LV_PART_INDICATOR);
-}
-
-static void refresh_dice_ui(void)
-{
-    char buf[8];
-
-    if (label_dice_result == NULL) return;
-
-    if (dice_result <= 0) {
-            lv_label_set_text(label_dice_result, "0");
-    } else {
-        snprintf(buf, sizeof(buf), "%d", dice_result);
-        lv_label_set_text(label_dice_result, buf);
-    }
-}
-
-static uint32_t get_turn_elapsed_ms(void)
-{
-    uint32_t elapsed = turn_elapsed_ms;
-
-    if (turn_timer_enabled) {
-            elapsed += lv_tick_get() - turn_started_ms;
-    }
-
-    return elapsed;
-}
-
-static void refresh_turn_ui()
-{
-    char turn_buf[24];
-    char time_buf[24];
-    uint32_t total_seconds = get_turn_elapsed_ms() / 1000;
-    uint32_t hours = total_seconds / 3600;
-    uint32_t minutes = (total_seconds % 3600) / 60;
-
-    if (turn_number <= 0) {
-            lv_label_set_text(label_turn, "Turn 1");
-    } else {
-        snprintf(turn_buf, sizeof(turn_buf), "turn %d", turn_number);
-        lv_label_set_text(label_turn, turn_buf);
-    }
-
-    snprintf(time_buf, sizeof(time_buf), "%lu:%02lu",
-             (unsigned long)hours, (unsigned long)minutes);
-    lv_label_set_text(label_turn_time, time_buf);
-
-    if (turn_container != NULL) {
-        if (turn_ui_visible) {
-            lv_obj_clear_flag(turn_container, LV_OBJ_FLAG_HIDDEN);
-        } else {
-            lv_obj_add_flag(turn_container, LV_OBJ_FLAG_HIDDEN);
-        }
-    }
-
-    if (turn_live_dot != NULL) {
-        if (turn_timer_enabled) {
-            lv_obj_clear_flag(turn_live_dot, LV_OBJ_FLAG_HIDDEN);
-        } else {
-            lv_obj_add_flag(turn_live_dot, LV_OBJ_FLAG_HIDDEN);
-        }
-    }
-
-    if (turn_container != NULL) {
-        lv_obj_set_style_opa(turn_container, turn_indicator_visible ? LV_OPA_COVER : LV_OPA_TRANSP, 0);
-    }
-
-    if (menu_button_timer != NULL) {
-        lv_obj_set_style_bg_color(
-            menu_button_timer,
-            turn_timer_enabled ? lv_palette_main(LV_PALETTE_GREEN) : lv_color_hex(0x303030),
-            0
-        );
-    }
-}
-
-static void refresh_life_digits()
-{
-    int display_value = life_preview_active ? pending_life_delta : life_total;
-    int abs_v = (display_value < 0) ? -display_value : display_value;
-    int hundreds = abs_v / 100;
-    int tens = (abs_v / 10) % 10;
-    int ones = abs_v % 10;
-    bool negative = (display_value < 0);
-    bool positive_preview = life_preview_active && (display_value > 0);
-    lv_coord_t x_offset = 0;
-    lv_color_t c = life_preview_active ? (negative ? lv_palette_main(LV_PALETTE_RED) : lv_palette_main(LV_PALETTE_GREEN))
-                                   : get_life_color(display_value);
-
-    if (positive_preview) {
-        if (abs_v >= 100) x_offset = -34;
-        else if (abs_v >= 10) x_offset = -12;
-        else x_offset = 0;
-    } else if (negative) {
-        if (abs_v >= 100) x_offset = -25;
-        else x_offset = 0;
-    }
-
-    if (life_container != NULL) {
-        lv_obj_align(life_container, LV_ALIGN_CENTER, x_offset, -6);
-    }
-    if (life_hitbox != NULL) {
-        lv_obj_align(life_hitbox, LV_ALIGN_CENTER, x_offset, -8);
-    }
-
-    lv_obj_add_flag(digit_box_sign, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_add_flag(digit_box_hundreds, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_add_flag(digit_box_tens, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_add_flag(digit_box_ones, LV_OBJ_FLAG_HIDDEN);
-    set_minus_segments(digit_sign, c, false);
-    set_plus_segments(digit_sign, c, false);
-
-    if (positive_preview && abs_v >= 100) {
-        lv_obj_set_pos(digit_box_sign, 24, 0);
-        lv_obj_set_pos(digit_box_hundreds, 82, 0);
-        lv_obj_set_pos(digit_box_tens, 152, 0);
-        lv_obj_set_pos(digit_box_ones, 222, 0);
-
-        lv_obj_clear_flag(digit_box_sign, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_clear_flag(digit_box_hundreds, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_clear_flag(digit_box_tens, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_clear_flag(digit_box_ones, LV_OBJ_FLAG_HIDDEN);
-
-        set_plus_segments(digit_sign, c, true);
-        set_digit_segments(digit_hundreds, hundreds, c, true);
-        set_digit_segments(digit_tens, tens, c, true);
-        set_digit_segments(digit_ones, ones, c, true);
-    }
-    else if (positive_preview && abs_v >= 10) {
-        lv_obj_set_pos(digit_box_sign, 54, 0);
-        lv_obj_set_pos(digit_box_tens, 112, 0);
-        lv_obj_set_pos(digit_box_ones, 182, 0);
-
-        lv_obj_clear_flag(digit_box_sign, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_clear_flag(digit_box_tens, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_clear_flag(digit_box_ones, LV_OBJ_FLAG_HIDDEN);
-
-        set_plus_segments(digit_sign, c, true);
-        set_digit_segments(digit_tens, tens, c, true);
-        set_digit_segments(digit_ones, ones, c, true);
-    }
-    else if (positive_preview) {
-        lv_obj_set_pos(digit_box_sign, 86, 0);
-        lv_obj_set_pos(digit_box_ones, 150, 0);
-
-        lv_obj_clear_flag(digit_box_sign, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_clear_flag(digit_box_ones, LV_OBJ_FLAG_HIDDEN);
-
-        set_plus_segments(digit_sign, c, true);
-        set_digit_segments(digit_ones, ones, c, true);
-    }
-    else if (negative && abs_v >= 100) {
-        lv_obj_set_pos(digit_box_sign, 0, 0);
-        lv_obj_set_pos(digit_box_hundreds, 70, 0);
-        lv_obj_set_pos(digit_box_tens, 140, 0);
-        lv_obj_set_pos(digit_box_ones, 210, 0);
-
-        lv_obj_clear_flag(digit_box_sign, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_clear_flag(digit_box_hundreds, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_clear_flag(digit_box_tens, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_clear_flag(digit_box_ones, LV_OBJ_FLAG_HIDDEN);
-
-        set_minus_segments(digit_sign, c, true);
-        set_digit_segments(digit_hundreds, hundreds, c, true);
-        set_digit_segments(digit_tens, tens, c, true);
-        set_digit_segments(digit_ones, ones, c, true);
-    }
-    else if (negative && abs_v >= 10) {
-        lv_obj_set_pos(digit_box_sign, 10, 0);
-        lv_obj_set_pos(digit_box_tens, 80, 0);
-        lv_obj_set_pos(digit_box_ones, 150, 0);
-
-        lv_obj_clear_flag(digit_box_sign, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_clear_flag(digit_box_tens, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_clear_flag(digit_box_ones, LV_OBJ_FLAG_HIDDEN);
-
-        set_minus_segments(digit_sign, c, true);
-        set_digit_segments(digit_tens, tens, c, true);
-        set_digit_segments(digit_ones, ones, c, true);
-    }
-    else if (negative) {
-        lv_obj_set_pos(digit_box_sign, 45, 0);
-        lv_obj_set_pos(digit_box_ones, 115, 0);
-
-        lv_obj_clear_flag(digit_box_sign, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_clear_flag(digit_box_ones, LV_OBJ_FLAG_HIDDEN);
-
-        set_minus_segments(digit_sign, c, true);
-        set_digit_segments(digit_ones, ones, c, true);
-    }
-    else if (abs_v >= 100) {
-        lv_obj_set_pos(digit_box_hundreds, 45, 0);
-        lv_obj_set_pos(digit_box_tens, 115, 0);
-        lv_obj_set_pos(digit_box_ones, 185, 0);
-
-        lv_obj_clear_flag(digit_box_hundreds, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_clear_flag(digit_box_tens, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_clear_flag(digit_box_ones, LV_OBJ_FLAG_HIDDEN);
-
-        set_digit_segments(digit_hundreds, hundreds, c, true);
-        set_digit_segments(digit_tens, tens, c, true);
-        set_digit_segments(digit_ones, ones, c, true);
-    }
-    else if (abs_v >= 10) {
-        lv_obj_set_pos(digit_box_tens, 80, 0);
-        lv_obj_set_pos(digit_box_ones, 150, 0);
-
-        lv_obj_clear_flag(digit_box_tens, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_clear_flag(digit_box_ones, LV_OBJ_FLAG_HIDDEN);
-
-        set_digit_segments(digit_tens, tens, c, true);
-        set_digit_segments(digit_ones, ones, c, true);
-    }
-    else {
-        lv_obj_set_pos(digit_box_ones, 115, 0);
-        lv_obj_clear_flag(digit_box_ones, LV_OBJ_FLAG_HIDDEN);
-        set_digit_segments(digit_ones, ones, c, true);
-    }
-}
-
-static void refresh_main_ui()
-{
-    refresh_ring();
-    refresh_life_digits();
-    refresh_turn_ui();
-}
-
-static void refresh_select_ui()
-{
-    char buf[32];
-    int i;
-
-    for (i = 0; i < ENEMY_COUNT; i++) {
-        int player_index = get_cmd_target_player_index(i);
-        lv_obj_t *row = (label_enemy_name[i] != NULL) ? lv_obj_get_parent(label_enemy_name[i]) : NULL;
-        lv_color_t text_color = get_player_text_color(player_index);
-
-        lv_label_set_text(label_enemy_name[i], multiplayer_names[player_index]);
-        snprintf(buf, sizeof(buf), "%d", enemies[i].damage);
-        lv_label_set_text(label_enemy_damage[i], buf);
-        lv_obj_set_style_text_color(label_enemy_name[i], text_color, 0);
-        lv_obj_set_style_text_color(label_enemy_damage[i], text_color, 0);
-        if (row != NULL) {
-            lv_obj_set_style_bg_color(row, get_player_base_color(player_index), 0);
-            lv_obj_set_style_bg_opa(row, LV_OPA_COVER, 0);
-        }
-    }
-}
-
-static void refresh_damage_ui()
-{
-    char buf[64];
-    lv_color_t text_color;
-
-    if (selected_enemy < 0 || selected_enemy >= ENEMY_COUNT) return;
-
-    {
-        int player_index = get_cmd_target_player_index(selected_enemy);
-        text_color = get_player_text_color(player_index);
-        lv_label_set_text(label_damage_title, multiplayer_names[player_index]);
-        lv_obj_set_style_bg_color(screen_damage, get_player_active_color(player_index), 0);
-    }
-    lv_obj_set_style_text_color(label_damage_title, text_color, 0);
-    lv_obj_set_style_text_color(label_damage_value, text_color, 0);
-    lv_obj_set_style_text_color(label_damage_hint, text_color, 0);
-
-    snprintf(buf, sizeof(buf), "Damage: %d", enemies[selected_enemy].damage);
-    lv_label_set_text(label_damage_value, buf);
 }
 
 static void refresh_settings_ui()
@@ -1062,23 +525,6 @@ static void refresh_multiplayer_all_damage_ui()
     }
 }
 
-static void life_preview_commit_cb(lv_timer_t *timer)
-{
-    (void)timer;
-
-    life_total = clamp_life(life_total + pending_life_delta);
-    pending_life_delta = 0;
-    life_preview_active = false;
-    multiplayer_pending_life_delta = 0;
-    multiplayer_preview_player = -1;
-    multiplayer_life_preview_active = false;
-    if (life_preview_timer != NULL) {
-        lv_timer_pause(life_preview_timer);
-    }
-    refresh_main_ui();
-    refresh_select_ui();
-}
-
 static void multiplayer_life_preview_commit_cb(lv_timer_t *timer)
 {
     (void)timer;
@@ -1102,43 +548,6 @@ static void multiplayer_life_preview_commit_cb(lv_timer_t *timer)
         lv_timer_pause(multiplayer_life_preview_timer);
     }
     refresh_multiplayer_ui();
-}
-
-static void change_life(int delta)
-{
-    pending_life_delta += delta;
-    pending_life_delta = clamp_life(life_total + pending_life_delta) - life_total;
-    life_preview_active = (pending_life_delta != 0);
-
-    if (life_preview_timer != NULL) {
-        lv_timer_reset(life_preview_timer);
-    }
-
-    if (!life_preview_active && life_preview_timer != NULL) {
-        lv_timer_pause(life_preview_timer);
-    } else if (life_preview_timer != NULL) {
-        lv_timer_resume(life_preview_timer);
-    }
-
-    refresh_main_ui();
-}
-
-static void add_damage_to_selected_enemy(int delta)
-{
-    if (selected_enemy < 0 || selected_enemy >= ENEMY_COUNT) return;
-
-    enemies[selected_enemy].damage += delta;
-    if (enemies[selected_enemy].damage < 0)
-        enemies[selected_enemy].damage = 0;
-
-    if (delta > 0) {
-        change_life(-delta);
-    } else if (delta < 0) {
-        change_life(-delta);
-    }
-
-    refresh_damage_ui();
-    refresh_select_ui();
 }
 
 static void change_brightness(int delta)
@@ -1208,55 +617,6 @@ static void change_multiplayer_all_damage(int delta)
     refresh_multiplayer_all_damage_ui();
 }
 
-static void hide_main_menu(void)
-{
-    if (menu_overlay != NULL) {
-        lv_obj_add_flag(menu_overlay, LV_OBJ_FLAG_HIDDEN);
-    }
-}
-
-static void show_main_menu(void)
-{
-    if (menu_overlay != NULL) {
-        lv_obj_clear_flag(menu_overlay, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_move_foreground(menu_overlay);
-    }
-}
-
-static void turn_timer_start_fresh(void)
-{
-    turn_number = 1;
-    turn_elapsed_ms = 0;
-    turn_started_ms = lv_tick_get();
-    turn_timer_enabled = true;
-    turn_indicator_visible = true;
-    turn_ui_visible = true;
-    turn_blink_steps_remaining = 10;
-
-    if (turn_blink_timer != NULL) {
-        lv_timer_resume(turn_blink_timer);
-    }
-
-    refresh_turn_ui();
-}
-
-static void turn_timer_reset(void)
-{
-    turn_timer_enabled = false;
-    turn_elapsed_ms = 0;
-    turn_started_ms = 0;
-    turn_number = 0;
-    turn_indicator_visible = true;
-    turn_ui_visible = false;
-    turn_blink_steps_remaining = 0;
-
-    if (turn_blink_timer != NULL) {
-        lv_timer_pause(turn_blink_timer);
-    }
-
-    refresh_turn_ui();
-}
-
 static void reset_all_values(void)
 {
     int i;
@@ -1290,30 +650,6 @@ static void reset_all_values(void)
     refresh_multiplayer_cmd_select_ui();
     refresh_multiplayer_cmd_damage_ui();
     refresh_multiplayer_all_damage_ui();
-}
-
-static void turn_timer_tick_cb(lv_timer_t *timer)
-{
-    (void)timer;
-    refresh_turn_ui();
-}
-
-static void turn_blink_timer_cb(lv_timer_t *timer)
-{
-    (void)timer;
-
-    if (turn_blink_steps_remaining == 0) {
-        turn_indicator_visible = true;
-        if (turn_blink_timer != NULL) {
-            lv_timer_pause(turn_blink_timer);
-        }
-        refresh_turn_ui();
-        return;
-    }
-
-    turn_indicator_visible = !turn_indicator_visible;
-    turn_blink_steps_remaining--;
-    refresh_turn_ui();
 }
 
 static void intro_timer_cb(lv_timer_t *timer)
@@ -1405,19 +741,6 @@ static void open_multiplayer_all_damage_screen(void)
     multiplayer_all_damage_value = 0;
     refresh_multiplayer_all_damage_ui();
     load_screen_if_needed(screen_multiplayer_all_damage);
-}
-
-static void back_to_multiplayer()
-{
-    multiplayer_life_preview_commit_cb(NULL);
-    refresh_multiplayer_ui();
-    load_screen_if_needed(screen_multiplayer);
-}
-
-static void event_open_settings(lv_event_t *e)
-{
-    (void)e;
-    open_settings_screen();
 }
 
 static void event_menu_reset(lv_event_t *e)
@@ -1535,8 +858,6 @@ static void event_multiplayer_name_save(lv_event_t *e)
     refresh_multiplayer_name_ui();
     refresh_multiplayer_cmd_select_ui();
     refresh_multiplayer_cmd_damage_ui();
-    refresh_select_ui();
-    refresh_damage_ui();
     open_multiplayer_menu_screen(multiplayer_menu_player, MULTIPLAYER_MENU_PLAYER);
 }
 
@@ -1936,11 +1257,10 @@ void knob_change(knob_event_t k, int cont)
 
     if (!knob_initialized)
     {
-        last_knob_cont = cont;
         knob_initialized = true;
     }
 
-    last_knob_cont = cont;
+    (void)cont;
 
     taskENTER_CRITICAL(&knob_event_queue_lock);
     next_head = (uint8_t)((knob_event_head + 1U) % KNOB_EVENT_QUEUE_SIZE);
@@ -1950,7 +1270,6 @@ void knob_change(knob_event_t k, int cont)
     }
 
     knob_event_queue[knob_event_head].event = k;
-    knob_event_queue[knob_event_head].cont = cont;
     knob_event_head = next_head;
     pending_count = knob_queue_count_unsafe();
     if (pending_count > knob_event_high_watermark) {
