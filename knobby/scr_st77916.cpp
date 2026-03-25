@@ -33,6 +33,7 @@ static knob_handle_t knob_handle = NULL;
 static IRAM_ATTR bool onTouchInterruptCallback(void *user_data)
 {
   (void)user_data;
+  // The driver still polls for touch coordinates, so the interrupt hook remains a no-op.
   return false;
 }
 #endif
