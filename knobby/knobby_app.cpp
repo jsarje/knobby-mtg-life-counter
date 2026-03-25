@@ -57,10 +57,10 @@ extern "C" float knob_read_battery_voltage(void)
 
 void knobby_app_setup(void)
 {
-  // 160 MHz verbraucht weniger Batterie, 240 MHz reduziert hier aber Darstellungsfehler und Hänger.
+  // 160 MHz uses less battery, but 240 MHz reduces rendering glitches and hangs here.
   setCpuFrequencyMhz(240);
 
-  // Funk deaktivieren
+  // Disable wireless radios.
   WiFi.mode(WIFI_OFF);
   btStop();
 

@@ -265,7 +265,7 @@ void setRotation(uint8_t rot)
 
   switch (rot)
   {
-  case 1: // 顺时针90度
+  case 1: // Rotate clockwise 90 degrees.
     lcd->swapXY(true);
     lcd->mirrorX(true);
     lcd->mirrorY(false);
@@ -498,14 +498,14 @@ bool scr_lvgl_init(void)
     ESP_LOGE(SCR_TAG, "Display allocation failed");
     goto cleanup;
   }
-  // 注意，初始化代码的设置必须在INIT之前
+  // Note: initialization settings must be configured before INIT.
   new_lcd->configVendorCommands(lcd_init_cmd, sizeof(lcd_init_cmd) / sizeof(lcd_init_cmd[0]));
   new_lcd->init();
   new_lcd->reset();
   new_lcd->begin();
 
   new_lcd->invertColor(true);
-  // setRotation(0);  //设置屏幕方向
+  // setRotation(0);  // Set screen orientation.
   new_lcd->displayOn();
 
   new_backlight->setBrightness(DEFAULT_UI_BRIGHTNESS_PERCENT);
