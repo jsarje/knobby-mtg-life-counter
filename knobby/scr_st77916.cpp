@@ -30,7 +30,7 @@ static ESP_PanelTouch *touch = NULL;
 static knob_handle_t knob_handle = NULL;
 
 #if TOUCH_PIN_NUM_INT >= 0
-static IRAM_ATTR bool onTouchInterruptCallback(void *user_data)
+IRAM_ATTR bool onTouchInterruptCallback(void *user_data)
 {
   (void)user_data;
   // The driver still polls for touch coordinates, so the interrupt hook remains a no-op.
@@ -247,7 +247,7 @@ static void my_disp_flush(lv_disp_drv_t *disp, const lv_area_t *area, lv_color_t
   }
 }
 
-static IRAM_ATTR bool onRefreshFinishCallback(void *user_data)
+IRAM_ATTR bool onRefreshFinishCallback(void *user_data)
 {
   lv_disp_drv_t *drv = (lv_disp_drv_t *)user_data;
   if (drv == NULL) {
