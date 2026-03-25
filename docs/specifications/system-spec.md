@@ -159,10 +159,6 @@ The entire current UI state machine is implemented in `knob.c`.
 The current firmware builds and retains all screens at startup:
 
 - Intro screen
-- Main screen
-- Dice screen
-- Commander damage select screen
-- Commander damage edit screen
 - Settings screen
 - Multiplayer overview screen
 - Multiplayer menu screen with player and global action variants
@@ -174,6 +170,7 @@ The current firmware builds and retains all screens at startup:
 ### 7.2 Navigation model
 
 - Screens are created once during startup
+- The intro screen transitions directly to the multiplayer overview
 - Navigation is implemented by loading prebuilt screens with `lv_scr_load(...)`
 - UI refresh functions update labels, colors, and state before screen load where needed
 
@@ -181,14 +178,11 @@ The current firmware builds and retains all screens at startup:
 
 All major product state is held in file-scope static variables in `knob.c`, including:
 
-- Single-player life total and pending preview delta
 - Brightness percentage
-- Commander damage values
-- Turn timer state
-- Dice result
 - Battery voltage and percent cache
 - Multiplayer life totals, names, selection, and commander-damage matrix
 - Multiplayer menu mode for player-specific vs. global actions
+- Multiplayer pending preview state
 
 There is no persistence layer in the current implementation. All state is reset on reboot.
 
@@ -198,15 +192,12 @@ The UI uses LVGL timers for several behaviors.
 
 ### 8.1 Timer inventory
 
-- Turn timer refresh: `1000 ms`
-- Turn blink animation: `500 ms`
 - Intro animation: `500 ms`
-- Single-player life preview commit: `4000 ms`
 - Multiplayer life preview commit: `4000 ms`
 
 ### 8.2 Commit semantics
 
-Single-player and multiplayer life previews are implemented as delayed commits rather than immediate writes. The user sees the pending delta first, and the committed total changes only when the timer expires.
+Multiplayer life preview is implemented as a delayed commit rather than an immediate write. The user sees the pending delta first, and the committed total changes only when the timer expires.
 
 ### 8.3 Immediate-write exceptions
 
@@ -264,18 +255,11 @@ Current application behavior uses the `knob.c` brightness path for user adjustme
 
 ## 11. Commander Damage Data Model
 
-Two different commander-damage representations exist:
+Commander damage is stored only in the multiplayer data model.
 
-- Single-player commander damage: three totals in `enemies[]`
-- Multiplayer commander damage: a full `4 x 4` source-to-target matrix
-
-### 11.1 Single-player mapping rule
-
-Single-player commander damage names are optionally derived from multiplayer names if one multiplayer player is named exactly `m`.
-
-### 11.2 Multiplayer mapping rule
-
-In multiplayer mode, commander damage is stored as `damage[source][target]`.
+- Representation: a full `4 x 4` source-to-target matrix
+- Meaning: `damage[source][target]`
+- Initial value: all entries start at `0`
 
 When the player menu for target `T` opens commander-damage selection:
 
@@ -288,16 +272,13 @@ When the player menu for target `T` opens commander-damage selection:
 The multiplayer overview uses one menu screen implementation with two interaction modes.
 
 - Long-press on quadrant `Q` opens the player menu for player `Q`
-- The player menu exposes `rename`, `Cmd.dmg`, and `back`
+- The player menu exposes `Rename`, `Commander`, and `Back`
 - Upward swipe on the multiplayer overview opens the global multiplayer menu
-- The global menu exposes `all.dmg`, `back`, and `menu`
-- Selecting `menu` returns to the main screen and reopens the main overlay menu
+- The global menu exposes `Global`, `Settings`, `Reset`, and `Back`
+- Selecting `Settings` opens the settings screen
+- Selecting `Reset` restores in-memory defaults and returns to the multiplayer overview
 
-## 13. Randomness
-
-The d20 feature uses `esp_random()` and maps it into the range `1..20` with modulo arithmetic.
-
-## 14. Reset Model
+## 13. Reset Model
 
 The global reset path restores in-memory state only. It does not:
 
@@ -310,11 +291,9 @@ The global reset path restores in-memory state only. It does not:
 
 These are not recommendations; they are current-system characteristics that any future change should evaluate explicitly.
 
-- No persistent storage for brightness, names, timer, or scores
-- No dedicated pause/resume control for the turn timer
+- No persistent storage for brightness, names, or gameplay values
 - No encoder push-button behavior in the UI flow
 - No confirmation step before global reset
-- Single-player commander damage target naming depends on a special multiplayer name value `m`
 - Battery percentage is only an estimate based on a hard-coded voltage curve and uncalibrated constants
 
 ## 15. Source of Truth

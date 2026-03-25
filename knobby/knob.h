@@ -10,7 +10,6 @@ extern "C"
 #include "bidi_switch_knob.h"
 
 void knob_gui(void);
-void knob_cb(lv_event_t *e);
 
 void knob_change(knob_event_t k,int cont);
 void knob_process_pending(void);
