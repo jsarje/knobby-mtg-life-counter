@@ -60,6 +60,7 @@ N/A
 - A code review confirms the removal of all files and code paths related to single-player mode, timer, and d20 roller.
 - The application builds and runs without errors.
 - Manual testing confirms that the UI no longer presents the removed features.
+- The multiplayer screen is displayed after the intro.
 
 ## 11. Related Specifications / Further Reading
 
