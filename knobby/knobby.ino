@@ -15,6 +15,7 @@ static const float BATTERY_CALIBRATION_SCALE = 1.0f;
 static const float BATTERY_CALIBRATION_OFFSET = 0.0f;
 static float battery_voltage_filtered = 0.0f;
 static bool battery_voltage_has_value = false;
+static bool firmware_ready = false;
 
 extern "C" float knob_read_battery_voltage(void)
 {
@@ -66,12 +67,22 @@ void setup()
   delay(200);
   Serial.begin(115200);
 
-  scr_lvgl_init();
+  firmware_ready = scr_lvgl_init();
+  if (!firmware_ready) {
+    Serial.println("Firmware initialization failed; UI startup aborted.");
+    return;
+  }
+
   knob_gui();
 }
 
 void loop()
 {
+  if (!firmware_ready) {
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    return;
+  }
+
   knob_process_pending();
   lv_timer_handler();
   vTaskDelay(5);

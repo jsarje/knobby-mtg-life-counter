@@ -1,6 +1,8 @@
 #include "knob.h"
 #include "driver/ledc.h"
+#include "esp_log.h"
 #include "esp_random.h"
+#include "freertos/FreeRTOS.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -9,13 +11,16 @@
 #define LIFE_MIN -999
 #define LIFE_MAX 999
 #define DEFAULT_LIFE_TOTAL 40
-#define DEFAULT_BRIGHTNESS_PERCENT 30
+#define DEFAULT_BRIGHTNESS_PERCENT 25
 #define BATTERY_FULL_VOLTAGE 4.18f
 #define BATTERY_EMPTY_VOLTAGE 3.35f
 #define KNOBBY_LETTER_COUNT 6
 #define INTRO_CHAR_COUNT 7
 #define MULTIPLAYER_COUNT 4
 #define KNOB_EVENT_QUEUE_SIZE 32
+#define KNOB_EVENT_PROCESS_BUDGET 8U
+#define KNOB_EVENT_BURST_BUDGET 16U
+#define KNOB_EVENT_DROP_LOG_INTERVAL 8U
 
 #define BACKLIGHT_PIN 47
 #define BACKLIGHT_LEDC_MODE LEDC_LOW_SPEED_MODE
@@ -36,6 +41,14 @@ typedef struct
     knob_event_t event;
     int cont;
 } knob_input_event_t;
+
+typedef enum
+{
+    MULTIPLAYER_MENU_PLAYER,
+    MULTIPLAYER_MENU_GLOBAL
+} multiplayer_menu_mode_t;
+
+static const char *KNOB_GUI_TAG = "knob_gui";
 
 static int life_total = DEFAULT_LIFE_TOTAL;
 static int brightness_percent = DEFAULT_BRIGHTNESS_PERCENT;
@@ -120,6 +133,11 @@ static lv_obj_t *multiplayer_quadrants[MULTIPLAYER_COUNT];
 static lv_obj_t *label_multiplayer_life[MULTIPLAYER_COUNT];
 static lv_obj_t *label_multiplayer_name[MULTIPLAYER_COUNT];
 static lv_obj_t *label_multiplayer_menu_title = NULL;
+static lv_obj_t *button_multiplayer_menu_rename = NULL;
+static lv_obj_t *button_multiplayer_menu_cmd_damage = NULL;
+static lv_obj_t *button_multiplayer_menu_all_damage = NULL;
+static lv_obj_t *button_multiplayer_menu_menu = NULL;
+static lv_obj_t *button_multiplayer_menu_back = NULL;
 static lv_obj_t *label_multiplayer_name_title = NULL;
 static lv_obj_t *textarea_multiplayer_name = NULL;
 static lv_obj_t *keyboard_multiplayer_name = NULL;
@@ -143,6 +161,10 @@ static bool knob_initialized = false;
 static knob_input_event_t knob_event_queue[KNOB_EVENT_QUEUE_SIZE];
 static volatile uint8_t knob_event_head = 0;
 static volatile uint8_t knob_event_tail = 0;
+static volatile uint32_t knob_event_overflow_count = 0;
+static volatile uint8_t knob_event_high_watermark = 0;
+static portMUX_TYPE knob_event_queue_lock = portMUX_INITIALIZER_UNLOCKED;
+static uint32_t knob_event_overflow_reported = 0;
 
 static bool turn_timer_enabled = false;
 static bool turn_indicator_visible = true;
@@ -168,10 +190,13 @@ static int multiplayer_cmd_delta = 0;
 static int multiplayer_cmd_target_choices[MULTIPLAYER_COUNT - 1] = {-1, -1, -1};
 static int multiplayer_cmd_damage_totals[MULTIPLAYER_COUNT][MULTIPLAYER_COUNT] = {{0}};
 static int multiplayer_all_damage_value = 0;
+static multiplayer_menu_mode_t multiplayer_menu_mode = MULTIPLAYER_MENU_PLAYER;
 static bool multiplayer_swipe_tracking = false;
+static bool main_swipe_tracking = false;
 static int multiplayer_pending_life_delta = 0;
 static int multiplayer_preview_player = -1;
 static bool multiplayer_life_preview_active = false;
+static lv_point_t main_swipe_start = {0, 0};
 static lv_point_t multiplayer_swipe_start = {0, 0};
 static char multiplayer_names[MULTIPLAYER_COUNT][16] = {"P1", "P2", "P3", "P4"};
 
@@ -182,6 +207,44 @@ static const uint32_t intro_colors[INTRO_CHAR_COUNT] = {0x9C5CFF, 0xF6C945, 0x42
 static const lv_coord_t intro_x[INTRO_CHAR_COUNT] = {56, 98, 140, 182, 214, 246, 284};
 
 static void back_to_main(void);
+
+static uint8_t knob_queue_count_unsafe(void)
+{
+    if (knob_event_head >= knob_event_tail) {
+        return (uint8_t)(knob_event_head - knob_event_tail);
+    }
+
+    return (uint8_t)(KNOB_EVENT_QUEUE_SIZE - knob_event_tail + knob_event_head);
+}
+
+static void report_knob_queue_status(void)
+{
+    uint32_t overflow_count;
+    uint8_t high_watermark;
+    uint8_t pending_count;
+
+    taskENTER_CRITICAL(&knob_event_queue_lock);
+    overflow_count = knob_event_overflow_count;
+    high_watermark = knob_event_high_watermark;
+    pending_count = knob_queue_count_unsafe();
+    taskEXIT_CRITICAL(&knob_event_queue_lock);
+
+    if (overflow_count == knob_event_overflow_reported) {
+        return;
+    }
+
+    if ((overflow_count - knob_event_overflow_reported) < KNOB_EVENT_DROP_LOG_INTERVAL && pending_count != 0U) {
+        return;
+    }
+
+    ESP_LOGW(KNOB_GUI_TAG,
+             "Knob queue overflow: dropped=%lu pending=%u high_water=%u capacity=%u",
+             (unsigned long)overflow_count,
+             (unsigned int)pending_count,
+             (unsigned int)high_watermark,
+             (unsigned int)(KNOB_EVENT_QUEUE_SIZE - 1));
+    knob_event_overflow_reported = overflow_count;
+}
 
 // ----------------------------------------------------
 // 7-segment map
@@ -871,11 +934,42 @@ static void refresh_multiplayer_ui()
 static void refresh_multiplayer_menu_ui()
 {
     char buf[32];
+    bool player_menu;
 
     if (label_multiplayer_menu_title == NULL) return;
 
-    snprintf(buf, sizeof(buf), "%s menu", multiplayer_names[multiplayer_menu_player]);
+    player_menu = (multiplayer_menu_mode == MULTIPLAYER_MENU_PLAYER);
+
+    if (player_menu) {
+        snprintf(buf, sizeof(buf), "%s menu", multiplayer_names[multiplayer_menu_player]);
+    } else {
+        snprintf(buf, sizeof(buf), "multiplayer");
+    }
     lv_label_set_text(label_multiplayer_menu_title, buf);
+
+    if (button_multiplayer_menu_rename != NULL) {
+        if (player_menu) lv_obj_clear_flag(button_multiplayer_menu_rename, LV_OBJ_FLAG_HIDDEN);
+        else lv_obj_add_flag(button_multiplayer_menu_rename, LV_OBJ_FLAG_HIDDEN);
+    }
+
+    if (button_multiplayer_menu_cmd_damage != NULL) {
+        if (player_menu) lv_obj_clear_flag(button_multiplayer_menu_cmd_damage, LV_OBJ_FLAG_HIDDEN);
+        else lv_obj_add_flag(button_multiplayer_menu_cmd_damage, LV_OBJ_FLAG_HIDDEN);
+    }
+
+    if (button_multiplayer_menu_all_damage != NULL) {
+        if (player_menu) lv_obj_add_flag(button_multiplayer_menu_all_damage, LV_OBJ_FLAG_HIDDEN);
+        else lv_obj_clear_flag(button_multiplayer_menu_all_damage, LV_OBJ_FLAG_HIDDEN);
+    }
+
+    if (button_multiplayer_menu_menu != NULL) {
+        if (player_menu) lv_obj_add_flag(button_multiplayer_menu_menu, LV_OBJ_FLAG_HIDDEN);
+        else lv_obj_clear_flag(button_multiplayer_menu_menu, LV_OBJ_FLAG_HIDDEN);
+    }
+
+    if (button_multiplayer_menu_back != NULL) {
+        lv_obj_clear_flag(button_multiplayer_menu_back, LV_OBJ_FLAG_HIDDEN);
+    }
 }
 
 static void refresh_multiplayer_name_ui()
@@ -899,7 +993,7 @@ static void refresh_multiplayer_cmd_select_ui()
     int row = 0;
 
     if (label_multiplayer_cmd_select_title != NULL) {
-        snprintf(buf, sizeof(buf), "%s -> target", multiplayer_names[multiplayer_menu_player]);
+        snprintf(buf, sizeof(buf), "? -> %s", multiplayer_names[multiplayer_menu_player]);
         lv_label_set_text(label_multiplayer_cmd_select_title, buf);
     }
 
@@ -1254,21 +1348,33 @@ static void intro_timer_cb(lv_timer_t *timer)
 // navigation
 // ----------------------------------------------------
 
+static void flush_knob_input_queue(void)
+{
+    taskENTER_CRITICAL(&knob_event_queue_lock);
+    knob_event_tail = knob_event_head;
+    taskEXIT_CRITICAL(&knob_event_queue_lock);
+}
+
 static void load_screen_if_needed(lv_obj_t *screen)
 {
     if (screen != NULL && lv_scr_act() != screen) {
+        flush_knob_input_queue();
         lv_scr_load(screen);
     }
 }
 
 static void open_select_screen()
 {
+    life_preview_commit_cb(NULL);
+    multiplayer_life_preview_commit_cb(NULL);
     refresh_select_ui();
     load_screen_if_needed(screen_select);
 }
 
 static void open_damage_screen(int enemy_index)
 {
+    life_preview_commit_cb(NULL);
+    multiplayer_life_preview_commit_cb(NULL);
     selected_enemy = enemy_index;
     refresh_damage_ui();
     load_screen_if_needed(screen_damage);
@@ -1276,6 +1382,8 @@ static void open_damage_screen(int enemy_index)
 
 static void open_settings_screen()
 {
+    life_preview_commit_cb(NULL);
+    multiplayer_life_preview_commit_cb(NULL);
     update_battery_measurement(true);
     refresh_settings_ui();
     load_screen_if_needed(screen_settings);
@@ -1283,31 +1391,42 @@ static void open_settings_screen()
 
 static void open_multiplayer_screen()
 {
+    life_preview_commit_cb(NULL);
+    multiplayer_life_preview_commit_cb(NULL);
     refresh_multiplayer_ui();
     load_screen_if_needed(screen_multiplayer);
 }
 
-static void open_multiplayer_menu_screen(int player_index)
+static void open_multiplayer_menu_screen(int player_index, multiplayer_menu_mode_t mode)
 {
+    life_preview_commit_cb(NULL);
+    multiplayer_life_preview_commit_cb(NULL);
     multiplayer_menu_player = player_index;
+    multiplayer_menu_mode = mode;
     refresh_multiplayer_menu_ui();
     load_screen_if_needed(screen_multiplayer_menu);
 }
 
 static void open_multiplayer_name_screen(void)
 {
+    life_preview_commit_cb(NULL);
+    multiplayer_life_preview_commit_cb(NULL);
     refresh_multiplayer_name_ui();
     load_screen_if_needed(screen_multiplayer_name);
 }
 
 static void open_multiplayer_cmd_select_screen(void)
 {
+    life_preview_commit_cb(NULL);
+    multiplayer_life_preview_commit_cb(NULL);
     refresh_multiplayer_cmd_select_ui();
     load_screen_if_needed(screen_multiplayer_cmd_select);
 }
 
 static void open_multiplayer_cmd_damage_screen(int target_index)
 {
+    life_preview_commit_cb(NULL);
+    multiplayer_life_preview_commit_cb(NULL);
     multiplayer_cmd_source = target_index;
     multiplayer_cmd_target = multiplayer_menu_player;
     multiplayer_cmd_delta = multiplayer_cmd_damage_totals[multiplayer_cmd_source][multiplayer_cmd_target];
@@ -1317,6 +1436,8 @@ static void open_multiplayer_cmd_damage_screen(int target_index)
 
 static void open_multiplayer_all_damage_screen(void)
 {
+    life_preview_commit_cb(NULL);
+    multiplayer_life_preview_commit_cb(NULL);
     multiplayer_all_damage_value = 0;
     refresh_multiplayer_all_damage_ui();
     load_screen_if_needed(screen_multiplayer_all_damage);
@@ -1326,6 +1447,8 @@ static void open_dice_screen(void)
 {
     lv_anim_t anim;
 
+    life_preview_commit_cb(NULL);
+    multiplayer_life_preview_commit_cb(NULL);
     refresh_dice_ui();
     load_screen_if_needed(screen_dice);
 
@@ -1344,6 +1467,8 @@ static void open_dice_screen(void)
 
 static void back_to_main()
 {
+    life_preview_commit_cb(NULL);
+    multiplayer_life_preview_commit_cb(NULL);
     refresh_main_ui();
     load_screen_if_needed(screen_main);
 }
@@ -1392,6 +1517,31 @@ static void event_show_main_menu(lv_event_t *e)
 {
     (void)e;
     show_main_menu();
+}
+
+static void event_main_swipe_menu(lv_event_t *e)
+{
+    lv_point_t point;
+    lv_indev_t *indev = lv_indev_get_act();
+
+    if (indev == NULL) return;
+    if ((menu_overlay != NULL) && !lv_obj_has_flag(menu_overlay, LV_OBJ_FLAG_HIDDEN)) return;
+
+    if (lv_event_get_code(e) == LV_EVENT_PRESSED) {
+        lv_indev_get_point(indev, &main_swipe_start);
+        main_swipe_tracking = true;
+        return;
+    }
+
+    if (lv_event_get_code(e) == LV_EVENT_RELEASED && main_swipe_tracking) {
+        main_swipe_tracking = false;
+        lv_indev_get_point(indev, &point);
+
+        if ((main_swipe_start.y - point.y) > 80 &&
+            LV_ABS(point.x - main_swipe_start.x) < 90) {
+            show_main_menu();
+        }
+    }
 }
 
 static void event_hide_main_menu(lv_event_t *e)
@@ -1490,10 +1640,10 @@ static void event_multiplayer_open_menu(lv_event_t *e)
 
     multiplayer_selected = new_selected;
     refresh_multiplayer_ui();
-    open_multiplayer_menu_screen(multiplayer_selected);
+    open_multiplayer_menu_screen(multiplayer_selected, MULTIPLAYER_MENU_PLAYER);
 }
 
-static void event_multiplayer_exit(lv_event_t *e)
+static void event_multiplayer_swipe_menu(lv_event_t *e)
 {
     lv_point_t point;
     lv_indev_t *indev = lv_indev_get_act();
@@ -1510,9 +1660,9 @@ static void event_multiplayer_exit(lv_event_t *e)
         multiplayer_swipe_tracking = false;
         lv_indev_get_point(indev, &point);
 
-        if ((point.y - multiplayer_swipe_start.y) > 80 &&
+        if ((multiplayer_swipe_start.y - point.y) > 80 &&
             LV_ABS(point.x - multiplayer_swipe_start.x) < 90) {
-            back_to_main();
+            open_multiplayer_menu_screen(multiplayer_selected, MULTIPLAYER_MENU_GLOBAL);
         }
     }
 }
@@ -1521,6 +1671,13 @@ static void event_multiplayer_menu_back(lv_event_t *e)
 {
     (void)e;
     open_multiplayer_screen();
+}
+
+static void event_multiplayer_menu_main(lv_event_t *e)
+{
+    (void)e;
+    back_to_main();
+    show_main_menu();
 }
 
 static void event_multiplayer_menu_rename(lv_event_t *e)
@@ -1544,7 +1701,7 @@ static void event_multiplayer_menu_all_damage(lv_event_t *e)
 static void event_multiplayer_name_back(lv_event_t *e)
 {
     (void)e;
-    open_multiplayer_menu_screen(multiplayer_menu_player);
+    open_multiplayer_menu_screen(multiplayer_menu_player, MULTIPLAYER_MENU_PLAYER);
 }
 
 static void event_multiplayer_name_save(lv_event_t *e)
@@ -1572,13 +1729,13 @@ static void event_multiplayer_name_save(lv_event_t *e)
     refresh_multiplayer_cmd_damage_ui();
     refresh_select_ui();
     refresh_damage_ui();
-    open_multiplayer_menu_screen(multiplayer_menu_player);
+    open_multiplayer_menu_screen(multiplayer_menu_player, MULTIPLAYER_MENU_PLAYER);
 }
 
 static void event_multiplayer_cmd_select_back(lv_event_t *e)
 {
     (void)e;
-    open_multiplayer_menu_screen(multiplayer_menu_player);
+    open_multiplayer_menu_screen(multiplayer_menu_player, MULTIPLAYER_MENU_PLAYER);
 }
 
 static void event_multiplayer_cmd_target_pick(lv_event_t *e)
@@ -1600,7 +1757,7 @@ static void event_multiplayer_cmd_damage_back(lv_event_t *e)
 static void event_multiplayer_all_damage_back(lv_event_t *e)
 {
     (void)e;
-    open_multiplayer_menu_screen(multiplayer_menu_player);
+    open_multiplayer_menu_screen(multiplayer_menu_player, MULTIPLAYER_MENU_GLOBAL);
 }
 
 static void event_multiplayer_all_damage_apply(lv_event_t *e)
@@ -1682,8 +1839,8 @@ static void build_multiplayer_screen()
     lv_obj_set_style_bg_color(screen_multiplayer, lv_color_black(), 0);
     lv_obj_set_style_border_width(screen_multiplayer, 0, 0);
     lv_obj_set_scrollbar_mode(screen_multiplayer, LV_SCROLLBAR_MODE_OFF);
-    lv_obj_add_event_cb(screen_multiplayer, event_multiplayer_exit, LV_EVENT_PRESSED, NULL);
-    lv_obj_add_event_cb(screen_multiplayer, event_multiplayer_exit, LV_EVENT_RELEASED, NULL);
+    lv_obj_add_event_cb(screen_multiplayer, event_multiplayer_swipe_menu, LV_EVENT_PRESSED, NULL);
+    lv_obj_add_event_cb(screen_multiplayer, event_multiplayer_swipe_menu, LV_EVENT_RELEASED, NULL);
 
     for (i = 0; i < MULTIPLAYER_COUNT; i++) {
         multiplayer_quadrants[i] = lv_btn_create(screen_multiplayer);
@@ -1724,17 +1881,26 @@ static void build_multiplayer_menu_screen()
     lv_obj_set_style_text_font(label_multiplayer_menu_title, &lv_font_montserrat_22, 0);
     lv_obj_align(label_multiplayer_menu_title, LV_ALIGN_TOP_MID, 0, 26);
 
-    lv_obj_t *btn = make_button(screen_multiplayer_menu, "rename", 180, 46, event_multiplayer_menu_rename);
-    lv_obj_align(btn, LV_ALIGN_CENTER, 0, -36);
+    button_multiplayer_menu_rename = make_button(screen_multiplayer_menu, "Rename", 180, 44, event_multiplayer_menu_rename);
+    lv_obj_align(button_multiplayer_menu_rename, LV_ALIGN_CENTER, 0, -56);
 
-    btn = make_button(screen_multiplayer_menu, "Cmd.dmg", 180, 46, event_multiplayer_menu_cmd_damage);
-    lv_obj_align(btn, LV_ALIGN_CENTER, 0, 24);
+    button_multiplayer_menu_cmd_damage = make_button(screen_multiplayer_menu, "Commander", 180, 44, event_multiplayer_menu_cmd_damage);
+    lv_obj_align(button_multiplayer_menu_cmd_damage, LV_ALIGN_CENTER, 0, -4);
 
-    btn = make_button(screen_multiplayer_menu, "all.dmg", 180, 46, event_multiplayer_menu_all_damage);
-    lv_obj_align(btn, LV_ALIGN_CENTER, 0, 84);
+    button_multiplayer_menu_all_damage = make_button(screen_multiplayer_menu, "Global", 180, 44, event_multiplayer_menu_all_damage);
+    lv_obj_align(button_multiplayer_menu_all_damage, LV_ALIGN_CENTER, 0, -4);
 
-    btn = make_button(screen_multiplayer_menu, "back", 120, 46, event_multiplayer_menu_back);
-    lv_obj_align(btn, LV_ALIGN_BOTTOM_MID, 0, -26);
+    button_multiplayer_menu_menu = make_button(screen_multiplayer_menu, "Main", 88, 42, event_multiplayer_menu_main);
+    lv_obj_set_style_radius(button_multiplayer_menu_menu, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_pad_all(button_multiplayer_menu_menu, 0, 0);
+    lv_obj_align(button_multiplayer_menu_menu, LV_ALIGN_CENTER, -148, -4);
+
+    button_multiplayer_menu_back = make_button(screen_multiplayer_menu, "Back", 88, 42, event_multiplayer_menu_back);
+    lv_obj_set_style_radius(button_multiplayer_menu_back, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_pad_all(button_multiplayer_menu_back, 0, 0);
+    lv_obj_align(button_multiplayer_menu_back, LV_ALIGN_CENTER, 148, -4);
+
+    refresh_multiplayer_menu_ui();
 }
 
 static void build_multiplayer_name_screen()
@@ -1872,6 +2038,8 @@ static void build_main_screen()
     lv_obj_set_style_bg_color(screen_main, lv_color_black(), 0);
     lv_obj_set_style_border_width(screen_main, 0, 0);
     lv_obj_set_scrollbar_mode(screen_main, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_add_event_cb(screen_main, event_main_swipe_menu, LV_EVENT_PRESSED, NULL);
+    lv_obj_add_event_cb(screen_main, event_main_swipe_menu, LV_EVENT_RELEASED, NULL);
 
     arc_life = lv_arc_create(screen_main);
     lv_obj_set_size(arc_life, 360, 360);
@@ -2040,26 +2208,26 @@ static void build_main_screen()
     lv_obj_set_scrollbar_mode(menu_panel, LV_SCROLLBAR_MODE_OFF);
     lv_obj_clear_flag(menu_panel, LV_OBJ_FLAG_CLICKABLE);
 
-    btn = make_button(menu_overlay, "reset", 50, 50, event_menu_reset);
+    btn = make_button(menu_overlay, "Reset", 50, 50, event_menu_reset);
     lv_obj_set_style_radius(btn, LV_RADIUS_CIRCLE, 0);
     lv_obj_set_style_pad_all(btn, 0, 0);
     lv_obj_align(btn, LV_ALIGN_CENTER, -148, -4);
 
-    btn = make_button(menu_overlay, "back", 50, 50, event_menu_back);
+    btn = make_button(menu_overlay, "Back", 50, 50, event_menu_back);
     lv_obj_set_style_radius(btn, LV_RADIUS_CIRCLE, 0);
     lv_obj_set_style_pad_all(btn, 0, 0);
     lv_obj_align(btn, LV_ALIGN_CENTER, 148, -4);
 
-    btn = make_button(menu_panel, "Cmd.dmg", 128, 32, event_menu_cmd_damage);
+    btn = make_button(menu_panel, "Commander", 128, 32, event_menu_cmd_damage);
     lv_obj_align(btn, LV_ALIGN_TOP_MID, 0, 36);
 
-    menu_button_dice = make_button(menu_panel, "d20", 128, 32, event_menu_dice);
+    menu_button_dice = make_button(menu_panel, "D20", 128, 32, event_menu_dice);
     lv_obj_align(menu_button_dice, LV_ALIGN_TOP_MID, 0, 82);
 
-    menu_button_multiplayer = make_button(menu_panel, "multiplayer", 128, 32, event_menu_multiplayer);
+    menu_button_multiplayer = make_button(menu_panel, "Multiplayer", 128, 32, event_menu_multiplayer);
     lv_obj_align(menu_button_multiplayer, LV_ALIGN_TOP_MID, 0, 128);
 
-    menu_button_timer = make_button(menu_panel, "timer", 128, 32, event_menu_turn_timer);
+    menu_button_timer = make_button(menu_panel, "Timer", 128, 32, event_menu_turn_timer);
     lv_obj_align(menu_button_timer, LV_ALIGN_TOP_MID, 0, 174);
 }
 
@@ -2291,6 +2459,7 @@ static void handle_knob_event(knob_event_t k)
 void knob_change(knob_event_t k, int cont)
 {
     uint8_t next_head;
+    uint8_t pending_count;
 
     if (!knob_initialized)
     {
@@ -2300,24 +2469,50 @@ void knob_change(knob_event_t k, int cont)
 
     last_knob_cont = cont;
 
+    taskENTER_CRITICAL(&knob_event_queue_lock);
     next_head = (uint8_t)((knob_event_head + 1U) % KNOB_EVENT_QUEUE_SIZE);
     if (next_head == knob_event_tail) {
         knob_event_tail = (uint8_t)((knob_event_tail + 1U) % KNOB_EVENT_QUEUE_SIZE);
+        knob_event_overflow_count++;
     }
 
     knob_event_queue[knob_event_head].event = k;
     knob_event_queue[knob_event_head].cont = cont;
     knob_event_head = next_head;
+    pending_count = knob_queue_count_unsafe();
+    if (pending_count > knob_event_high_watermark) {
+        knob_event_high_watermark = pending_count;
+    }
+    taskEXIT_CRITICAL(&knob_event_queue_lock);
 }
 
 void knob_process_pending(void)
 {
     uint8_t processed = 0;
+    uint8_t process_budget = KNOB_EVENT_PROCESS_BUDGET;
 
-    while (knob_event_tail != knob_event_head && processed < 8U) {
-        knob_event_t event = knob_event_queue[knob_event_tail].event;
+    taskENTER_CRITICAL(&knob_event_queue_lock);
+    if (knob_queue_count_unsafe() > KNOB_EVENT_PROCESS_BUDGET) {
+        process_budget = KNOB_EVENT_BURST_BUDGET;
+    }
+    taskEXIT_CRITICAL(&knob_event_queue_lock);
+
+    while (processed < process_budget) {
+        knob_event_t event;
+
+        taskENTER_CRITICAL(&knob_event_queue_lock);
+        if (knob_event_tail == knob_event_head) {
+            taskEXIT_CRITICAL(&knob_event_queue_lock);
+            break;
+        }
+
+        event = knob_event_queue[knob_event_tail].event;
         knob_event_tail = (uint8_t)((knob_event_tail + 1U) % KNOB_EVENT_QUEUE_SIZE);
+        taskEXIT_CRITICAL(&knob_event_queue_lock);
+
         handle_knob_event(event);
         processed++;
     }
+
+    report_knob_queue_status();
 }
