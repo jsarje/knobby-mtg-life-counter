@@ -190,9 +190,9 @@ Edge cases
 
 ## 11. Related Specifications / Further Reading
 
-- `/home/runner/work/knobby-mtg-life-counter/knobby-mtg-life-counter/spec/spec-architecture-cpp-oop-refactor-plan.md`
-- `/home/runner/work/knobby-mtg-life-counter/knobby-mtg-life-counter/docs/specifications/system-spec.md`
-- `/home/runner/work/knobby-mtg-life-counter/knobby-mtg-life-counter/docs/specifications/functional-spec.md`
+- `spec/spec-architecture-cpp-oop-refactor-plan.md`
+- `docs/specifications/system-spec.md`
+- `docs/specifications/functional-spec.md`
 
 ## Appendix A: Detailed Phased Implementation Steps
 

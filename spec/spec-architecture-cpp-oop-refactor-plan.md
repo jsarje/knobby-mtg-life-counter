@@ -231,6 +231,6 @@ Edge cases to preserve:
 
 ## 11. Related Specifications / Further Reading
 
-- `/home/runner/work/knobby-mtg-life-counter/knobby-mtg-life-counter/docs/specifications/system-spec.md`
-- `/home/runner/work/knobby-mtg-life-counter/knobby-mtg-life-counter/docs/specifications/functional-spec.md`
-- `/home/runner/work/knobby-mtg-life-counter/knobby-mtg-life-counter/spec/spec-process-cpp-oop-refactor-phases.md`
+- `docs/specifications/system-spec.md`
+- `docs/specifications/functional-spec.md`
+- `spec/spec-process-cpp-oop-refactor-phases.md`
