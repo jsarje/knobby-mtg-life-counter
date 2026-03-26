@@ -1,7 +1,7 @@
 #include "knob.h"
-#include "driver/ledc.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
+#include "platform_services.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -16,14 +16,6 @@
 #define KNOB_EVENT_PROCESS_BUDGET 8U
 #define KNOB_EVENT_BURST_BUDGET 16U
 #define KNOB_EVENT_DROP_LOG_INTERVAL 8U
-
-#define BACKLIGHT_PIN 47
-#define BACKLIGHT_LEDC_MODE LEDC_LOW_SPEED_MODE
-#define BACKLIGHT_LEDC_TIMER LEDC_TIMER_0
-#define BACKLIGHT_LEDC_CHANNEL LEDC_CHANNEL_0
-#define BACKLIGHT_LEDC_FREQ 5000
-#define BACKLIGHT_LEDC_RES LEDC_TIMER_13_BIT
-#define BACKLIGHT_DUTY_MAX 8191
 
 typedef struct
 {
@@ -244,36 +236,6 @@ static void refresh_battery_ui(void)
         snprintf(detail_buf, sizeof(detail_buf), "%.2fV calibrated", battery_voltage);
         lv_label_set_text(label_settings_battery_detail, detail_buf);
     }
-}
-
-static void brightness_init()
-{
-    ledc_timer_config_t ledc_timer = {
-        .speed_mode = BACKLIGHT_LEDC_MODE,
-        .duty_resolution = BACKLIGHT_LEDC_RES,
-        .timer_num = BACKLIGHT_LEDC_TIMER,
-        .freq_hz = BACKLIGHT_LEDC_FREQ,
-        .clk_cfg = LEDC_AUTO_CLK
-    };
-    ledc_timer_config(&ledc_timer);
-
-    ledc_channel_config_t ledc_channel = {
-        .gpio_num = BACKLIGHT_PIN,
-        .speed_mode = BACKLIGHT_LEDC_MODE,
-        .channel = BACKLIGHT_LEDC_CHANNEL,
-        .intr_type = LEDC_INTR_DISABLE,
-        .timer_sel = BACKLIGHT_LEDC_TIMER,
-        .duty = 0,
-        .hpoint = 0
-    };
-    ledc_channel_config(&ledc_channel);
-}
-
-static void brightness_apply()
-{
-    uint32_t duty = (uint32_t)((brightness_percent * BACKLIGHT_DUTY_MAX) / 100);
-    ledc_set_duty(BACKLIGHT_LEDC_MODE, BACKLIGHT_LEDC_CHANNEL, duty);
-    ledc_update_duty(BACKLIGHT_LEDC_MODE, BACKLIGHT_LEDC_CHANNEL);
 }
 
 static lv_obj_t *make_button(lv_obj_t *parent, const char *txt, lv_coord_t w, lv_coord_t h, lv_event_cb_t cb)
@@ -553,7 +515,7 @@ static void multiplayer_life_preview_commit_cb(lv_timer_t *timer)
 static void change_brightness(int delta)
 {
     brightness_percent = clamp_brightness(brightness_percent + delta);
-    brightness_apply();
+    knobby_platform_apply_brightness_percent(brightness_percent);
     refresh_settings_ui();
 }
 
@@ -640,7 +602,7 @@ static void reset_all_values(void)
         lv_timer_pause(multiplayer_life_preview_timer);
     }
 
-    brightness_apply();
+    knobby_platform_apply_brightness_percent(brightness_percent);
     refresh_settings_ui();
     refresh_multiplayer_ui();
     refresh_multiplayer_menu_ui();
@@ -1173,8 +1135,7 @@ static void build_settings_screen()
 
 void knob_gui(void)
 {
-    brightness_init();
-    brightness_apply();
+    knobby_platform_apply_brightness_percent(brightness_percent);
 
     build_intro_screen();
     build_multiplayer_screen();
