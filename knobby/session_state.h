@@ -55,7 +55,6 @@ struct MultiplayerGameState {
     int              menu_player       = 0;
     int              cmd_source        = 0;
     int              cmd_target        = -1;
-    int              cmd_target_choices[kMultiplayerCount - 1];
     int              cmd_damage_totals[kMultiplayerCount][kMultiplayerCount];
     int              all_damage_value  = 0;
     MultiplayerMenuMode menu_mode      = MULTIPLAYER_MENU_PLAYER;
@@ -68,9 +67,6 @@ struct MultiplayerGameState {
         for (int i = 0; i < kMultiplayerCount; ++i) {
             life[i] = kDefaultLifeTotal;
             snprintf(names[i], kPlayerNameMaxLen, "P%d", i + 1);
-        }
-        for (int i = 0; i < kMultiplayerCount - 1; ++i) {
-            cmd_target_choices[i] = -1;
         }
         memset(cmd_damage_totals, 0, sizeof(cmd_damage_totals));
     }
@@ -85,9 +81,6 @@ struct MultiplayerGameState {
         menu_player       = 0;
         cmd_source        = 0;
         cmd_target        = -1;
-        for (int i = 0; i < kMultiplayerCount - 1; ++i) {
-            cmd_target_choices[i] = -1;
-        }
         memset(cmd_damage_totals, 0, sizeof(cmd_damage_totals));
         all_damage_value  = 0;
         pending_life_delta = 0;
