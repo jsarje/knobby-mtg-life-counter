@@ -1,5 +1,5 @@
 // navigation_controller.cpp
-// Navigation coordinator implementation (Phase 6).
+// Navigation coordinator implementation.
 
 #include "navigation_controller.h"
 #include "multiplayer_controller.h"

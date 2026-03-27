@@ -1,5 +1,5 @@
 // navigation_controller.h
-// Navigation coordinator that manages all screen transitions (Phase 6).
+// Navigation coordinator that manages all screen transitions.
 //
 // NavigationController is the single boundary through which screen loads are
 // requested.  It owns swipe-gesture tracking state and centralises the
