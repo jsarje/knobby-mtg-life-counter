@@ -113,7 +113,6 @@ private:
     // Populated by refresh(); maps button rows to player indices.
     int target_choices_[kMultiplayerCount - 1]     = {-1, -1, -1};
 };
-};
 
 // ---------------------------------------------------------------------------
 // MultiplayerCmdDamageScreen
