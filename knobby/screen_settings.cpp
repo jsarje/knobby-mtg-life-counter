@@ -10,6 +10,8 @@
 
 void SettingsScreen::create(lv_event_cb_t back_cb)
 {
+    char brightness_label[32];
+
     screen_ = lv_obj_create(NULL);
     lv_obj_set_size(screen_, 360, 360);
     lv_obj_set_style_bg_color(screen_, lv_color_black(), 0);
@@ -33,7 +35,8 @@ void SettingsScreen::create(lv_event_cb_t back_cb)
     lv_obj_align(label_title_, LV_ALIGN_TOP_MID, 0, 24);
 
     label_value_ = lv_label_create(screen_);
-    lv_label_set_text(label_value_, "Brightness: 25%");
+    snprintf(brightness_label, sizeof(brightness_label), "Brightness: %d%%", kDefaultBrightnessPercent);
+    lv_label_set_text(label_value_, brightness_label);
     lv_obj_set_style_text_color(label_value_, lv_color_white(), 0);
     lv_obj_set_style_text_font(label_value_, &lv_font_montserrat_32, 0);
     lv_obj_align(label_value_, LV_ALIGN_CENTER, 0, -18);
