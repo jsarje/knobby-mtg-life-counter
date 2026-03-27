@@ -41,7 +41,11 @@ private:
     lv_obj_t* quadrants_[kMultiplayerCount]        = {};
     lv_obj_t* label_life_[kMultiplayerCount]       = {};
     lv_obj_t* label_name_[kMultiplayerCount]       = {};
-    lv_obj_t* label_commander_tax_[kMultiplayerCount] = {};
+    // Circular badge shown when commander tax > 0. Badge is a container
+    // (gold circle) with a centered label child that contains the numeric
+    // value.
+    lv_obj_t* badge_commander_[kMultiplayerCount] = {};
+    lv_obj_t* badge_commander_label_[kMultiplayerCount] = {};
 };
 
 // ---------------------------------------------------------------------------

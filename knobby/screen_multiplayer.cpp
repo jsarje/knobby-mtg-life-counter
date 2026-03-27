@@ -99,11 +99,20 @@ void MultiplayerScreen::create(lv_event_cb_t select_cb,
         lv_obj_set_style_text_color(label_life_[i], lv_color_white(), 0);
         lv_obj_set_style_text_font(label_life_[i], &lv_font_montserrat_32, 0);
 
-        // Commander tax badge (hidden when zero)
-        label_commander_tax_[i] = lv_label_create(screen_);
-        lv_label_set_text(label_commander_tax_[i], "");
-        lv_obj_set_style_text_font(label_commander_tax_[i], &lv_font_montserrat_14, 0);
-        lv_obj_set_style_text_color(label_commander_tax_[i], lv_color_white(), 0);
+        // Commander tax badge (hidden when zero): create a small circular
+        // container with a centered label. This visually represents a coin.
+        badge_commander_[i] = lv_obj_create(screen_);
+        lv_obj_set_size(badge_commander_[i], 28, 28);
+        lv_obj_set_style_radius(badge_commander_[i], LV_RADIUS_CIRCLE, 0);
+        lv_obj_set_style_bg_color(badge_commander_[i], lv_color_hex(0xFFD600), 0); // gold
+        lv_obj_set_style_border_width(badge_commander_[i], 0, 0);
+        lv_obj_add_flag(badge_commander_[i], LV_OBJ_FLAG_HIDDEN);
+
+        badge_commander_label_[i] = lv_label_create(badge_commander_[i]);
+        lv_label_set_text(badge_commander_label_[i], "");
+        lv_obj_set_style_text_font(badge_commander_label_[i], &lv_font_montserrat_14, 0);
+        lv_obj_set_style_text_color(badge_commander_label_[i], lv_color_black(), 0);
+        lv_obj_center(badge_commander_label_[i]);
     }
 }
 
@@ -146,18 +155,17 @@ void MultiplayerScreen::refresh(const MultiplayerGameState& state)
             lv_obj_align(label_name_[i], LV_ALIGN_CENTER, name_offsets_x[i], name_offsets_y[i]);
         }
 
-        // Commander tax: show badge if non-zero
-        if (label_commander_tax_[i] != nullptr) {
+        // Commander tax: show circular coin-like badge if non-zero
+        if (badge_commander_[i] != nullptr && badge_commander_label_[i] != nullptr) {
             if (state.commander_tax[i] <= 0) {
-                lv_obj_add_flag(label_commander_tax_[i], LV_OBJ_FLAG_HIDDEN);
+                lv_obj_add_flag(badge_commander_[i], LV_OBJ_FLAG_HIDDEN);
             } else {
                 char ctbuf[8];
-                snprintf(ctbuf, sizeof(ctbuf), "CT:%d", state.commander_tax[i]);
-                lv_label_set_text(label_commander_tax_[i], ctbuf);
-                lv_obj_set_style_text_color(label_commander_tax_[i], txt_color, 0);
-                // align near the quadrant corner
-                lv_obj_align(label_commander_tax_[i], LV_ALIGN_CENTER, life_offsets_x[i] + 60, life_offsets_y[i] - 60);
-                lv_obj_clear_flag(label_commander_tax_[i], LV_OBJ_FLAG_HIDDEN);
+                snprintf(ctbuf, sizeof(ctbuf), "%d", state.commander_tax[i]);
+                lv_label_set_text(badge_commander_label_[i], ctbuf);
+                // Position badge relative to the quadrant's top-right corner
+                lv_obj_align_to(badge_commander_[i], quadrants_[i], LV_ALIGN_TOP_RIGHT, -8, 8);
+                lv_obj_clear_flag(badge_commander_[i], LV_OBJ_FLAG_HIDDEN);
             }
         }
     }
@@ -192,7 +200,7 @@ void MultiplayerMenuScreen::create(lv_event_cb_t rename_cb,
     btn_cmd_damage_ = make_button(screen_, "Commander", 180, 44, cmd_damage_cb);
     lv_obj_align(btn_cmd_damage_, LV_ALIGN_CENTER, 0, -4);
 
-    btn_inc_commander_ = make_button(screen_, "Commander Tax", 180, 44, inc_commander_cb);
+    btn_inc_commander_ = make_button(screen_, "Tax", 180, 44, inc_commander_cb);
     lv_obj_align(btn_inc_commander_, LV_ALIGN_CENTER, 0, 48);
 
     btn_all_damage_ = make_button(screen_, "Global",    180, 44, all_damage_cb);

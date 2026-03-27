@@ -266,8 +266,9 @@ static void event_multiplayer_menu_inc_commander_tax(lv_event_t *e)
     (void)e;
     // Increment commander tax for the menu player and refresh UI.
     g_multiplayer_controller.incrementCommanderTax(mp.menu_player);
-    refresh_multiplayer_ui();
-    refresh_multiplayer_menu_ui();
+    // Close the menu and return to the multiplayer screen so the user sees
+    // the updated badge immediately.
+    g_navigation_controller.openMultiplayerScreen();
 }
 
 static void event_multiplayer_menu_cmd_damage(lv_event_t *e)
@@ -306,7 +307,8 @@ static void event_multiplayer_name_save(lv_event_t *e)
 static void event_multiplayer_cmd_select_back(lv_event_t *e)
 {
     (void)e;
-    g_navigation_controller.openMenuScreen(mp.menu_player, MULTIPLAYER_MENU_PLAYER);
+    // Return to main multiplayer screen instead of the long-press player menu.
+    g_navigation_controller.openMultiplayerScreen();
 }
 
 static void event_multiplayer_cmd_target_pick(lv_event_t *e)
