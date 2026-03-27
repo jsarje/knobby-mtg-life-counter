@@ -6,8 +6,9 @@ This document describes the behavior implemented in the current firmware. It is 
 
 The firmware implements a touch-and-rotary life counter for trading card games on an ESP32-S3 board with a 360x360 round display. The current product supports:
 
-- A multiplayer mode for four players
+- A multiplayer mode for a runtime-selected 2, 3, or 4 players
 - Multiplayer commander damage tracking between players
+- Multiplayer commander tax tracking per player
 - Multiplayer all-player damage application
 - On-device multiplayer renaming
 - Display brightness control
@@ -31,22 +32,25 @@ The multiplayer overview is the default gameplay screen.
 
 ### 3.1 Initial state
 
-- Default life totals: `40` for all players
+- Default active player count: `4`
+- Default life totals: `40` for all active players
 - Default names: `P1`, `P2`, `P3`, `P4`
 - Selected player: `P1`
 - Default brightness: `25%`
 - Commander damage totals reset to `0`
+- Commander tax values reset to `0`
 
 ### 3.2 Layout
 
-- The overview contains four `180 x 180` quadrants
-- Each quadrant represents one player
-- Each quadrant shows a player name and life total
+- The overview contains one large seat card per active player
+- The seat-card arrangement adapts to `2`, `3`, or `4` active players
+- Each visible seat card shows a player name and life total
+- A commander-tax badge is shown on a seat card when that player's commander tax is greater than `0`
 
 ### 3.3 Selection behavior
 
-- Tapping a quadrant selects that player
-- The selected player shall use a brighter version of that quadrant's base color
+- Tapping a visible seat card selects that player
+- The selected player shall use a brighter version of that player's base color
 - Rotary input changes the selected player's life total only
 
 ### 3.4 Multiplayer life editing
@@ -59,17 +63,18 @@ The multiplayer overview is the default gameplay screen.
 
 ### 3.5 Menu gestures
 
-- Long-pressing a quadrant opens that player's player menu
+- Long-pressing a visible seat card opens that player's player menu
 - Swiping upward with vertical movement greater than `80` pixels and horizontal drift less than `90` pixels opens the multiplayer global menu
 
 ## 4. Multiplayer Player Menu
 
-Long-pressing a multiplayer quadrant shall open that player's menu.
+Long-pressing a multiplayer seat card shall open that player's menu.
 
 The player menu shall provide:
 
 - `Rename`
 - `Commander`
+- `Tax`
 - `Back`
 
 ## 5. Multiplayer Global Menu
@@ -79,11 +84,16 @@ Swiping upward on the multiplayer overview shall open the multiplayer global men
 The global menu shall provide:
 
 - `Global`
+- `Players`
 - `Settings`
 - `Reset`
 - `Back`
 
 Selecting `Back` shall return to the multiplayer overview.
+
+Selecting `Players` shall open a player-count screen with `2 Players`, `3 Players`, `4 Players`, and `Back`.
+
+If the user selects a different player count while gameplay state is dirty, the firmware shall require confirmation before resetting the current game.
 
 ## 6. Multiplayer Rename Flow
 
@@ -101,7 +111,13 @@ Saving shall behave as follows:
 - Non-empty text replaces the player name exactly as entered
 - All dependent screens shall refresh to reflect the new name
 
-## 7. Multiplayer Commander Damage Flow
+## 7. Multiplayer Commander Tax Flow
+
+- Selecting `Tax` from a player's menu increments that player's commander tax by `1`
+- Commander tax starts at `0` for each active player in a new game
+- The multiplayer overview refreshes immediately after a commander tax change
+
+## 8. Multiplayer Commander Damage Flow
 
 The multiplayer commander damage flow is organized around the currently opened player menu.
 
@@ -126,7 +142,7 @@ Applying a change shall:
 - Immediately subtract the delta from the target player's committed life total
 - Refresh multiplayer overview values and commander damage screens immediately
 
-## 8. Multiplayer All-Damage Flow
+## 9. Multiplayer All-Damage Flow
 
 The all-damage screen shall:
 
@@ -138,9 +154,9 @@ The all-damage flow shall be entered from the multiplayer global menu.
 
 Selecting `Back` on the all-damage screen shall return to the multiplayer global menu.
 
-Selecting `Apply` shall subtract the pending damage value from all four players immediately.
+Selecting `Apply` shall subtract the pending damage value from all active players immediately.
 
-## 9. Settings Screen
+## 10. Settings Screen
 
 The settings screen shall provide brightness and battery information.
 
@@ -163,7 +179,7 @@ The settings screen shall provide brightness and battery information.
 - Battery sampling shall be refreshed when entering the settings screen
 - Subsequent battery reads shall be cached for up to `5 seconds`
 
-## 10. Battery Estimation Behavior
+## 11. Battery Estimation Behavior
 
 Battery estimation shall behave as follows:
 
@@ -176,20 +192,22 @@ Battery estimation shall behave as follows:
 - Smooth measurements with a low-pass filter: `70%` previous value, `30%` new value
 - Convert voltage to percentage using a piecewise-linear curve from `3.35V` to `4.18V`
 
-## 11. Reset Semantics
+## 12. Reset Semantics
 
 Global reset shall restore the following defaults:
 
+- Active player count preserved for the current runtime session
 - Pending multiplayer previews cleared
 - Brightness to `25%`
 - Commander damage totals cleared
+- Commander tax values cleared
 - Multiplayer life totals to `40`
-- Multiplayer names to `P1` through `P4`
+- Multiplayer names to `P1` through `P4`, with only the active seats shown on the overview
 - Multiplayer selection state reset to player `0`
 
 After reset, the firmware shall return to the multiplayer overview.
 
-## 12. Input Model Summary
+## 13. Input Model Summary
 
 The current product uses:
 

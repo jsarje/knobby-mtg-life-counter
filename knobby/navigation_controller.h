@@ -37,6 +37,8 @@ public:
     void openCmdSelectScreen();
     void openCmdDamageScreen(int target_index);
     void openAllDamageScreen();
+    void openPlayerCountScreen();
+    void openPlayerCountConfirmScreen(int new_count);
 
     // Swipe-gesture tracking: forward LV_EVENT_PRESSED to beginSwipe and
     // LV_EVENT_RELEASED to endSwipe.  endSwipe opens the global menu when the

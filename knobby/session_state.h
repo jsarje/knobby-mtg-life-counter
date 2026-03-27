@@ -8,12 +8,14 @@
 // Structural constants shared between state, controller, and screen layers.
 // ---------------------------------------------------------------------------
 
-static constexpr int kMultiplayerCount       = 4;
-static constexpr int kDefaultLifeTotal       = 40;
+static constexpr int kMultiplayerCount         = 4;
+static constexpr int kMinActivePlayerCount     = 2;
+static constexpr int kDefaultActivePlayerCount = 4;
+static constexpr int kDefaultLifeTotal         = 40;
 static constexpr int kDefaultBrightnessPercent = 25;
-static constexpr int kPlayerNameMaxLen       = 16;
-static constexpr int kLifeMin                = -999;
-static constexpr int kLifeMax                = 999;
+static constexpr int kPlayerNameMaxLen         = 16;
+static constexpr int kLifeMin                  = -999;
+static constexpr int kLifeMax                  = 999;
 
 // ---------------------------------------------------------------------------
 // Navigation / menu mode enum (used in MultiplayerGameState and knob.cpp).
@@ -50,10 +52,12 @@ struct SettingsState {
 // ---------------------------------------------------------------------------
 
 struct MultiplayerGameState {
+    int              active_player_count = kDefaultActivePlayerCount;
     int              life[kMultiplayerCount];
     int              commander_tax[kMultiplayerCount];
     int              selected          = 0;
     int              menu_player       = 0;
+    int              pending_player_count = -1;
     int              cmd_source        = 0;
     int              cmd_target        = -1;
     int              cmd_damage_totals[kMultiplayerCount][kMultiplayerCount];
@@ -65,16 +69,19 @@ struct MultiplayerGameState {
     char             names[kMultiplayerCount][kPlayerNameMaxLen];
 
     MultiplayerGameState() {
-        for (int i = 0; i < kMultiplayerCount; ++i) {
-            life[i] = kDefaultLifeTotal;
-            commander_tax[i] = 0;
-            snprintf(names[i], kPlayerNameMaxLen, "P%d", i + 1);
-        }
-        memset(cmd_damage_totals, 0, sizeof(cmd_damage_totals));
+        reset(kDefaultActivePlayerCount);
     }
 
     // Resets all gameplay values back to new-game defaults.
-    void reset() {
+    void reset(int new_active_player_count = -1) {
+        if (new_active_player_count >= kMinActivePlayerCount &&
+            new_active_player_count <= kMultiplayerCount) {
+            active_player_count = new_active_player_count;
+        } else if (active_player_count < kMinActivePlayerCount ||
+                   active_player_count > kMultiplayerCount) {
+            active_player_count = kDefaultActivePlayerCount;
+        }
+
         for (int i = 0; i < kMultiplayerCount; ++i) {
             life[i] = kDefaultLifeTotal;
             commander_tax[i] = 0;
@@ -82,6 +89,7 @@ struct MultiplayerGameState {
         }
         selected          = 0;
         menu_player       = 0;
+        pending_player_count = -1;
         cmd_source        = 0;
         cmd_target        = -1;
         memset(cmd_damage_totals, 0, sizeof(cmd_damage_totals));
@@ -89,6 +97,17 @@ struct MultiplayerGameState {
         pending_life_delta = 0;
         preview_player    = -1;
         life_preview_active = false;
+    }
+
+    bool isActivePlayerIndex(int index) const {
+        return index >= 0 && index < active_player_count;
+    }
+
+    int clampPlayerIndex(int index) const {
+        if (active_player_count <= 0) return 0;
+        if (index < 0) return 0;
+        if (index >= active_player_count) return active_player_count - 1;
+        return index;
     }
 };
 

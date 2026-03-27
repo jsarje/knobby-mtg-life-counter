@@ -84,6 +84,20 @@ void NavigationController::openAllDamageScreen() {
     loadScreen(g_screen_multiplayer_all_damage.lvObject());
 }
 
+void NavigationController::openPlayerCountScreen() {
+    commitPreviewAndRefreshMultiplayer();
+    g_screen_multiplayer_player_count.refresh(g_multiplayer_game_state);
+    loadScreen(g_screen_multiplayer_player_count.lvObject());
+}
+
+void NavigationController::openPlayerCountConfirmScreen(int new_count) {
+    commitPreviewAndRefreshMultiplayer();
+    if (new_count < kMinActivePlayerCount || new_count > kMultiplayerCount) return;
+    g_multiplayer_game_state.pending_player_count = new_count;
+    g_screen_multiplayer_player_count_confirm.refresh(g_multiplayer_game_state);
+    loadScreen(g_screen_multiplayer_player_count_confirm.lvObject());
+}
+
 // ---------------------------------------------------------------------------
 // Swipe-gesture tracking
 // ---------------------------------------------------------------------------

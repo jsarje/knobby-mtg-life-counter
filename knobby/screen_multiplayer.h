@@ -1,12 +1,14 @@
 // screen_multiplayer.h
 // Screen classes for all multiplayer-related LVGL screens.
 //
-// MultiplayerScreen        – the four-quadrant life-counter overview
+// MultiplayerScreen        – the adaptive multiplayer life-counter overview
 // MultiplayerMenuScreen    – per-player and global action menu
 // MultiplayerNameScreen    – player-name text input
 // MultiplayerCmdSelectScreen – commander-damage source selection
 // MultiplayerCmdDamageScreen – commander-damage adjustment
 // MultiplayerAllDamageScreen – global damage application
+// MultiplayerPlayerCountScreen – active-player-count selection
+// MultiplayerPlayerCountConfirmScreen – destructive APC change confirmation
 //
 // Each class owns its LVGL screen object and all child widgets; the file-
 // scope global arrays in knob.cpp have been moved here.  LVGL event
@@ -39,6 +41,7 @@ public:
 private:
     lv_obj_t* screen_                              = nullptr;
     lv_obj_t* quadrants_[kMultiplayerCount]        = {};
+    lv_obj_t* content_[kMultiplayerCount]          = {};
     lv_obj_t* label_life_[kMultiplayerCount]       = {};
     lv_obj_t* label_name_[kMultiplayerCount]       = {};
     // Circular badge shown when commander tax > 0. Badge is a container
@@ -58,6 +61,7 @@ public:
                 lv_event_cb_t cmd_damage_cb,
                 lv_event_cb_t inc_commander_cb,
                 lv_event_cb_t all_damage_cb,
+                lv_event_cb_t players_cb,
                 lv_event_cb_t settings_cb,
                 lv_event_cb_t reset_cb,
                 lv_event_cb_t back_cb);
@@ -71,6 +75,7 @@ private:
     lv_obj_t* btn_cmd_damage_        = nullptr;
     lv_obj_t* btn_inc_commander_     = nullptr;
     lv_obj_t* btn_all_damage_        = nullptr;
+    lv_obj_t* btn_players_           = nullptr;
     lv_obj_t* btn_menu_              = nullptr;
     lv_obj_t* btn_reset_             = nullptr;
     lv_obj_t* btn_back_              = nullptr;
@@ -156,6 +161,43 @@ private:
 };
 
 // ---------------------------------------------------------------------------
+// MultiplayerPlayerCountScreen
+// ---------------------------------------------------------------------------
+
+class MultiplayerPlayerCountScreen {
+public:
+    void create(lv_event_cb_t select_two_cb,
+                lv_event_cb_t select_three_cb,
+                lv_event_cb_t select_four_cb,
+                lv_event_cb_t back_cb);
+    void refresh(const MultiplayerGameState& state);
+    lv_obj_t* lvObject() const { return screen_; }
+
+private:
+    lv_obj_t* screen_      = nullptr;
+    lv_obj_t* label_title_ = nullptr;
+    lv_obj_t* btn_two_     = nullptr;
+    lv_obj_t* btn_three_   = nullptr;
+    lv_obj_t* btn_four_    = nullptr;
+};
+
+// ---------------------------------------------------------------------------
+// MultiplayerPlayerCountConfirmScreen
+// ---------------------------------------------------------------------------
+
+class MultiplayerPlayerCountConfirmScreen {
+public:
+    void create(lv_event_cb_t confirm_cb, lv_event_cb_t back_cb);
+    void refresh(const MultiplayerGameState& state);
+    lv_obj_t* lvObject() const { return screen_; }
+
+private:
+    lv_obj_t* screen_       = nullptr;
+    lv_obj_t* label_title_  = nullptr;
+    lv_obj_t* label_message_ = nullptr;
+};
+
+// ---------------------------------------------------------------------------
 // Global instances
 // ---------------------------------------------------------------------------
 
@@ -165,3 +207,5 @@ extern MultiplayerNameScreen       g_screen_multiplayer_name;
 extern MultiplayerCmdSelectScreen  g_screen_multiplayer_cmd_select;
 extern MultiplayerCmdDamageScreen  g_screen_multiplayer_cmd_damage;
 extern MultiplayerAllDamageScreen  g_screen_multiplayer_all_damage;
+extern MultiplayerPlayerCountScreen g_screen_multiplayer_player_count;
+extern MultiplayerPlayerCountConfirmScreen g_screen_multiplayer_player_count_confirm;

@@ -124,6 +124,20 @@ static void refresh_multiplayer_name_ui()    { g_screen_multiplayer_name.refresh
 static void refresh_multiplayer_cmd_select_ui() { g_screen_multiplayer_cmd_select.refresh(mp); }
 static void refresh_multiplayer_cmd_damage_ui() { g_screen_multiplayer_cmd_damage.refresh(mp); }
 static void refresh_multiplayer_all_damage_ui() { g_screen_multiplayer_all_damage.refresh(mp); }
+static void refresh_multiplayer_player_count_ui() { g_screen_multiplayer_player_count.refresh(mp); }
+static void refresh_multiplayer_player_count_confirm_ui() { g_screen_multiplayer_player_count_confirm.refresh(mp); }
+
+static void refresh_all_multiplayer_ui()
+{
+    refresh_multiplayer_ui();
+    refresh_multiplayer_menu_ui();
+    refresh_multiplayer_name_ui();
+    refresh_multiplayer_cmd_select_ui();
+    refresh_multiplayer_cmd_damage_ui();
+    refresh_multiplayer_all_damage_ui();
+    refresh_multiplayer_player_count_ui();
+    refresh_multiplayer_player_count_confirm_ui();
+}
 
 // Timer callback: commits any pending life-delta preview and refreshes the
 // multiplayer screen so the committed total becomes visible.
@@ -165,12 +179,45 @@ static void reset_all_values(void)
     g_multiplayer_controller.resetAll(ss);
     g_settings_controller.applyBrightness();
     refresh_settings_ui();
-    refresh_multiplayer_ui();
-    refresh_multiplayer_menu_ui();
-    refresh_multiplayer_name_ui();
-    refresh_multiplayer_cmd_select_ui();
-    refresh_multiplayer_cmd_damage_ui();
-    refresh_multiplayer_all_damage_ui();
+    refresh_all_multiplayer_ui();
+}
+
+static void apply_active_player_count_change(int new_count)
+{
+    if (!g_multiplayer_controller.canApplyActivePlayerCount(new_count)) {
+        return;
+    }
+
+    if (new_count == mp.active_player_count) {
+        mp.pending_player_count = -1;
+        g_navigation_controller.openMultiplayerScreen();
+        return;
+    }
+
+    if (g_multiplayer_controller.isSessionDirty()) {
+        g_navigation_controller.openPlayerCountConfirmScreen(new_count);
+        return;
+    }
+
+    mp.pending_player_count = -1;
+    g_multiplayer_controller.setActivePlayerCount(new_count);
+    refresh_all_multiplayer_ui();
+    g_navigation_controller.openMultiplayerScreen();
+}
+
+static void confirm_active_player_count_change(void)
+{
+    const int new_count = mp.pending_player_count;
+    if (!g_multiplayer_controller.canApplyActivePlayerCount(new_count)) {
+        mp.pending_player_count = -1;
+        g_navigation_controller.openPlayerCountScreen();
+        return;
+    }
+
+    mp.pending_player_count = -1;
+    g_multiplayer_controller.setActivePlayerCount(new_count);
+    refresh_all_multiplayer_ui();
+    g_navigation_controller.openMultiplayerScreen();
 }
 
 static void intro_timer_cb(lv_timer_t *timer)
@@ -253,6 +300,12 @@ static void event_multiplayer_menu_settings(lv_event_t *e)
 {
     (void)e;
     g_navigation_controller.openSettingsScreen();
+}
+
+static void event_multiplayer_menu_players(lv_event_t *e)
+{
+    (void)e;
+    g_navigation_controller.openPlayerCountScreen();
 }
 
 static void event_multiplayer_menu_rename(lv_event_t *e)
@@ -339,6 +392,43 @@ static void event_multiplayer_all_damage_apply(lv_event_t *e)
     g_navigation_controller.openMultiplayerScreen();
 }
 
+static void event_multiplayer_player_count_back(lv_event_t *e)
+{
+    (void)e;
+    mp.pending_player_count = -1;
+    g_navigation_controller.openMenuScreen(mp.selected, MULTIPLAYER_MENU_GLOBAL);
+}
+
+static void event_multiplayer_player_count_two(lv_event_t *e)
+{
+    (void)e;
+    apply_active_player_count_change(2);
+}
+
+static void event_multiplayer_player_count_three(lv_event_t *e)
+{
+    (void)e;
+    apply_active_player_count_change(3);
+}
+
+static void event_multiplayer_player_count_four(lv_event_t *e)
+{
+    (void)e;
+    apply_active_player_count_change(4);
+}
+
+static void event_multiplayer_player_count_confirm_back(lv_event_t *e)
+{
+    (void)e;
+    g_navigation_controller.openPlayerCountScreen();
+}
+
+static void event_multiplayer_player_count_confirm_apply(lv_event_t *e)
+{
+    (void)e;
+    confirm_active_player_count_change();
+}
+
 
 // Screen classes (screen_intro, screen_settings, screen_multiplayer) own all
 // widget pointers and LVGL object creation via their create() methods.
@@ -366,6 +456,7 @@ void knob_gui(void)
         event_multiplayer_menu_cmd_damage,
         event_multiplayer_menu_inc_commander_tax,
         event_multiplayer_menu_all_damage,
+        event_multiplayer_menu_players,
         event_multiplayer_menu_settings,
         event_menu_reset,
         event_multiplayer_menu_back);
@@ -379,14 +470,17 @@ void knob_gui(void)
     g_screen_multiplayer_all_damage.create(
         event_multiplayer_all_damage_apply,
         event_multiplayer_all_damage_back);
+    g_screen_multiplayer_player_count.create(
+        event_multiplayer_player_count_two,
+        event_multiplayer_player_count_three,
+        event_multiplayer_player_count_four,
+        event_multiplayer_player_count_back);
+    g_screen_multiplayer_player_count_confirm.create(
+        event_multiplayer_player_count_confirm_apply,
+        event_multiplayer_player_count_confirm_back);
     g_screen_settings.create(event_multiplayer_menu_back);
 
-    refresh_multiplayer_ui();
-    refresh_multiplayer_menu_ui();
-    refresh_multiplayer_name_ui();
-    refresh_multiplayer_cmd_select_ui();
-    refresh_multiplayer_cmd_damage_ui();
-    refresh_multiplayer_all_damage_ui();
+    refresh_all_multiplayer_ui();
     refresh_settings_ui();
 
     intro_step = 0;
