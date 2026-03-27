@@ -71,7 +71,7 @@ Assumptions:
 
 - **CON-001**: The firmware shall remain compatible with ESP32-S3 and the current display, touch, and encoder hardware assumptions.
 - **CON-002**: The firmware shall remain compatible with LVGL 8.4.x during this refactor.
-- **CON-003**: The refactor shall not require a functional PlatformIO build for acceptance in this branch; documentation and code planning must be self-consistent without build validation.
+- **CON-003**: The refactor shall require a functional PlatformIO build for acceptance in this branch; documentation and code planning must be self-consistent without build validation.
 - **CON-004**: The migration shall avoid introducing dynamic ownership patterns that are fragile on embedded hardware.
 - **CON-005**: The migration shall prefer deterministic lifecycle management and static-or-root-owned objects over ad hoc heap ownership.
 

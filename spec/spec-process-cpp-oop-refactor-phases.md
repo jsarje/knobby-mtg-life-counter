@@ -37,7 +37,6 @@ Audience:
 
 Assumptions:
 
-- The branch may accept documentation and refactor work without build validation because PlatformIO is not functional in this environment
 - The current codebase remains the canonical behavioral baseline during migration
 
 ## 2. Definitions
@@ -131,8 +130,6 @@ Not allowed:
 The current firmware contains a good functional baseline but large concentrations of responsibility in a few source files. A full rewrite would be risky because gameplay behavior, hardware integration, and LVGL object graphs are intertwined. A phased migration is safer because it creates stable seams incrementally.
 
 This phase order intentionally starts by clarifying ownership at the top of the app, then extracting hardware services and session state, and only later splitting controllers and views. That ordering reduces the chance that UI rewrites accidentally change gameplay semantics or hardware timing behavior.
-
-The plan also recognizes the practical constraint that PlatformIO build validation is not functional in this environment. Therefore each phase must be small, explicitly scoped, and easy to review for logical consistency.
 
 ## 8. Dependencies & External Integrations
 
