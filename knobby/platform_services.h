@@ -1,17 +1,8 @@
-#ifndef KNOBBY_PLATFORM_SERVICES_H
-#define KNOBBY_PLATFORM_SERVICES_H
+#pragma once
 
-#include <stdbool.h>
+// Hardware service interfaces.  All functions are implemented in
+// platform_services.cpp and called only from C++ translation units.
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-bool knobby_platform_services_init_ui(void);
-void knobby_platform_apply_brightness_percent(int percent);
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif
+bool  knobby_platform_services_init_ui(void);
+void  knobby_platform_apply_brightness_percent(int percent);
+float knob_read_battery_voltage(void);

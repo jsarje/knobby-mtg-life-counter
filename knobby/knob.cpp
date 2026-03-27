@@ -338,7 +338,7 @@ static void event_multiplayer_all_damage_apply(lv_event_t *e)
 // Public API
 // ---------------------------------------------------------------------------
 
-extern "C" void knob_gui(void)
+void knob_gui(void)
 {
     g_settings_controller.applyBrightness();
     g_navigation_controller.init(knob_flush_input_queue);
@@ -421,7 +421,7 @@ static void handle_knob_event(knob_event_t k)
     }
 }
 
-extern "C" void knob_change(knob_event_t k, int cont)
+void knob_change(knob_event_t k, int cont)
 {
     uint8_t next_head;
     uint8_t pending_count;
@@ -444,7 +444,7 @@ extern "C" void knob_change(knob_event_t k, int cont)
     taskEXIT_CRITICAL(&knob_event_queue_lock);
 }
 
-extern "C" void knob_process_pending(void)
+void knob_process_pending(void)
 {
     uint8_t processed = 0;
     uint8_t process_budget = KNOB_EVENT_PROCESS_BUDGET;

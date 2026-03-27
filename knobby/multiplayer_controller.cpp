@@ -1,12 +1,11 @@
 // multiplayer_controller.cpp
-// Phase 4: business-rule logic extracted from knob.cpp into typed controllers.
+// Business-rule logic for settings and multiplayer gameplay.
 //
 // SettingsController owns brightness and battery rules.
 // MultiplayerController owns life/damage rules, preview-commit timer
 // management, player-selection handling, name saving, and game reset.
 
 #include "multiplayer_controller.h"
-#include "knob.h"      // knob_read_battery_voltage (C-linkage, platform_services)
 
 #include <stdio.h>
 #include <string.h>
