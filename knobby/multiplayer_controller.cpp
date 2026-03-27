@@ -184,6 +184,12 @@ void MultiplayerController::resetAll(SettingsState& settings) {
     }
 }
 
+void MultiplayerController::incrementCommanderTax(int player_index) {
+    if (player_index < 0 || player_index >= kMultiplayerCount) return;
+    // Ensure non-negative behavior; simple increment is sufficient.
+    state_.commander_tax[player_index] += 1;
+}
+
 int MultiplayerController::clampLife(int value) {
     if (value < kLifeMin) return kLifeMin;
     if (value > kLifeMax) return kLifeMax;

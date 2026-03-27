@@ -51,6 +51,7 @@ struct SettingsState {
 
 struct MultiplayerGameState {
     int              life[kMultiplayerCount];
+    int              commander_tax[kMultiplayerCount];
     int              selected          = 0;
     int              menu_player       = 0;
     int              cmd_source        = 0;
@@ -66,6 +67,7 @@ struct MultiplayerGameState {
     MultiplayerGameState() {
         for (int i = 0; i < kMultiplayerCount; ++i) {
             life[i] = kDefaultLifeTotal;
+            commander_tax[i] = 0;
             snprintf(names[i], kPlayerNameMaxLen, "P%d", i + 1);
         }
         memset(cmd_damage_totals, 0, sizeof(cmd_damage_totals));
@@ -75,6 +77,7 @@ struct MultiplayerGameState {
     void reset() {
         for (int i = 0; i < kMultiplayerCount; ++i) {
             life[i] = kDefaultLifeTotal;
+            commander_tax[i] = 0;
             snprintf(names[i], kPlayerNameMaxLen, "P%d", i + 1);
         }
         selected          = 0;

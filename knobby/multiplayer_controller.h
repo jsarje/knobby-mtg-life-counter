@@ -94,6 +94,9 @@ public:
 
     // Resets all multiplayer and settings state to new-game defaults.
     void resetAll(SettingsState& settings);
+    
+    // Increments the commander tax counter for a given player by 1.
+    void incrementCommanderTax(int player_index);
 
 private:
     MultiplayerGameState& state_;

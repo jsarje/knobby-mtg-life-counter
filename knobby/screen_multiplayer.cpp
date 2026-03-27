@@ -98,6 +98,12 @@ void MultiplayerScreen::create(lv_event_cb_t select_cb,
         lv_label_set_text(label_life_[i], "40");
         lv_obj_set_style_text_color(label_life_[i], lv_color_white(), 0);
         lv_obj_set_style_text_font(label_life_[i], &lv_font_montserrat_32, 0);
+
+        // Commander tax badge (hidden when zero)
+        label_commander_tax_[i] = lv_label_create(screen_);
+        lv_label_set_text(label_commander_tax_[i], "");
+        lv_obj_set_style_text_font(label_commander_tax_[i], &lv_font_montserrat_14, 0);
+        lv_obj_set_style_text_color(label_commander_tax_[i], lv_color_white(), 0);
     }
 }
 
@@ -139,6 +145,21 @@ void MultiplayerScreen::refresh(const MultiplayerGameState& state)
             lv_obj_set_style_text_color(label_name_[i], txt_color, 0);
             lv_obj_align(label_name_[i], LV_ALIGN_CENTER, name_offsets_x[i], name_offsets_y[i]);
         }
+
+        // Commander tax: show badge if non-zero
+        if (label_commander_tax_[i] != nullptr) {
+            if (state.commander_tax[i] <= 0) {
+                lv_obj_add_flag(label_commander_tax_[i], LV_OBJ_FLAG_HIDDEN);
+            } else {
+                char ctbuf[8];
+                snprintf(ctbuf, sizeof(ctbuf), "CT:%d", state.commander_tax[i]);
+                lv_label_set_text(label_commander_tax_[i], ctbuf);
+                lv_obj_set_style_text_color(label_commander_tax_[i], txt_color, 0);
+                // align near the quadrant corner
+                lv_obj_align(label_commander_tax_[i], LV_ALIGN_CENTER, life_offsets_x[i] + 60, life_offsets_y[i] - 60);
+                lv_obj_clear_flag(label_commander_tax_[i], LV_OBJ_FLAG_HIDDEN);
+            }
+        }
     }
 }
 
@@ -148,6 +169,7 @@ void MultiplayerScreen::refresh(const MultiplayerGameState& state)
 
 void MultiplayerMenuScreen::create(lv_event_cb_t rename_cb,
                                     lv_event_cb_t cmd_damage_cb,
+                                    lv_event_cb_t inc_commander_cb,
                                     lv_event_cb_t all_damage_cb,
                                     lv_event_cb_t settings_cb,
                                     lv_event_cb_t reset_cb,
@@ -169,6 +191,9 @@ void MultiplayerMenuScreen::create(lv_event_cb_t rename_cb,
 
     btn_cmd_damage_ = make_button(screen_, "Commander", 180, 44, cmd_damage_cb);
     lv_obj_align(btn_cmd_damage_, LV_ALIGN_CENTER, 0, -4);
+
+    btn_inc_commander_ = make_button(screen_, "Commander Tax", 180, 44, inc_commander_cb);
+    lv_obj_align(btn_inc_commander_, LV_ALIGN_CENTER, 0, 48);
 
     btn_all_damage_ = make_button(screen_, "Global",    180, 44, all_damage_cb);
     lv_obj_align(btn_all_damage_, LV_ALIGN_CENTER, 0, -56);
@@ -207,6 +232,7 @@ void MultiplayerMenuScreen::refresh(const MultiplayerGameState& state)
 
     show(btn_rename_,    player_menu);
     show(btn_cmd_damage_, player_menu);
+    show(btn_inc_commander_, player_menu);
     show(btn_all_damage_, !player_menu);
     show(btn_menu_,       !player_menu);
     show(btn_reset_,      !player_menu);

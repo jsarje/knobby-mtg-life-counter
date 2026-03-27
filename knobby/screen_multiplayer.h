@@ -41,6 +41,7 @@ private:
     lv_obj_t* quadrants_[kMultiplayerCount]        = {};
     lv_obj_t* label_life_[kMultiplayerCount]       = {};
     lv_obj_t* label_name_[kMultiplayerCount]       = {};
+    lv_obj_t* label_commander_tax_[kMultiplayerCount] = {};
 };
 
 // ---------------------------------------------------------------------------
@@ -51,6 +52,7 @@ class MultiplayerMenuScreen {
 public:
     void create(lv_event_cb_t rename_cb,
                 lv_event_cb_t cmd_damage_cb,
+                lv_event_cb_t inc_commander_cb,
                 lv_event_cb_t all_damage_cb,
                 lv_event_cb_t settings_cb,
                 lv_event_cb_t reset_cb,
@@ -63,6 +65,7 @@ private:
     lv_obj_t* label_title_           = nullptr;
     lv_obj_t* btn_rename_            = nullptr;
     lv_obj_t* btn_cmd_damage_        = nullptr;
+    lv_obj_t* btn_inc_commander_     = nullptr;
     lv_obj_t* btn_all_damage_        = nullptr;
     lv_obj_t* btn_menu_              = nullptr;
     lv_obj_t* btn_reset_             = nullptr;

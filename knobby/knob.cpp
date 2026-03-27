@@ -261,6 +261,15 @@ static void event_multiplayer_menu_rename(lv_event_t *e)
     g_navigation_controller.openNameScreen();
 }
 
+static void event_multiplayer_menu_inc_commander_tax(lv_event_t *e)
+{
+    (void)e;
+    // Increment commander tax for the menu player and refresh UI.
+    g_multiplayer_controller.incrementCommanderTax(mp.menu_player);
+    refresh_multiplayer_ui();
+    refresh_multiplayer_menu_ui();
+}
+
 static void event_multiplayer_menu_cmd_damage(lv_event_t *e)
 {
     (void)e;
@@ -353,6 +362,7 @@ void knob_gui(void)
     g_screen_multiplayer_menu.create(
         event_multiplayer_menu_rename,
         event_multiplayer_menu_cmd_damage,
+        event_multiplayer_menu_inc_commander_tax,
         event_multiplayer_menu_all_damage,
         event_multiplayer_menu_settings,
         event_menu_reset,
