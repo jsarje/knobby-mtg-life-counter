@@ -35,9 +35,10 @@ LayoutMetrics build_layout(int active_player_count)
         layout.seats[1] = {true, 0, 180, 360, 180, 0, 20, 18};
         break;
     case 3:
-        layout.seats[0] = {true, 0, 0, 360, 120, 180, 20, 16};
-        layout.seats[1] = {true, 0, 120, 180, 240, 0, 16, 20};
-        layout.seats[2] = {true, 180, 120, 180, 240, 0, 16, 20};
+        // Player 1 takes the full top half; players 2 and 3 split bottom half
+        layout.seats[0] = {true, 0, 0, 360, 180, 180, 20, 16};
+        layout.seats[1] = {true, 0, 180, 180, 180, 0, 16, 20};
+        layout.seats[2] = {true, 180, 180, 180, 180, 0, 16, 20};
         break;
     case 4:
     default:
