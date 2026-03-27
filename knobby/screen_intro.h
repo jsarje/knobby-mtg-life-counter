@@ -1,5 +1,5 @@
 // screen_intro.h
-// Phase 5: IntroScreen class encapsulates the animated introduction screen.
+// IntroScreen class encapsulates the animated introduction screen.
 // Owns the LVGL screen object and all letter labels; callers interact only
 // through create() and refresh().
 

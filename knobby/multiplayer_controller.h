@@ -1,5 +1,5 @@
 // multiplayer_controller.h
-// Domain controller layer (Phase 4).
+// Domain controller layer.
 //
 // SettingsController owns brightness-adjustment and battery-measurement rules.
 // MultiplayerController owns life-total, commander-damage, selection-change,

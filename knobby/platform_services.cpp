@@ -90,14 +90,14 @@ UiPlatformService g_ui_platform_service;
 
 }  // namespace
 
-extern "C" bool knobby_platform_services_init_ui(void) {
+bool knobby_platform_services_init_ui(void) {
   return g_ui_platform_service.initUi();
 }
 
-extern "C" void knobby_platform_apply_brightness_percent(int percent) {
+void knobby_platform_apply_brightness_percent(int percent) {
   g_backlight_service.applyPercent(percent);
 }
 
-extern "C" float knob_read_battery_voltage(void) {
+float knob_read_battery_voltage(void) {
   return g_battery_service.readVoltage();
 }

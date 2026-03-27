@@ -1,5 +1,5 @@
 // screen_multiplayer.h
-// Phase 5: Screen classes for all multiplayer-related LVGL screens.
+// Screen classes for all multiplayer-related LVGL screens.
 //
 // MultiplayerScreen        – the four-quadrant life-counter overview
 // MultiplayerMenuScreen    – per-player and global action menu

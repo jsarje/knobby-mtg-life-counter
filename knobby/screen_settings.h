@@ -1,5 +1,5 @@
 // screen_settings.h
-// Phase 5: SettingsScreen class encapsulates the settings screen UI.
+// SettingsScreen class encapsulates the settings screen UI.
 // Owns the LVGL screen object, brightness arc, and all setting labels.
 
 #pragma once

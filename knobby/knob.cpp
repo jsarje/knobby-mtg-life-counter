@@ -1,8 +1,8 @@
-// knob.cpp – Phase 4: business rules moved to controller classes.
-// (was Phase 3: converted from knob.c with session-state extraction)
-// Phase 5: screen construction/refresh moved to screen classes.
-// LVGL event callbacks are now thin: they forward actions to controllers
-// and then call screen-refresh helpers.
+// knob.cpp – LVGL event dispatcher and encoder input queue.
+// Screen construction delegates to screen classes (screen_intro / screen_settings /
+// screen_multiplayer).  Business rules delegate to domain controllers
+// (multiplayer_controller).  Screen transitions delegate to the navigation
+// coordinator (navigation_controller).
 
 #include "knob.h"
 #include "esp_log.h"
@@ -10,6 +10,7 @@
 #include "platform_services.h"
 #include "session_state.h"
 #include "multiplayer_controller.h"
+#include "navigation_controller.h"
 #include "screen_intro.h"
 #include "screen_settings.h"
 #include "screen_multiplayer.h"
@@ -29,8 +30,6 @@ typedef struct
     knob_event_t event;
 } knob_input_event_t;
 
-// MultiplayerMenuMode enum is now in session_state.h.
-
 static const char *KNOB_GUI_TAG = "knob_gui";
 
 // ---------------------------------------------------------------------------
@@ -42,14 +41,14 @@ static const char *KNOB_GUI_TAG = "knob_gui";
 static MultiplayerGameState& mp = g_multiplayer_game_state;
 static SettingsState&         ss = g_settings_state;
 
-// Phase 5: Screen objects and all widget pointers are now owned by the
-// screen class instances declared in screen_intro.h / screen_settings.h /
-// screen_multiplayer.h.  The file-scope globals that previously held them
-// have been removed.
+// Screen objects and all widget pointers are owned by the screen class
+// instances declared in screen_intro.h / screen_settings.h /
+// screen_multiplayer.h.
 
 static lv_timer_t *intro_timer = NULL;
 static lv_timer_t *multiplayer_life_preview_timer = NULL;
-static bool knob_initialized = false;
+static uint8_t intro_step = 0;
+
 static knob_input_event_t knob_event_queue[KNOB_EVENT_QUEUE_SIZE];
 static volatile uint8_t knob_event_head = 0;
 static volatile uint8_t knob_event_tail = 0;
@@ -57,19 +56,6 @@ static volatile uint32_t knob_event_overflow_count = 0;
 static volatile uint8_t knob_event_high_watermark = 0;
 static portMUX_TYPE knob_event_queue_lock = portMUX_INITIALIZER_UNLOCKED;
 static uint32_t knob_event_overflow_reported = 0;
-
-// battery and multiplayer runtime state is now owned by g_settings_state
-// and g_multiplayer_game_state (see session_state.h / session_state.cpp).
-static uint8_t intro_step = 0;
-// Swipe tracking is input state, not gameplay state; kept local here.
-static bool multiplayer_swipe_tracking = false;
-static lv_point_t multiplayer_swipe_start = {0, 0};
-
-// Static UI assets moved to screen class files in Phase 5:
-//  - intro_text / intro_colors / intro_x  →  screen_intro.cpp (IntroScreen)
-//  - battery_curve                        →  multiplayer_controller.cpp (SettingsController)
-
-static void open_multiplayer_screen(void);
 
 static uint8_t knob_queue_count_unsafe(void)
 {
@@ -139,7 +125,8 @@ static void refresh_multiplayer_cmd_select_ui() { g_screen_multiplayer_cmd_selec
 static void refresh_multiplayer_cmd_damage_ui() { g_screen_multiplayer_cmd_damage.refresh(mp); }
 static void refresh_multiplayer_all_damage_ui() { g_screen_multiplayer_all_damage.refresh(mp); }
 
-// Phase 4: timer callback forwards to MultiplayerController::commitLifePreview().
+// Timer callback: commits any pending life-delta preview and refreshes the
+// multiplayer screen so the committed total becomes visible.
 static void multiplayer_life_preview_commit_cb(lv_timer_t *timer)
 {
     (void)timer;
@@ -147,7 +134,6 @@ static void multiplayer_life_preview_commit_cb(lv_timer_t *timer)
     refresh_multiplayer_ui();
 }
 
-// Phase 4: thin wrappers – business rules now live in controller classes.
 static void change_brightness(int delta)
 {
     g_settings_controller.adjustBrightness(delta);
@@ -176,7 +162,6 @@ static void change_multiplayer_all_damage(int delta)
 
 static void reset_all_values(void)
 {
-    // Phase 4: delegate to the controller which handles preview-timer cleanup.
     g_multiplayer_controller.resetAll(ss);
     g_settings_controller.applyBrightness();
     refresh_settings_ui();
@@ -201,86 +186,28 @@ static void intro_timer_cb(lv_timer_t *timer)
     if (intro_timer != NULL) {
         lv_timer_pause(intro_timer);
     }
-    open_multiplayer_screen();
+    g_navigation_controller.openMultiplayerScreen();
 }
 
-// Screen navigation and transitions
-
-static void flush_knob_input_queue(void)
+// Flushes stale encoder events when switching screens.  Passed to the
+// NavigationController during knob_gui() initialisation.
+static void knob_flush_input_queue(void)
 {
     taskENTER_CRITICAL(&knob_event_queue_lock);
     knob_event_tail = knob_event_head;
     taskEXIT_CRITICAL(&knob_event_queue_lock);
 }
 
-static void load_screen_if_needed(lv_obj_t *screen)
-{
-    if (screen != NULL && lv_scr_act() != screen) {
-        flush_knob_input_queue();
-        lv_scr_load(screen);
-    }
-}
-
-static void open_settings_screen()
-{
-    multiplayer_life_preview_commit_cb(NULL);
-    g_settings_controller.updateBattery(true);
-    refresh_settings_ui();
-    load_screen_if_needed(g_screen_settings.lvObject());
-}
-
-static void open_multiplayer_screen()
-{
-    multiplayer_life_preview_commit_cb(NULL);
-    refresh_multiplayer_ui();
-    load_screen_if_needed(g_screen_multiplayer.lvObject());
-}
-
-static void open_multiplayer_menu_screen(int player_index, MultiplayerMenuMode mode)
-{
-    multiplayer_life_preview_commit_cb(NULL);
-    mp.menu_player = player_index;
-    mp.menu_mode = mode;
-    refresh_multiplayer_menu_ui();
-    load_screen_if_needed(g_screen_multiplayer_menu.lvObject());
-}
-
-static void open_multiplayer_name_screen(void)
-{
-    multiplayer_life_preview_commit_cb(NULL);
-    refresh_multiplayer_name_ui();
-    load_screen_if_needed(g_screen_multiplayer_name.lvObject());
-}
-
-static void open_multiplayer_cmd_select_screen(void)
-{
-    multiplayer_life_preview_commit_cb(NULL);
-    refresh_multiplayer_cmd_select_ui();
-    load_screen_if_needed(g_screen_multiplayer_cmd_select.lvObject());
-}
-
-static void open_multiplayer_cmd_damage_screen(int target_index)
-{
-    multiplayer_life_preview_commit_cb(NULL);
-    mp.cmd_source = target_index;
-    mp.cmd_target = mp.menu_player;
-    refresh_multiplayer_cmd_damage_ui();
-    load_screen_if_needed(g_screen_multiplayer_cmd_damage.lvObject());
-}
-
-static void open_multiplayer_all_damage_screen(void)
-{
-    multiplayer_life_preview_commit_cb(NULL);
-    mp.all_damage_value = 0;
-    refresh_multiplayer_all_damage_ui();
-    load_screen_if_needed(g_screen_multiplayer_all_damage.lvObject());
-}
+// ---------------------------------------------------------------------------
+// LVGL event callbacks – thin wrappers that forward to controller or
+// navigation coordinator methods.
+// ---------------------------------------------------------------------------
 
 static void event_menu_reset(lv_event_t *e)
 {
     (void)e;
     reset_all_values();
-    open_multiplayer_screen();
+    g_navigation_controller.openMultiplayerScreen();
 }
 
 static void event_multiplayer_select(lv_event_t *e)
@@ -295,67 +222,61 @@ static void event_multiplayer_open_menu(lv_event_t *e)
     int new_selected = (int)(intptr_t)lv_event_get_user_data(e);
     g_multiplayer_controller.selectPlayer(new_selected);
     refresh_multiplayer_ui();
-    open_multiplayer_menu_screen(mp.selected, MULTIPLAYER_MENU_PLAYER);
+    g_navigation_controller.openMenuScreen(mp.selected, MULTIPLAYER_MENU_PLAYER);
 }
 
 static void event_multiplayer_swipe_menu(lv_event_t *e)
 {
-    lv_point_t point;
     lv_indev_t *indev = lv_indev_get_act();
-
     if (indev == NULL) return;
 
+    lv_point_t point;
+    lv_indev_get_point(indev, &point);
+
     if (lv_event_get_code(e) == LV_EVENT_PRESSED) {
-        lv_indev_get_point(indev, &multiplayer_swipe_start);
-        multiplayer_swipe_tracking = true;
+        g_navigation_controller.beginSwipe(point);
         return;
     }
 
-    if (lv_event_get_code(e) == LV_EVENT_RELEASED && multiplayer_swipe_tracking) {
-        multiplayer_swipe_tracking = false;
-        lv_indev_get_point(indev, &point);
-
-        if ((multiplayer_swipe_start.y - point.y) > 80 &&
-            LV_ABS(point.x - multiplayer_swipe_start.x) < 90) {
-            open_multiplayer_menu_screen(mp.selected, MULTIPLAYER_MENU_GLOBAL);
-        }
+    if (lv_event_get_code(e) == LV_EVENT_RELEASED) {
+        g_navigation_controller.endSwipe(point);
     }
 }
 
 static void event_multiplayer_menu_back(lv_event_t *e)
 {
     (void)e;
-    open_multiplayer_screen();
+    g_navigation_controller.openMultiplayerScreen();
 }
 
 static void event_multiplayer_menu_settings(lv_event_t *e)
 {
     (void)e;
-    open_settings_screen();
+    g_navigation_controller.openSettingsScreen();
 }
 
 static void event_multiplayer_menu_rename(lv_event_t *e)
 {
     (void)e;
-    open_multiplayer_name_screen();
+    g_navigation_controller.openNameScreen();
 }
 
 static void event_multiplayer_menu_cmd_damage(lv_event_t *e)
 {
     (void)e;
-    open_multiplayer_cmd_select_screen();
+    g_navigation_controller.openCmdSelectScreen();
 }
 
 static void event_multiplayer_menu_all_damage(lv_event_t *e)
 {
     (void)e;
-    open_multiplayer_all_damage_screen();
+    g_navigation_controller.openAllDamageScreen();
 }
 
 static void event_multiplayer_name_back(lv_event_t *e)
 {
     (void)e;
-    open_multiplayer_menu_screen(mp.menu_player, MULTIPLAYER_MENU_PLAYER);
+    g_navigation_controller.openMenuScreen(mp.menu_player, MULTIPLAYER_MENU_PLAYER);
 }
 
 static void event_multiplayer_name_save(lv_event_t *e)
@@ -370,13 +291,13 @@ static void event_multiplayer_name_save(lv_event_t *e)
     refresh_multiplayer_name_ui();
     refresh_multiplayer_cmd_select_ui();
     refresh_multiplayer_cmd_damage_ui();
-    open_multiplayer_menu_screen(mp.menu_player, MULTIPLAYER_MENU_PLAYER);
+    g_navigation_controller.openMenuScreen(mp.menu_player, MULTIPLAYER_MENU_PLAYER);
 }
 
 static void event_multiplayer_cmd_select_back(lv_event_t *e)
 {
     (void)e;
-    open_multiplayer_menu_screen(mp.menu_player, MULTIPLAYER_MENU_PLAYER);
+    g_navigation_controller.openMenuScreen(mp.menu_player, MULTIPLAYER_MENU_PLAYER);
 }
 
 static void event_multiplayer_cmd_target_pick(lv_event_t *e)
@@ -384,19 +305,19 @@ static void event_multiplayer_cmd_target_pick(lv_event_t *e)
     int row = (int)(intptr_t)lv_event_get_user_data(e);
     const int choice = g_screen_multiplayer_cmd_select.targetChoice(row);
     if (choice < 0) return;
-    open_multiplayer_cmd_damage_screen(choice);
+    g_navigation_controller.openCmdDamageScreen(choice);
 }
 
 static void event_multiplayer_cmd_damage_back(lv_event_t *e)
 {
     (void)e;
-    open_multiplayer_cmd_select_screen();
+    g_navigation_controller.openCmdSelectScreen();
 }
 
 static void event_multiplayer_all_damage_back(lv_event_t *e)
 {
     (void)e;
-    open_multiplayer_menu_screen(mp.menu_player, MULTIPLAYER_MENU_GLOBAL);
+    g_navigation_controller.openMenuScreen(mp.menu_player, MULTIPLAYER_MENU_GLOBAL);
 }
 
 static void event_multiplayer_all_damage_apply(lv_event_t *e)
@@ -404,26 +325,25 @@ static void event_multiplayer_all_damage_apply(lv_event_t *e)
     (void)e;
     g_multiplayer_controller.applyAllDamage();
     refresh_multiplayer_ui();
-    open_multiplayer_screen();
+    g_navigation_controller.openMultiplayerScreen();
 }
 
 
-// Screen construction – Phase 5: build_* functions removed.
-// Screen classes (screen_intro, screen_settings, screen_multiplayer)
-// own all widget pointers and LVGL object creation.  See knob_gui()
-// below for the create() call sequence.
+// Screen classes (screen_intro, screen_settings, screen_multiplayer) own all
+// widget pointers and LVGL object creation via their create() methods.
+// NavigationController owns all lv_scr_load() decisions via openXxx() methods.
 
 
 // ---------------------------------------------------------------------------
-// Public C-linkage API – definitions match the extern "C" declarations in
-// knob.h so that callers compiled as C (or C++) use the C ABI.
+// Public API
 // ---------------------------------------------------------------------------
 
-extern "C" void knob_gui(void)
+void knob_gui(void)
 {
     g_settings_controller.applyBrightness();
+    g_navigation_controller.init(knob_flush_input_queue);
 
-    // Phase 5: screen classes own construction (create()) and refresh().
+    // Screen classes own construction (create()) and refresh().
     g_screen_intro.create();
     g_screen_multiplayer.create(
         event_multiplayer_select,
@@ -501,15 +421,10 @@ static void handle_knob_event(knob_event_t k)
     }
 }
 
-extern "C" void knob_change(knob_event_t k, int cont)
+void knob_change(knob_event_t k, int cont)
 {
     uint8_t next_head;
     uint8_t pending_count;
-
-    if (!knob_initialized)
-    {
-        knob_initialized = true;
-    }
 
     (void)cont;
 
@@ -529,7 +444,7 @@ extern "C" void knob_change(knob_event_t k, int cont)
     taskEXIT_CRITICAL(&knob_event_queue_lock);
 }
 
-extern "C" void knob_process_pending(void)
+void knob_process_pending(void)
 {
     uint8_t processed = 0;
     uint8_t process_budget = KNOB_EVENT_PROCESS_BUDGET;
