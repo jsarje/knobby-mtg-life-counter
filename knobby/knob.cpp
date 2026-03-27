@@ -1,13 +1,14 @@
-// knob.cpp – converted from knob.c (Phase 3).
-// Session state is now owned by g_settings_state / g_multiplayer_game_state
-// (session_state.h).  File-scope primitive globals have been removed and all
-// access goes through the `ss` / `mp` module-level aliases below.
+// knob.cpp – Phase 4: business rules moved to controller classes.
+// (was Phase 3: converted from knob.c with session-state extraction)
+// LVGL event callbacks are now thin: they forward actions to controllers
+// and then call screen-refresh helpers.
 
 #include "knob.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "platform_services.h"
 #include "session_state.h"
+#include "multiplayer_controller.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -100,9 +101,7 @@ static uint8_t intro_step = 0;
 static bool multiplayer_swipe_tracking = false;
 static lv_point_t multiplayer_swipe_start = {0, 0};
 
-// Static UI assets
-static const float battery_curve_voltages[] = {3.35f, 3.55f, 3.68f, 3.74f, 3.80f, 3.88f, 3.96f, 4.06f, 4.18f};
-static const int battery_curve_percentages[] = {0, 5, 12, 22, 34, 48, 64, 82, 100};
+// Static UI assets (battery curve moved to SettingsController in Phase 4)
 static const char *intro_text[INTRO_CHAR_COUNT] = {"k", "n", "o", "b", "b", "y", "."};
 static const uint32_t intro_colors[INTRO_CHAR_COUNT] = {0x9C5CFF, 0xF6C945, 0x42A5F5, 0x43A047, 0x43A047, 0xE53935, 0xFFFFFF};
 static const lv_coord_t intro_x[INTRO_CHAR_COUNT] = {56, 98, 140, 182, 214, 246, 284};
@@ -147,70 +146,19 @@ static void report_knob_queue_status(void)
     knob_event_overflow_reported = overflow_count;
 }
 
-static int clamp_life(int value)
-{
-    if (value < kLifeMin) return kLifeMin;
-    if (value > kLifeMax) return kLifeMax;
-    return value;
-}
-
-static int clamp_brightness(int value)
-{
-    if (value < 5) return 5;
-    if (value > 100) return 100;
-    return value;
-}
-
-static int clamp_percent(int value)
-{
-    if (value < 0) return 0;
-    if (value > 100) return 100;
-    return value;
-}
-
-static int battery_percent_from_voltage(float voltage)
-{
-    size_t i;
-
-    if (voltage <= battery_curve_voltages[0]) return 0;
-    for (i = 1; i < (sizeof(battery_curve_voltages) / sizeof(battery_curve_voltages[0])); i++) {
-        if (voltage <= battery_curve_voltages[i]) {
-            float low_v = battery_curve_voltages[i - 1];
-            float high_v = battery_curve_voltages[i];
-            int low_p = battery_curve_percentages[i - 1];
-            int high_p = battery_curve_percentages[i];
-            float ratio = (voltage - low_v) / (high_v - low_v);
-            return clamp_percent((int)(low_p + ((high_p - low_p) * ratio) + 0.5f));
-        }
-    }
-
-    return 100;
-}
-
-static void update_battery_measurement(bool force)
-{
-    if (!force && ss.battery_sample_valid && (lv_tick_elaps(ss.battery_sample_tick) < 5000)) {
-        return;
-    }
-
-    ss.battery_voltage = knob_read_battery_voltage();
-    ss.battery_sample_tick = lv_tick_get();
-    ss.battery_sample_valid = (ss.battery_voltage > 0.0f);
-}
-
-static int read_battery_percent(void)
-{
-    update_battery_measurement(false);
-    if (!ss.battery_sample_valid) return -1;
-    return battery_percent_from_voltage(ss.battery_voltage);
-}
+// ---------------------------------------------------------------------------
+// Phase 4: all domain helpers (clamp_*, battery_percent_from_voltage,
+// update_battery_measurement, read_battery_percent) have been moved to
+// SettingsController / MultiplayerController in multiplayer_controller.cpp.
+// ---------------------------------------------------------------------------
 
 static void refresh_battery_ui(void)
 {
     char buf[32];
     char detail_buf[48];
 
-    ss.battery_percent = read_battery_percent();
+    g_settings_controller.updateBattery(false);
+    ss.battery_percent = g_settings_controller.readBatteryPercent();
     if (label_settings_battery == NULL) return;
 
     if (ss.battery_percent < 0) {
@@ -478,85 +426,30 @@ static void refresh_multiplayer_all_damage_ui()
     }
 }
 
+// Phase 4: timer callback forwards to MultiplayerController::commitLifePreview().
 static void multiplayer_life_preview_commit_cb(lv_timer_t *timer)
 {
     (void)timer;
-
-    if (!mp.life_preview_active ||
-        mp.preview_player < 0 ||
-        mp.preview_player >= kMultiplayerCount) {
-        if (multiplayer_life_preview_timer != NULL) {
-            lv_timer_pause(multiplayer_life_preview_timer);
-        }
-        return;
-    }
-
-    mp.life[mp.preview_player] = clamp_life(
-        mp.life[mp.preview_player] + mp.pending_life_delta
-    );
-    mp.pending_life_delta = 0;
-    mp.preview_player = -1;
-    mp.life_preview_active = false;
-    if (multiplayer_life_preview_timer != NULL) {
-        lv_timer_pause(multiplayer_life_preview_timer);
-    }
+    g_multiplayer_controller.commitLifePreview();
     refresh_multiplayer_ui();
 }
 
+// Phase 4: thin wrappers – business rules now live in controller classes.
 static void change_brightness(int delta)
 {
-    ss.brightness_percent = clamp_brightness(ss.brightness_percent + delta);
-    knobby_platform_apply_brightness_percent(ss.brightness_percent);
+    g_settings_controller.adjustBrightness(delta);
     refresh_settings_ui();
 }
 
 static void change_multiplayer_life(int delta)
 {
-    int preview_base;
-
-    if (mp.selected < 0 || mp.selected >= kMultiplayerCount) return;
-
-    if (mp.life_preview_active &&
-        mp.preview_player != mp.selected) {
-        multiplayer_life_preview_commit_cb(NULL);
-    }
-
-    mp.preview_player = mp.selected;
-    preview_base = mp.life[mp.preview_player];
-    mp.pending_life_delta += delta;
-    mp.pending_life_delta = clamp_life(preview_base + mp.pending_life_delta) - preview_base;
-    mp.life_preview_active = (mp.pending_life_delta != 0);
-
-    if (multiplayer_life_preview_timer != NULL) {
-        lv_timer_reset(multiplayer_life_preview_timer);
-    }
-
-    if (!mp.life_preview_active && multiplayer_life_preview_timer != NULL) {
-        lv_timer_pause(multiplayer_life_preview_timer);
-        mp.preview_player = -1;
-    } else if (multiplayer_life_preview_timer != NULL) {
-        lv_timer_resume(multiplayer_life_preview_timer);
-    }
-
+    g_multiplayer_controller.adjustLife(delta);
     refresh_multiplayer_ui();
 }
 
 static void change_multiplayer_cmd_damage(int delta)
 {
-    int updated_total;
-
-    if (mp.cmd_target < 0 || mp.cmd_target >= kMultiplayerCount) return;
-    if (mp.cmd_source < 0 || mp.cmd_source >= kMultiplayerCount) return;
-
-    updated_total = mp.cmd_damage_totals[mp.cmd_source][mp.cmd_target] + delta;
-    if (updated_total < 0) {
-        delta = -mp.cmd_damage_totals[mp.cmd_source][mp.cmd_target];
-        updated_total = 0;
-    }
-
-    mp.cmd_damage_totals[mp.cmd_source][mp.cmd_target] = updated_total;
-
-    mp.life[mp.cmd_target] = clamp_life(mp.life[mp.cmd_target] - delta);
+    g_multiplayer_controller.adjustCmdDamage(delta);
     refresh_multiplayer_ui();
     refresh_multiplayer_cmd_select_ui();
     refresh_multiplayer_cmd_damage_ui();
@@ -564,23 +457,15 @@ static void change_multiplayer_cmd_damage(int delta)
 
 static void change_multiplayer_all_damage(int delta)
 {
-    mp.all_damage_value += delta;
-    if (mp.all_damage_value < 0) mp.all_damage_value = 0;
+    g_multiplayer_controller.adjustAllDamage(delta);
     refresh_multiplayer_all_damage_ui();
 }
 
 static void reset_all_values(void)
 {
-    // Delegate to state objects' reset() methods to ensure a single
-    // consistent reset path (Phase 3 extraction).
-    mp.reset();
-    ss.reset();
-
-    if (multiplayer_life_preview_timer != NULL) {
-        lv_timer_pause(multiplayer_life_preview_timer);
-    }
-
-    knobby_platform_apply_brightness_percent(ss.brightness_percent);
+    // Phase 4: delegate to the controller which handles preview-timer cleanup.
+    g_multiplayer_controller.resetAll(ss);
+    g_settings_controller.applyBrightness();
     refresh_settings_ui();
     refresh_multiplayer_ui();
     refresh_multiplayer_menu_ui();
@@ -626,7 +511,7 @@ static void load_screen_if_needed(lv_obj_t *screen)
 static void open_settings_screen()
 {
     multiplayer_life_preview_commit_cb(NULL);
-    update_battery_measurement(true);
+    g_settings_controller.updateBattery(true);
     refresh_settings_ui();
     load_screen_if_needed(screen_settings);
 }
@@ -688,24 +573,14 @@ static void event_menu_reset(lv_event_t *e)
 static void event_multiplayer_select(lv_event_t *e)
 {
     int new_selected = (int)(intptr_t)lv_event_get_user_data(e);
-
-    if (mp.life_preview_active && mp.preview_player != new_selected) {
-        multiplayer_life_preview_commit_cb(NULL);
-    }
-
-    mp.selected = new_selected;
+    g_multiplayer_controller.selectPlayer(new_selected);
     refresh_multiplayer_ui();
 }
 
 static void event_multiplayer_open_menu(lv_event_t *e)
 {
     int new_selected = (int)(intptr_t)lv_event_get_user_data(e);
-
-    if (mp.life_preview_active && mp.preview_player != new_selected) {
-        multiplayer_life_preview_commit_cb(NULL);
-    }
-
-    mp.selected = new_selected;
+    g_multiplayer_controller.selectPlayer(new_selected);
     refresh_multiplayer_ui();
     open_multiplayer_menu_screen(mp.selected, MULTIPLAYER_MENU_PLAYER);
 }
@@ -772,21 +647,10 @@ static void event_multiplayer_name_back(lv_event_t *e)
 
 static void event_multiplayer_name_save(lv_event_t *e)
 {
-    const char *txt;
-    size_t len;
-
     (void)e;
     if (textarea_multiplayer_name == NULL) return;
 
-    txt = lv_textarea_get_text(textarea_multiplayer_name);
-    len = strlen(txt);
-    if (len == 0) {
-        snprintf(mp.names[mp.menu_player], sizeof(mp.names[mp.menu_player]),
-                 "P%d", mp.menu_player + 1);
-    } else {
-        snprintf(mp.names[mp.menu_player],
-                 sizeof(mp.names[mp.menu_player]), "%s", txt);
-    }
+    g_multiplayer_controller.saveName(lv_textarea_get_text(textarea_multiplayer_name));
 
     refresh_multiplayer_ui();
     refresh_multiplayer_menu_ui();
@@ -826,13 +690,8 @@ static void event_multiplayer_all_damage_back(lv_event_t *e)
 
 static void event_multiplayer_all_damage_apply(lv_event_t *e)
 {
-    int i;
-
     (void)e;
-    for (i = 0; i < kMultiplayerCount; i++) {
-        mp.life[i] = clamp_life(mp.life[i] - mp.all_damage_value);
-    }
-
+    g_multiplayer_controller.applyAllDamage();
     refresh_multiplayer_ui();
     open_multiplayer_screen();
 }
@@ -1118,7 +977,7 @@ static void build_settings_screen()
 
 extern "C" void knob_gui(void)
 {
-    knobby_platform_apply_brightness_percent(ss.brightness_percent);
+    g_settings_controller.applyBrightness();
 
     build_intro_screen();
     build_multiplayer_screen();
@@ -1143,6 +1002,8 @@ extern "C" void knob_gui(void)
     multiplayer_life_preview_timer = lv_timer_create(multiplayer_life_preview_commit_cb, 4000, NULL);
     if (multiplayer_life_preview_timer != NULL) {
         lv_timer_pause(multiplayer_life_preview_timer);
+        // Phase 4: hand the timer to the controller so it can manage it.
+        g_multiplayer_controller.setPreviewTimer(multiplayer_life_preview_timer);
     }
     lv_scr_load(screen_intro);
     if (intro_timer != NULL) {
