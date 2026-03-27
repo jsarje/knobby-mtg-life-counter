@@ -92,9 +92,21 @@ lv_color_t MultiplayerScreen::activeColor(int index)
     return lv_color_hex(colors[index]);
 }
 
-lv_color_t MultiplayerScreen::textColor(int index)
+lv_color_t MultiplayerScreen::textColor(int index, bool active)
 {
-    return (index == 2) ? lv_color_black() : lv_color_white();
+    static const uint32_t base_hex[kMultiplayerCount] = {
+        0x7B1FE0, 0x29B6F6, 0xFFD600, 0xA5D6A7
+    };
+    static const uint32_t active_hex[kMultiplayerCount] = {
+        0x9C4DFF, 0x4FC3F7, 0xFFEA61, 0xC8E6C9
+    };
+    if (index < 0 || index >= kMultiplayerCount) return lv_color_white();
+    const uint32_t hex = active ? active_hex[index] : base_hex[index];
+    const int r = (hex >> 16) & 0xFF;
+    const int g = (hex >> 8) & 0xFF;
+    const int b = hex & 0xFF;
+    const float lum = 0.2126f * r + 0.7152f * g + 0.0722f * b;
+    return (lum > 150.0f) ? lv_color_black() : lv_color_white();
 }
 
 lv_color_t MultiplayerScreen::previewColor(int index, int delta)
@@ -177,7 +189,7 @@ void MultiplayerScreen::refresh(const MultiplayerGameState& state)
         const bool active = state.isActivePlayerIndex(i) && layout.seats[i].visible;
         const bool preview_here = state.life_preview_active && (state.preview_player == i);
         const bool top_facing = (layout.seats[i].rotation_deg == 180);
-        const lv_color_t txt_color = textColor(i);
+        const lv_color_t txt_color = textColor(i, (i == state.selected));
 
         if (quadrants_[i] != nullptr) {
             if (!active) {
@@ -441,7 +453,7 @@ void MultiplayerCmdSelectScreen::refresh(const MultiplayerGameState& state)
                      state.names[i], state.cmd_damage_totals[i][state.menu_player]);
             lv_label_set_text(label_target_[row], buf);
             lv_obj_set_style_text_color(label_target_[row],
-                                         MultiplayerScreen::textColor(i), 0);
+                                         MultiplayerScreen::textColor(i, false), 0);
         }
         ++row;
     }

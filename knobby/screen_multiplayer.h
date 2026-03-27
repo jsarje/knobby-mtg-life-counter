@@ -35,7 +35,7 @@ public:
     // Color helpers are public so sibling screen classes can share them.
     static lv_color_t baseColor(int index);
     static lv_color_t activeColor(int index);
-    static lv_color_t textColor(int index);
+    static lv_color_t textColor(int index, bool active);
     static lv_color_t previewColor(int index, int delta);
 
 private:
