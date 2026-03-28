@@ -77,7 +77,7 @@ lv_obj_t* make_button(lv_obj_t* parent, const char* txt,
 lv_color_t MultiplayerScreen::baseColor(int index)
 {
     static const uint32_t colors[kMultiplayerCount] = {
-        0x7B1FE0, 0x29B6F6, 0xFFD600, 0xA5D6A7
+        0xD45A2B, 0x1F3F5A, 0x7E2C47, 0xC6922E
     };
     if (index < 0 || index >= kMultiplayerCount) return lv_color_hex(0x303030);
     return lv_color_hex(colors[index]);
@@ -86,7 +86,7 @@ lv_color_t MultiplayerScreen::baseColor(int index)
 lv_color_t MultiplayerScreen::activeColor(int index)
 {
     static const uint32_t colors[kMultiplayerCount] = {
-        0x9C4DFF, 0x4FC3F7, 0xFFEA61, 0xC8E6C9
+        0xFC4A03, 0x024378, 0xA50439, 0xF19E04
     };
     if (index < 0 || index >= kMultiplayerCount) return lv_color_hex(0x505050);
     return lv_color_hex(colors[index]);
@@ -95,10 +95,10 @@ lv_color_t MultiplayerScreen::activeColor(int index)
 lv_color_t MultiplayerScreen::textColor(int index, bool active)
 {
     static const uint32_t base_hex[kMultiplayerCount] = {
-        0x7B1FE0, 0x29B6F6, 0xFFD600, 0xA5D6A7
+        0xD45A2B, 0x7E2C47, 0x1F3F5A, 0xC6922E
     };
     static const uint32_t active_hex[kMultiplayerCount] = {
-        0x9C4DFF, 0x4FC3F7, 0xFFEA61, 0xC8E6C9
+        0xFC4A03, 0x024378, 0xA50439, 0xF19E04
     };
     if (index < 0 || index >= kMultiplayerCount) return lv_color_white();
     const uint32_t hex = active ? active_hex[index] : base_hex[index];
