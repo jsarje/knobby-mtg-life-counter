@@ -307,6 +307,9 @@ void set_brightness(uint8_t bri)
   backlight->setBrightness(bri);
 }
 
+static bool tp_tracking = false;
+static lv_point_t tp_start = {0, 0};
+
 static void touchpad_read(lv_indev_drv_t *indev_drv, lv_indev_data_t *data)
 {
   ESP_PanelTouch *tp = (ESP_PanelTouch *)indev_drv->user_data;
@@ -318,14 +321,34 @@ static void touchpad_read(lv_indev_drv_t *indev_drv, lv_indev_data_t *data)
     bool was_dimmed = activity_kick();
     if (was_dimmed) {
       data->state = LV_INDEV_STATE_RELEASED;
+      tp_tracking = false;
     } else {
       data->point.x = point.x;
       data->point.y = point.y;
       data->state = LV_INDEV_STATE_PRESSED;
+      if (!tp_tracking) {
+        tp_start.x = point.x;
+        tp_start.y = point.y;
+        tp_tracking = true;
+      }
     }
   }
   else
   {
+    if (tp_tracking) {
+      tp_tracking = false;
+      lv_point_t last;
+      lv_indev_get_point(lv_indev_get_act(), &last);
+      int dy = tp_start.y - last.y;
+      int dx = last.x > tp_start.x ? last.x - tp_start.x : tp_start.x - last.x;
+      if (dy > 80 && dx < 90) {
+        knob_notify_swipe_up();
+        lv_indev_reset(lv_indev_get_act(), NULL);
+      } else if (dy < -80 && dx < 90) {
+        knob_notify_swipe_down();
+        lv_indev_reset(lv_indev_get_act(), NULL);
+      }
+    }
     data->state = LV_INDEV_STATE_RELEASED;
   }
 }

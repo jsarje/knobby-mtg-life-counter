@@ -64,29 +64,29 @@ static lv_obj_t *screen_multiplayer_name = NULL;
 static lv_obj_t *screen_multiplayer_cmd_select = NULL;
 static lv_obj_t *screen_multiplayer_cmd_damage = NULL;
 static lv_obj_t *screen_multiplayer_all_damage = NULL;
+static lv_obj_t *screen_quad_menu = NULL;
+static lv_obj_t *screen_tools_menu = NULL;
+static lv_obj_t *screen_screen_settings_menu = NULL;
+static lv_obj_t *screen_battery = NULL;
+static lv_obj_t *label_autodim_quad = NULL;
+
+// ---------- swipe state ----------
+static lv_obj_t *previous_screen = NULL;
+static volatile bool swipe_up_pending = false;
+static volatile bool swipe_down_pending = false;
 
 // ---------- main UI ----------
 static lv_obj_t *intro_letters[INTRO_CHAR_COUNT];
 static lv_obj_t *arc_life = NULL;
-static lv_obj_t *title_icon = NULL;
-static lv_obj_t *title_sun_core = NULL;
-static lv_obj_t *title_sun_rays[12];
 static lv_obj_t *label_knobby_arc[KNOBBY_LETTER_COUNT];
 static lv_obj_t *label_dice_result = NULL;
 static lv_obj_t *label_dice_hint = NULL;
 static lv_obj_t *life_container = NULL;
 static lv_obj_t *life_hitbox = NULL;
-static lv_obj_t *menu_open_button = NULL;
-static lv_obj_t *menu_dot = NULL;
 static lv_obj_t *turn_container = NULL;
 static lv_obj_t *label_turn = NULL;
 static lv_obj_t *label_turn_time = NULL;
 static lv_obj_t *turn_live_dot = NULL;
-static lv_obj_t *menu_overlay = NULL;
-static lv_obj_t *menu_panel = NULL;
-static lv_obj_t *menu_button_dice = NULL;
-static lv_obj_t *menu_button_timer = NULL;
-static lv_obj_t *menu_button_multiplayer = NULL;
 
 // 7-segment digits
 static lv_obj_t *digit_hundreds[7];
@@ -110,8 +110,7 @@ static lv_obj_t *label_damage_title = NULL;
 static lv_obj_t *label_damage_value = NULL;
 static lv_obj_t *label_damage_hint = NULL;
 
-// ---------- settings UI ----------
-static lv_obj_t *label_settings_title = NULL;
+// ---------- settings / battery UI ----------
 static lv_obj_t *label_settings_value = NULL;
 static lv_obj_t *label_settings_hint = NULL;
 static lv_obj_t *label_settings_battery = NULL;
@@ -171,11 +170,9 @@ static int multiplayer_cmd_delta = 0;
 static int multiplayer_cmd_target_choices[MULTIPLAYER_COUNT - 1] = {-1, -1, -1};
 static int multiplayer_cmd_damage_totals[MULTIPLAYER_COUNT][MULTIPLAYER_COUNT] = {{0}};
 static int multiplayer_all_damage_value = 0;
-static bool multiplayer_swipe_tracking = false;
 static int multiplayer_pending_life_delta = 0;
 static int multiplayer_preview_player = -1;
 static bool multiplayer_life_preview_active = false;
-static lv_point_t multiplayer_swipe_start = {0, 0};
 static char multiplayer_names[MULTIPLAYER_COUNT][16] = {"P1", "P2", "P3", "P4"};
 
 // ---------- auto-dim ----------
@@ -190,7 +187,6 @@ static bool settings_dirty = false;
 static uint32_t last_activity_tick = 0;
 static uint32_t undim_tick = 0;
 static lv_timer_t *auto_dim_timer = NULL;
-static lv_obj_t *switch_auto_dim = NULL;
 
 static const float battery_curve_voltages[] = {3.35f, 3.55f, 3.68f, 3.74f, 3.80f, 3.88f, 3.96f, 4.06f, 4.18f};
 static const int battery_curve_percentages[] = {0, 5, 12, 22, 34, 48, 64, 82, 100};
@@ -433,8 +429,75 @@ static lv_obj_t *make_plain_box(lv_obj_t *parent, lv_coord_t w, lv_coord_t h)
     lv_obj_t *obj = lv_obj_create(parent);
     lv_obj_remove_style_all(obj);
     lv_obj_set_size(obj, w, h);
-    lv_obj_clear_flag(obj, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_clear_flag(obj, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
     return obj;
+}
+
+// ---------- quadrant menu builder ----------
+typedef struct {
+    const char *label;
+    lv_event_cb_t cb;
+    bool enabled;
+} quad_item_t;
+
+static void build_quad_screen(lv_obj_t **screen, quad_item_t items[4])
+{
+    int i;
+    // Quarter-circle slices: each button fills a quadrant, circular display
+    // clips outer corners into arcs. 4px gap forms a cross at center.
+    static const lv_coord_t qx[4] = {0,   182, 0,   182};
+    static const lv_coord_t qy[4] = {0,   0,   182, 182};
+    // Nudge labels toward screen center: +10 for left quads, -10 for right, etc.
+    static const lv_coord_t lx[4] = {10, -10, 10, -10};
+    static const lv_coord_t ly[4] = {15,  15, -15, -15};
+
+    *screen = lv_obj_create(NULL);
+    lv_obj_set_size(*screen, 360, 360);
+    lv_obj_set_style_bg_color(*screen, lv_color_black(), 0);
+    lv_obj_set_style_border_width(*screen, 0, 0);
+    lv_obj_set_scrollbar_mode(*screen, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_set_style_pad_all(*screen, 0, 0);
+
+    for (i = 0; i < 4; i++) {
+        lv_obj_t *btn = lv_btn_create(*screen);
+        lv_obj_set_size(btn, 178, 178);
+        lv_obj_set_style_radius(btn, 0, 0);
+        lv_obj_set_pos(btn, qx[i], qy[i]);
+        lv_obj_set_style_shadow_width(btn, 0, 0);
+        lv_obj_set_style_border_width(btn, 0, 0);
+
+        if (items[i].cb != NULL && items[i].enabled) {
+            lv_obj_add_event_cb(btn, items[i].cb, LV_EVENT_CLICKED, NULL);
+            lv_obj_set_style_bg_color(btn, lv_color_hex(0x1A1A2E), 0);
+        } else {
+            lv_obj_set_style_bg_color(btn, lv_color_hex(0x111111), 0);
+            lv_obj_set_style_bg_opa(btn, LV_OPA_60, 0);
+            lv_obj_clear_flag(btn, LV_OBJ_FLAG_CLICKABLE);
+        }
+
+        lv_obj_t *lbl = lv_label_create(btn);
+        lv_label_set_text(lbl, items[i].label);
+        lv_obj_set_style_text_font(lbl, &lv_font_montserrat_16, 0);
+        lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_CENTER, 0);
+        lv_obj_align(lbl, LV_ALIGN_CENTER, lx[i], ly[i]);
+
+        if (!items[i].enabled) {
+            lv_obj_set_style_text_color(lbl, lv_color_hex(0x555555), 0);
+        }
+    }
+}
+
+// ---------- global swipe ----------
+static void open_quad_menu(void);
+
+void knob_notify_swipe_up(void)
+{
+    swipe_up_pending = true;
+}
+
+void knob_notify_swipe_down(void)
+{
+    swipe_down_pending = true;
 }
 
 static lv_obj_t *make_seg(lv_obj_t *parent, lv_coord_t x, lv_coord_t y, lv_coord_t w, lv_coord_t h)
@@ -693,13 +756,6 @@ static void refresh_turn_ui()
         lv_obj_set_style_opa(turn_container, turn_indicator_visible ? LV_OPA_COVER : LV_OPA_TRANSP, 0);
     }
 
-    if (menu_button_timer != NULL) {
-        lv_obj_set_style_bg_color(
-            menu_button_timer,
-            turn_timer_enabled ? lv_palette_main(LV_PALETTE_GREEN) : lv_color_hex(0x303030),
-            0
-        );
-    }
 }
 
 static void refresh_life_digits()
@@ -902,7 +958,6 @@ static void refresh_settings_ui()
     snprintf(buf, sizeof(buf), "Brightness: %d%%", brightness_percent);
     lv_label_set_text(label_settings_value, buf);
     refresh_brightness_ring();
-    refresh_battery_ui();
 }
 
 static void refresh_multiplayer_ui()
@@ -1189,20 +1244,7 @@ static void change_multiplayer_all_damage(int delta)
     refresh_multiplayer_all_damage_ui();
 }
 
-static void hide_main_menu(void)
-{
-    if (menu_overlay != NULL) {
-        lv_obj_add_flag(menu_overlay, LV_OBJ_FLAG_HIDDEN);
-    }
-}
 
-static void show_main_menu(void)
-{
-    if (menu_overlay != NULL) {
-        lv_obj_clear_flag(menu_overlay, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_move_foreground(menu_overlay);
-    }
-}
 
 static void turn_timer_start_fresh(void)
 {
@@ -1439,22 +1481,6 @@ static void event_open_select(lv_event_t *e)
     open_select_screen();
 }
 
-static void event_open_settings(lv_event_t *e)
-{
-    (void)e;
-    open_settings_screen();
-}
-
-static void event_toggle_auto_dim(lv_event_t *e)
-{
-    (void)e;
-    auto_dim_enabled = lv_obj_has_state(switch_auto_dim, LV_STATE_CHECKED);
-    settings_dirty = true;
-    if (!auto_dim_enabled && dimmed) {
-        dimmed = false;
-        brightness_apply();
-    }
-}
 
 static void event_select_itze(lv_event_t *e)
 {
@@ -1480,74 +1506,78 @@ static void event_back_main(lv_event_t *e)
     back_to_main();
 }
 
-static void event_settings_back(lv_event_t *e)
+static void event_quad_screen_settings(lv_event_t *e)
 {
     (void)e;
-    settings_save();
-    back_to_main();
+    lv_scr_load(screen_screen_settings_menu);
 }
 
-static void event_show_main_menu(lv_event_t *e)
+static void event_screen_brightness(lv_event_t *e)
 {
     (void)e;
-    show_main_menu();
+    open_settings_screen();
 }
 
-static void event_hide_main_menu(lv_event_t *e)
+static void event_screen_autodim(lv_event_t *e)
 {
     (void)e;
-    hide_main_menu();
+    auto_dim_enabled = !auto_dim_enabled;
+    settings_dirty = true;
+    if (!auto_dim_enabled && dimmed) {
+        dimmed = false;
+        brightness_apply();
+    }
+    if (label_autodim_quad) {
+        lv_label_set_text(label_autodim_quad, auto_dim_enabled ? "Auto-dim\nON" : "Auto-dim\nOFF");
+    }
 }
 
-static void event_menu_back(lv_event_t *e)
+static void event_screen_battery(lv_event_t *e)
 {
     (void)e;
-    hide_main_menu();
-    back_to_main();
+    update_battery_measurement(true);
+    refresh_battery_ui();
+    lv_scr_load(screen_battery);
 }
 
-static void event_menu_reset(lv_event_t *e)
+static void event_quad_tools(lv_event_t *e)
 {
     (void)e;
-    hide_main_menu();
-    reset_all_values();
-    back_to_main();
+    lv_scr_load(screen_tools_menu);
 }
 
-static void event_menu_turn_timer(lv_event_t *e)
-{
-    (void)e;
-    turn_timer_start_fresh();
-    hide_main_menu();
-}
-
-static void event_menu_dice(lv_event_t *e)
+static void event_tool_dice(lv_event_t *e)
 {
     (void)e;
     dice_result = (int)(esp_random() % 20U) + 1;
-    hide_main_menu();
     open_dice_screen();
 }
 
-static void event_menu_cmd_damage(lv_event_t *e)
+static void event_tool_timer(lv_event_t *e)
 {
     (void)e;
-    hide_main_menu();
-    open_select_screen();
+    turn_timer_start_fresh();
+    back_to_main();
 }
 
-static void event_menu_multiplayer(lv_event_t *e)
+static void event_general_multiplayer(lv_event_t *e)
 {
     (void)e;
-    hide_main_menu();
     open_multiplayer_screen();
+}
+
+static void event_general_reset(lv_event_t *e)
+{
+    (void)e;
+    reset_all_values();
+    back_to_main();
 }
 
 static void event_dice_tap(lv_event_t *e)
 {
     (void)e;
-    back_to_main();
-    show_main_menu();
+    dice_result = (int)(esp_random() % 20U) + 1;
+    open_dice_screen();
 }
 
 static void event_turn_tap(lv_event_t *e)
@@ -1592,29 +1622,6 @@ static void event_multiplayer_open_menu(lv_event_t *e)
     open_multiplayer_menu_screen(multiplayer_selected);
 }
 
-static void event_multiplayer_exit(lv_event_t *e)
-{
-    lv_point_t point;
-    lv_indev_t *indev = lv_indev_get_act();
-
-    if (indev == NULL) return;
-
-    if (lv_event_get_code(e) == LV_EVENT_PRESSED) {
-        lv_indev_get_point(indev, &multiplayer_swipe_start);
-        multiplayer_swipe_tracking = true;
-        return;
-    }
-
-    if (lv_event_get_code(e) == LV_EVENT_RELEASED && multiplayer_swipe_tracking) {
-        multiplayer_swipe_tracking = false;
-        lv_indev_get_point(indev, &point);
-
-        if ((point.y - multiplayer_swipe_start.y) > 80 &&
-            LV_ABS(point.x - multiplayer_swipe_start.x) < 90) {
-            back_to_main();
-        }
-    }
-}
 
 static void event_multiplayer_menu_back(lv_event_t *e)
 {
@@ -1754,7 +1761,7 @@ static void build_dice_screen()
     lv_obj_set_style_border_width(screen_dice, 0, 0);
     lv_obj_set_scrollbar_mode(screen_dice, LV_SCROLLBAR_MODE_OFF);
     lv_obj_add_flag(screen_dice, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_add_event_cb(screen_dice, event_dice_tap, LV_EVENT_CLICKED, NULL);
+    lv_obj_add_event_cb(screen_dice, event_dice_tap, LV_EVENT_LONG_PRESSED, NULL);
 
     label_dice_result = lv_label_create(screen_dice);
     lv_label_set_text(label_dice_result, "--");
@@ -1763,7 +1770,7 @@ static void build_dice_screen()
     lv_obj_align(label_dice_result, LV_ALIGN_CENTER, 0, -10);
 
     label_dice_hint = lv_label_create(screen_dice);
-    lv_label_set_text(label_dice_hint, "tap to return");
+    lv_label_set_text(label_dice_hint, "long press to re-roll");
     lv_obj_set_style_text_color(label_dice_hint, lv_color_hex(0x8A8A8A), 0);
     lv_obj_set_style_text_font(label_dice_hint, &lv_font_montserrat_14, 0);
     lv_obj_align(label_dice_hint, LV_ALIGN_CENTER, 0, 42);
@@ -1781,8 +1788,6 @@ static void build_multiplayer_screen()
     lv_obj_set_style_bg_color(screen_multiplayer, lv_color_black(), 0);
     lv_obj_set_style_border_width(screen_multiplayer, 0, 0);
     lv_obj_set_scrollbar_mode(screen_multiplayer, LV_SCROLLBAR_MODE_OFF);
-    lv_obj_add_event_cb(screen_multiplayer, event_multiplayer_exit, LV_EVENT_PRESSED, NULL);
-    lv_obj_add_event_cb(screen_multiplayer, event_multiplayer_exit, LV_EVENT_RELEASED, NULL);
 
     for (i = 0; i < MULTIPLAYER_COUNT; i++) {
         multiplayer_quadrants[i] = lv_btn_create(screen_multiplayer);
@@ -1959,7 +1964,6 @@ static void build_multiplayer_all_damage_screen()
 
 static void build_main_screen()
 {
-    lv_obj_t *btn = NULL;
     int i;
     static const char *knobby_letters[KNOBBY_LETTER_COUNT] = {"k", "n", "o", "b", "b", "y"};
     static const lv_coord_t knobby_x[KNOBBY_LETTER_COUNT] = {46, 30, 22, 22, 30, 46};
@@ -1982,66 +1986,6 @@ static void build_main_screen()
     lv_obj_remove_style(arc_life, NULL, LV_PART_KNOB);
     lv_obj_clear_flag(arc_life, LV_OBJ_FLAG_CLICKABLE);
 
-    title_icon = lv_btn_create(screen_main);
-    lv_obj_set_size(title_icon, 40, 40);
-    lv_obj_align(title_icon, LV_ALIGN_TOP_MID, 0, 26);
-    lv_obj_set_style_radius(title_icon, LV_RADIUS_CIRCLE, 0);
-    lv_obj_set_style_bg_opa(title_icon, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_border_width(title_icon, 0, 0);
-    lv_obj_set_style_shadow_width(title_icon, 0, 0);
-    lv_obj_set_style_pad_all(title_icon, 0, 0);
-    lv_obj_add_event_cb(title_icon, event_open_settings, LV_EVENT_CLICKED, NULL);
-
-    title_sun_core = lv_obj_create(title_icon);
-    lv_obj_remove_style_all(title_sun_core);
-    lv_obj_set_size(title_sun_core, 12, 12);
-    lv_obj_set_style_radius(title_sun_core, LV_RADIUS_CIRCLE, 0);
-    lv_obj_set_style_bg_opa(title_sun_core, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_border_color(title_sun_core, lv_color_white(), 0);
-    lv_obj_set_style_border_width(title_sun_core, 2, 0);
-    lv_obj_center(title_sun_core);
-
-    for (i = 0; i < 12; i++) {
-        title_sun_rays[i] = lv_obj_create(title_icon);
-        lv_obj_remove_style_all(title_sun_rays[i]);
-        lv_obj_set_style_bg_color(title_sun_rays[i], lv_color_white(), 0);
-        lv_obj_set_style_bg_opa(title_sun_rays[i], LV_OPA_COVER, 0);
-        lv_obj_set_style_radius(title_sun_rays[i], LV_RADIUS_CIRCLE, 0);
-    }
-
-    lv_obj_set_size(title_sun_rays[0], 2, 6);
-    lv_obj_align(title_sun_rays[0], LV_ALIGN_CENTER, 0, -12);
-    lv_obj_set_size(title_sun_rays[1], 2, 6);
-    lv_obj_align(title_sun_rays[1], LV_ALIGN_CENTER, 0, 12);
-    lv_obj_set_size(title_sun_rays[2], 6, 2);
-    lv_obj_align(title_sun_rays[2], LV_ALIGN_CENTER, -12, 0);
-    lv_obj_set_size(title_sun_rays[3], 6, 2);
-    lv_obj_align(title_sun_rays[3], LV_ALIGN_CENTER, 12, 0);
-    lv_obj_set_size(title_sun_rays[4], 2, 5);
-    lv_obj_align(title_sun_rays[4], LV_ALIGN_CENTER, -8, -8);
-    lv_obj_set_style_transform_angle(title_sun_rays[4], 450, 0);
-    lv_obj_set_size(title_sun_rays[5], 2, 5);
-    lv_obj_align(title_sun_rays[5], LV_ALIGN_CENTER, 8, -8);
-    lv_obj_set_style_transform_angle(title_sun_rays[5], -450, 0);
-    lv_obj_set_size(title_sun_rays[6], 2, 5);
-    lv_obj_align(title_sun_rays[6], LV_ALIGN_CENTER, -8, 8);
-    lv_obj_set_style_transform_angle(title_sun_rays[6], -450, 0);
-    lv_obj_set_size(title_sun_rays[7], 2, 5);
-    lv_obj_align(title_sun_rays[7], LV_ALIGN_CENTER, 8, 8);
-    lv_obj_set_style_transform_angle(title_sun_rays[7], 450, 0);
-    lv_obj_set_size(title_sun_rays[8], 2, 4);
-    lv_obj_align(title_sun_rays[8], LV_ALIGN_CENTER, -4, -12);
-    lv_obj_set_style_transform_angle(title_sun_rays[8], 225, 0);
-    lv_obj_set_size(title_sun_rays[9], 2, 4);
-    lv_obj_align(title_sun_rays[9], LV_ALIGN_CENTER, 4, -12);
-    lv_obj_set_style_transform_angle(title_sun_rays[9], -225, 0);
-    lv_obj_set_size(title_sun_rays[10], 2, 4);
-    lv_obj_align(title_sun_rays[10], LV_ALIGN_CENTER, -4, 12);
-    lv_obj_set_style_transform_angle(title_sun_rays[10], -225, 0);
-    lv_obj_set_size(title_sun_rays[11], 2, 4);
-    lv_obj_align(title_sun_rays[11], LV_ALIGN_CENTER, 4, 12);
-    lv_obj_set_style_transform_angle(title_sun_rays[11], 225, 0);
-
     for (i = 0; i < KNOBBY_LETTER_COUNT; i++) {
         label_knobby_arc[i] = lv_label_create(screen_main);
         lv_label_set_text(label_knobby_arc[i], knobby_letters[i]);
@@ -2054,7 +1998,7 @@ static void build_main_screen()
     life_hitbox = make_plain_box(screen_main, 320, 188);
     lv_obj_align(life_hitbox, LV_ALIGN_CENTER, 0, -8);
     lv_obj_add_flag(life_hitbox, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_add_event_cb(life_hitbox, event_open_select, LV_EVENT_CLICKED, NULL);
+    lv_obj_add_event_cb(life_hitbox, event_open_select, LV_EVENT_LONG_PRESSED, NULL);
 
     life_container = make_plain_box(screen_main, 290, 112);
     lv_obj_align(life_container, LV_ALIGN_CENTER, 0, -6);
@@ -2101,65 +2045,6 @@ static void build_main_screen()
     lv_obj_align(turn_live_dot, LV_ALIGN_TOP_MID, 28, 52);
     lv_obj_add_flag(turn_live_dot, LV_OBJ_FLAG_HIDDEN);
 
-    menu_open_button = lv_btn_create(screen_main);
-    lv_obj_set_size(menu_open_button, 34, 34);
-    lv_obj_align(menu_open_button, LV_ALIGN_BOTTOM_MID, 0, -26);
-    lv_obj_set_style_radius(menu_open_button, LV_RADIUS_CIRCLE, 0);
-    lv_obj_set_style_bg_color(menu_open_button, lv_color_black(), 0);
-    lv_obj_set_style_bg_opa(menu_open_button, LV_OPA_COVER, 0);
-    lv_obj_set_style_border_color(menu_open_button, lv_color_hex(0x6E6E6E), 0);
-    lv_obj_set_style_border_width(menu_open_button, 2, 0);
-    lv_obj_set_style_shadow_width(menu_open_button, 0, 0);
-    lv_obj_set_style_pad_all(menu_open_button, 0, 0);
-    lv_obj_add_event_cb(menu_open_button, event_show_main_menu, LV_EVENT_CLICKED, NULL);
-
-    menu_dot = lv_obj_create(menu_open_button);
-    lv_obj_remove_style_all(menu_dot);
-    lv_obj_set_size(menu_dot, 8, 8);
-    lv_obj_set_style_radius(menu_dot, LV_RADIUS_CIRCLE, 0);
-    lv_obj_set_style_bg_color(menu_dot, lv_color_white(), 0);
-    lv_obj_set_style_bg_opa(menu_dot, LV_OPA_COVER, 0);
-    lv_obj_center(menu_dot);
-
-    menu_overlay = make_plain_box(screen_main, 360, 360);
-    lv_obj_set_style_bg_color(menu_overlay, lv_color_black(), 0);
-    lv_obj_set_style_bg_opa(menu_overlay, LV_OPA_50, 0);
-    lv_obj_add_flag(menu_overlay, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_add_flag(menu_overlay, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_add_event_cb(menu_overlay, event_hide_main_menu, LV_EVENT_CLICKED, NULL);
-
-    menu_panel = lv_obj_create(menu_overlay);
-    lv_obj_set_size(menu_panel, 250, 250);
-    lv_obj_center(menu_panel);
-    lv_obj_set_style_radius(menu_panel, LV_RADIUS_CIRCLE, 0);
-    lv_obj_set_style_bg_color(menu_panel, lv_color_hex(0x111111), 0);
-    lv_obj_set_style_bg_opa(menu_panel, LV_OPA_COVER, 0);
-    lv_obj_set_style_border_color(menu_panel, lv_color_hex(0x3C3C3C), 0);
-    lv_obj_set_style_border_width(menu_panel, 2, 0);
-    lv_obj_set_scrollbar_mode(menu_panel, LV_SCROLLBAR_MODE_OFF);
-    lv_obj_clear_flag(menu_panel, LV_OBJ_FLAG_CLICKABLE);
-
-    btn = make_button(menu_overlay, "reset", 50, 50, event_menu_reset);
-    lv_obj_set_style_radius(btn, LV_RADIUS_CIRCLE, 0);
-    lv_obj_set_style_pad_all(btn, 0, 0);
-    lv_obj_align(btn, LV_ALIGN_CENTER, -148, -4);
-
-    btn = make_button(menu_overlay, "back", 50, 50, event_menu_back);
-    lv_obj_set_style_radius(btn, LV_RADIUS_CIRCLE, 0);
-    lv_obj_set_style_pad_all(btn, 0, 0);
-    lv_obj_align(btn, LV_ALIGN_CENTER, 148, -4);
-
-    btn = make_button(menu_panel, "Cmd.dmg", 128, 32, event_menu_cmd_damage);
-    lv_obj_align(btn, LV_ALIGN_TOP_MID, 0, 36);
-
-    menu_button_dice = make_button(menu_panel, "d20", 128, 32, event_menu_dice);
-    lv_obj_align(menu_button_dice, LV_ALIGN_TOP_MID, 0, 82);
-
-    menu_button_multiplayer = make_button(menu_panel, "multiplayer", 128, 32, event_menu_multiplayer);
-    lv_obj_align(menu_button_multiplayer, LV_ALIGN_TOP_MID, 0, 128);
-
-    menu_button_timer = make_button(menu_panel, "timer", 128, 32, event_menu_turn_timer);
-    lv_obj_align(menu_button_timer, LV_ALIGN_TOP_MID, 0, 174);
 }
 
 static void build_select_screen()
@@ -2226,10 +2111,42 @@ static void build_damage_screen()
     lv_label_set_text(label_damage_hint, "Turn knob for damage");
     lv_obj_set_style_text_color(label_damage_hint, lv_color_hex(0x6A6A6A), 0);
     lv_obj_set_style_text_font(label_damage_hint, &lv_font_montserrat_14, 0);
-    lv_obj_align(label_damage_hint, LV_ALIGN_BOTTOM_MID, 0, -76);
+    lv_obj_align(label_damage_hint, LV_ALIGN_CENTER, 0, 24);
+}
 
-    lv_obj_t *btn_back = make_button(screen_damage, "Back", 120, 52, event_back_main);
-    lv_obj_align(btn_back, LV_ALIGN_BOTTOM_MID, 0, -22);
+static void build_quad_menus(void)
+{
+    quad_item_t main_items[4] = {
+        {"Settings", event_quad_screen_settings, true},
+        {"Game\nMode", event_general_multiplayer, true},
+        {"Tools",             event_quad_tools, true},
+        {"Reset",             event_general_reset, true},
+    };
+    build_quad_screen(&screen_quad_menu, main_items);
+
+    quad_item_t tools_items[4] = {
+        {"Dice",        event_tool_dice, true},
+        {"Timer",       event_tool_timer, true},
+        {"",            NULL, false},
+        {"",            NULL, false},
+    };
+    build_quad_screen(&screen_tools_menu, tools_items);
+
+    quad_item_t screen_items[4] = {
+        {"Brightness", event_screen_brightness, true},
+        {auto_dim_enabled ? "Auto-dim\nON" : "Auto-dim\nOFF", event_screen_autodim, true},
+        {"Battery",       event_screen_battery, true},
+        {"",              NULL, false},
+    };
+    build_quad_screen(&screen_screen_settings_menu, screen_items);
+    // Store auto-dim label reference so we can update it on toggle
+    lv_obj_t *autodim_btn = lv_obj_get_child(screen_screen_settings_menu, 1);
+    label_autodim_quad = lv_obj_get_child(autodim_btn, 0);
+}
+
+static void open_quad_menu(void)
+{
+    load_screen_if_needed(screen_quad_menu);
 }
 
 static void build_settings_screen()
@@ -2242,7 +2159,7 @@ static void build_settings_screen()
 
     arc_brightness = lv_arc_create(screen_settings);
     lv_obj_set_size(arc_brightness, 280, 280);
-    lv_obj_align(arc_brightness, LV_ALIGN_CENTER, 0, -6);
+    lv_obj_align(arc_brightness, LV_ALIGN_CENTER, 0, 0);
     lv_arc_set_rotation(arc_brightness, 90);
     lv_arc_set_bg_angles(arc_brightness, 0, 360);
     lv_arc_set_range(arc_brightness, 0, 100);
@@ -2250,56 +2167,44 @@ static void build_settings_screen()
     lv_obj_remove_style(arc_brightness, NULL, LV_PART_KNOB);
     lv_obj_clear_flag(arc_brightness, LV_OBJ_FLAG_CLICKABLE);
 
-    label_settings_title = lv_label_create(screen_settings);
-    lv_label_set_text(label_settings_title, "knobby");
-    lv_obj_set_style_text_color(label_settings_title, lv_color_white(), 0);
-    lv_obj_set_style_text_font(label_settings_title, &lv_font_montserrat_22, 0);
-    lv_obj_align(label_settings_title, LV_ALIGN_TOP_MID, 0, 24);
-
-    lv_obj_t *dim_row = lv_obj_create(screen_settings);
-    lv_obj_remove_style_all(dim_row);
-    lv_obj_set_size(dim_row, 180, 40);
-    lv_obj_align(dim_row, LV_ALIGN_CENTER, 0, -52);
-    lv_obj_set_flex_flow(dim_row, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(dim_row, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_clear_flag(dim_row, LV_OBJ_FLAG_SCROLLABLE);
-
-    lv_obj_t *dim_label = lv_label_create(dim_row);
-    lv_label_set_text(dim_label, "Auto-dim  ");
-    lv_obj_set_style_text_color(dim_label, lv_color_hex(0xB8B8B8), 0);
-    lv_obj_set_style_text_font(dim_label, &lv_font_montserrat_16, 0);
-
-    switch_auto_dim = lv_switch_create(dim_row);
-    lv_obj_set_size(switch_auto_dim, 50, 26);
-    if (auto_dim_enabled) lv_obj_add_state(switch_auto_dim, LV_STATE_CHECKED);
-    lv_obj_add_event_cb(switch_auto_dim, event_toggle_auto_dim, LV_EVENT_VALUE_CHANGED, NULL);
-
     label_settings_value = lv_label_create(screen_settings);
     lv_label_set_text(label_settings_value, "Brightness: 80%");
     lv_obj_set_style_text_color(label_settings_value, lv_color_white(), 0);
     lv_obj_set_style_text_font(label_settings_value, &lv_font_montserrat_32, 0);
     lv_obj_align(label_settings_value, LV_ALIGN_CENTER, 0, -14);
 
-    label_settings_battery = lv_label_create(screen_settings);
-    lv_label_set_text(label_settings_battery, "Battery: --%");
-    lv_obj_set_style_text_color(label_settings_battery, lv_color_hex(0xB8B8B8), 0);
-    lv_obj_set_style_text_font(label_settings_battery, &lv_font_montserrat_22, 0);
-    lv_obj_align(label_settings_battery, LV_ALIGN_CENTER, 0, 20);
-
-    label_settings_battery_detail = lv_label_create(screen_settings);
-    lv_label_set_text(label_settings_battery_detail, "No calibrated reading");
-    lv_obj_set_style_text_color(label_settings_battery_detail, lv_color_hex(0x7A7A7A), 0);
-    lv_obj_set_style_text_font(label_settings_battery_detail, &lv_font_montserrat_14, 0);
-    lv_obj_align(label_settings_battery_detail, LV_ALIGN_CENTER, 0, 50);
-
     label_settings_hint = lv_label_create(screen_settings);
     lv_label_set_text(label_settings_hint, "Turn knob for brightness");
     lv_obj_set_style_text_color(label_settings_hint, lv_color_hex(0x6A6A6A), 0);
     lv_obj_set_style_text_font(label_settings_hint, &lv_font_montserrat_14, 0);
-    lv_obj_align(label_settings_hint, LV_ALIGN_BOTTOM_MID, 0, -76);
+    lv_obj_align(label_settings_hint, LV_ALIGN_CENTER, 0, 24);
+}
 
-    lv_obj_t *btn_back = make_button(screen_settings, "Back", 120, 52, event_settings_back);
-    lv_obj_align(btn_back, LV_ALIGN_BOTTOM_MID, 0, -22);
+static void build_battery_screen(void)
+{
+    screen_battery = lv_obj_create(NULL);
+    lv_obj_set_size(screen_battery, 360, 360);
+    lv_obj_set_style_bg_color(screen_battery, lv_color_black(), 0);
+    lv_obj_set_style_border_width(screen_battery, 0, 0);
+    lv_obj_set_scrollbar_mode(screen_battery, LV_SCROLLBAR_MODE_OFF);
+
+    lv_obj_t *title = lv_label_create(screen_battery);
+    lv_label_set_text(title, "Battery");
+    lv_obj_set_style_text_color(title, lv_color_white(), 0);
+    lv_obj_set_style_text_font(title, &lv_font_montserrat_22, 0);
+    lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 60);
+
+    label_settings_battery = lv_label_create(screen_battery);
+    lv_label_set_text(label_settings_battery, "Battery: --%");
+    lv_obj_set_style_text_color(label_settings_battery, lv_color_white(), 0);
+    lv_obj_set_style_text_font(label_settings_battery, &lv_font_montserrat_32, 0);
+    lv_obj_align(label_settings_battery, LV_ALIGN_CENTER, 0, -10);
+
+    label_settings_battery_detail = lv_label_create(screen_battery);
+    lv_label_set_text(label_settings_battery_detail, "No calibrated reading");
+    lv_obj_set_style_text_color(label_settings_battery_detail, lv_color_hex(0x7A7A7A), 0);
+    lv_obj_set_style_text_font(label_settings_battery_detail, &lv_font_montserrat_16, 0);
+    lv_obj_align(label_settings_battery_detail, LV_ALIGN_CENTER, 0, 30);
 }
 
 void knob_gui(void)
@@ -2321,6 +2226,8 @@ void knob_gui(void)
     build_select_screen();
     build_damage_screen();
     build_settings_screen();
+    build_battery_screen();
+    build_quad_menus();
 
     refresh_main_ui();
     refresh_multiplayer_ui();
@@ -2379,10 +2286,6 @@ static void handle_knob_event(knob_event_t k)
     }
     else if (lv_scr_act() == screen_main)
     {
-        if ((menu_overlay != NULL) && !lv_obj_has_flag(menu_overlay, LV_OBJ_FLAG_HIDDEN)) {
-            return;
-        }
-
         if (k == KNOB_LEFT)      change_life(-1);
         else if (k == KNOB_RIGHT) change_life(+1);
     }
@@ -2438,6 +2341,40 @@ void knob_change(knob_event_t k, int cont)
 void knob_process_pending(void)
 {
     uint8_t processed = 0;
+
+    if (swipe_up_pending) {
+        swipe_up_pending = false;
+        lv_obj_t *cur = lv_scr_act();
+        if (cur != screen_quad_menu && cur != screen_tools_menu &&
+            cur != screen_screen_settings_menu &&
+            cur != screen_intro) {
+            previous_screen = cur;
+            open_quad_menu();
+        }
+    }
+
+    if (swipe_down_pending) {
+        swipe_down_pending = false;
+        lv_obj_t *cur = lv_scr_act();
+        if (cur == screen_quad_menu && previous_screen != NULL) {
+            lv_scr_load(previous_screen);
+        } else if (cur == screen_tools_menu) {
+            lv_scr_load(screen_quad_menu);
+        } else if (cur == screen_screen_settings_menu) {
+            settings_save();
+            lv_scr_load(screen_quad_menu);
+        } else if (cur == screen_settings) {
+            lv_scr_load(screen_screen_settings_menu);
+        } else if (cur == screen_battery) {
+            lv_scr_load(screen_screen_settings_menu);
+        } else if (cur == screen_dice) {
+            lv_scr_load(screen_tools_menu);
+        } else if (cur == screen_damage) {
+            back_to_main();
+        } else if (cur == screen_multiplayer) {
+            back_to_main();
+        }
+    }
 
     while (knob_event_tail != knob_event_head && processed < 8U) {
         knob_event_t event = knob_event_queue[knob_event_tail].event;
