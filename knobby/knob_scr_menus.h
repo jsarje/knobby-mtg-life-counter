@@ -11,6 +11,7 @@ extern lv_obj_t *screen_settings;
 extern lv_obj_t *screen_battery;
 
 // ---------- functions ----------
+void build_quad_screen(lv_obj_t **screen, quad_item_t items[4]);
 void build_quad_menus(void);
 void build_settings_screen(void);
 void build_battery_screen(void);

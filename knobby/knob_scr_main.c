@@ -1,6 +1,11 @@
 #include "knob_scr_main.h"
 #include "knob_life.h"
 #include "knob_timer.h"
+#include "knob_nvs.h"
+
+// Forward declarations for multiplayer routing
+extern lv_obj_t *screen_multiplayer;
+extern void refresh_multiplayer_ui(void);
 
 // ---------- screens ----------
 lv_obj_t *screen_main = NULL;
@@ -31,8 +36,9 @@ static lv_obj_t *digit_box_ones = NULL;
 
 // ---------- select UI ----------
 static lv_obj_t *label_select_title = NULL;
-static lv_obj_t *label_enemy_name[ENEMY_COUNT];
-static lv_obj_t *label_enemy_damage[ENEMY_COUNT];
+static lv_obj_t *select_rows[MAX_ENEMY_COUNT];
+static lv_obj_t *label_enemy_name[MAX_ENEMY_COUNT];
+static lv_obj_t *label_enemy_damage[MAX_ENEMY_COUNT];
 
 // ---------- damage UI ----------
 static lv_obj_t *label_damage_title = NULL;
@@ -121,9 +127,11 @@ static void set_plus_segments(lv_obj_t **seg, lv_color_t color, bool visible)
 // ---------- refresh functions ----------
 static void refresh_ring(void)
 {
-    lv_color_t c = get_life_color(life_total);
+    int max_life = nvs_get_life_total();
+    lv_color_t c = get_life_color(life_total, max_life);
 
-    lv_arc_set_value(arc_life, get_arc_display_value(life_total));
+    lv_arc_set_range(arc_life, 0, max_life);
+    lv_arc_set_value(arc_life, get_arc_display_value(life_total, max_life));
 
     lv_obj_set_style_arc_color(arc_life, lv_color_hex(0x202020), LV_PART_MAIN);
     lv_obj_set_style_arc_width(arc_life, 20, LV_PART_MAIN);
@@ -184,7 +192,7 @@ static void refresh_life_digits(void)
     bool positive_preview = life_preview_active && (display_value > 0);
     lv_coord_t x_offset = 0;
     lv_color_t c = life_preview_active ? (negative ? lv_palette_main(LV_PALETTE_RED) : lv_palette_main(LV_PALETTE_GREEN))
-                                   : get_life_color(display_value);
+                                   : get_life_color(display_value, nvs_get_life_total());
 
     if (positive_preview) {
         if (abs_v >= 100) x_offset = -34;
@@ -312,20 +320,36 @@ void refresh_select_ui(void)
 {
     char buf[32];
     int i;
+    int n = active_enemy_count;
+    int row_h = 46;
+    int gap = 10;
+    int total_h;
+    int start_y;
 
-    for (i = 0; i < ENEMY_COUNT; i++) {
-        int player_index = get_cmd_target_player_index(i);
-        lv_obj_t *row = (label_enemy_name[i] != NULL) ? lv_obj_get_parent(label_enemy_name[i]) : NULL;
-        lv_color_t text_color = get_player_text_color(player_index);
+    if (n > 5) { row_h = 38; gap = 6; }
+    total_h = n * row_h + (n > 0 ? (n - 1) * gap : 0);
+    start_y = (260 - total_h) / 2;
 
-        lv_label_set_text(label_enemy_name[i], multiplayer_names[player_index]);
-        snprintf(buf, sizeof(buf), "%d", enemies[i].damage);
-        lv_label_set_text(label_enemy_damage[i], buf);
-        lv_obj_set_style_text_color(label_enemy_name[i], text_color, 0);
-        lv_obj_set_style_text_color(label_enemy_damage[i], text_color, 0);
-        if (row != NULL) {
-            lv_obj_set_style_bg_color(row, get_player_base_color(player_index), 0);
-            lv_obj_set_style_bg_opa(row, LV_OPA_COVER, 0);
+    for (i = 0; i < MAX_ENEMY_COUNT; i++) {
+        if (select_rows[i] == NULL) continue;
+
+        if (i < n) {
+            int player_index = get_cmd_target_player_index(i);
+            lv_color_t text_color = get_player_text_color(player_index);
+
+            lv_obj_clear_flag(select_rows[i], LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_size(select_rows[i], 220, row_h);
+            lv_obj_set_pos(select_rows[i], 0, start_y + i * (row_h + gap));
+
+            lv_label_set_text(label_enemy_name[i], multiplayer_names[player_index]);
+            snprintf(buf, sizeof(buf), "%d", enemies[i].damage);
+            lv_label_set_text(label_enemy_damage[i], buf);
+            lv_obj_set_style_text_color(label_enemy_name[i], text_color, 0);
+            lv_obj_set_style_text_color(label_enemy_damage[i], text_color, 0);
+            lv_obj_set_style_bg_color(select_rows[i], get_player_base_color(player_index), 0);
+            lv_obj_set_style_bg_opa(select_rows[i], LV_OPA_COVER, 0);
+        } else {
+            lv_obj_add_flag(select_rows[i], LV_OBJ_FLAG_HIDDEN);
         }
     }
 }
@@ -335,7 +359,7 @@ void refresh_damage_ui(void)
     char buf[64];
     lv_color_t text_color;
 
-    if (selected_enemy < 0 || selected_enemy >= ENEMY_COUNT) return;
+    if (selected_enemy < 0 || selected_enemy >= active_enemy_count) return;
 
     {
         int player_index = get_cmd_target_player_index(selected_enemy);
@@ -354,11 +378,20 @@ void refresh_damage_ui(void)
 // ---------- navigation ----------
 void back_to_main(void)
 {
-    refresh_main_ui();
-    load_screen_if_needed(screen_main);
+    int track = nvs_get_players_to_track();
+    cmd_damage_target = -1;
+    if (track > 1) {
+        extern lv_obj_t *screen_multiplayer_2p;
+        refresh_multiplayer_ui();
+        if (track == 2) load_screen_if_needed(screen_multiplayer_2p);
+        else load_screen_if_needed(screen_multiplayer);
+    } else {
+        refresh_main_ui();
+        load_screen_if_needed(screen_main);
+    }
 }
 
-static void open_select_screen(void)
+void open_select_screen(void)
 {
     refresh_select_ui();
     load_screen_if_needed(screen_select);
@@ -367,6 +400,7 @@ static void open_select_screen(void)
 static void open_damage_screen(int enemy_index)
 {
     selected_enemy = enemy_index;
+    damage_enter();
     refresh_damage_ui();
     load_screen_if_needed(screen_damage);
 }
@@ -375,25 +409,22 @@ static void open_damage_screen(int enemy_index)
 static void event_open_select(lv_event_t *e)
 {
     (void)e;
+    if (active_enemy_count <= 0) return;
     open_select_screen();
 }
 
-static void event_select_itze(lv_event_t *e)
+static void event_select_enemy(lv_event_t *e)
 {
-    (void)e;
-    open_damage_screen(0);
+    int index = (int)(intptr_t)lv_event_get_user_data(e);
+    open_damage_screen(index);
 }
 
-static void event_select_atze(lv_event_t *e)
+static void event_damage_apply(lv_event_t *e)
 {
     (void)e;
-    open_damage_screen(1);
-}
-
-static void event_select_utze(lv_event_t *e)
-{
-    (void)e;
-    open_damage_screen(2);
+    damage_apply();
+    refresh_select_ui();
+    load_screen_if_needed(screen_select);
 }
 
 static void event_back_main(lv_event_t *e)
@@ -422,8 +453,8 @@ void build_main_screen(void)
     lv_obj_center(arc_life);
     lv_arc_set_rotation(arc_life, 90);
     lv_arc_set_bg_angles(arc_life, 0, 360);
-    lv_arc_set_range(arc_life, 0, 40);
-    lv_arc_set_value(arc_life, get_arc_display_value(life_total));
+    lv_arc_set_range(arc_life, 0, nvs_get_life_total());
+    lv_arc_set_value(arc_life, get_arc_display_value(life_total, nvs_get_life_total()));
     lv_obj_remove_style(arc_life, NULL, LV_PART_KNOB);
     lv_obj_clear_flag(arc_life, LV_OBJ_FLAG_CLICKABLE);
 
@@ -490,9 +521,7 @@ void build_main_screen(void)
 void build_select_screen(void)
 {
     int i;
-    static lv_event_cb_t select_cb[ENEMY_COUNT] = {
-        event_select_itze, event_select_atze, event_select_utze
-    };
+    lv_obj_t *container;
 
     screen_select = lv_obj_create(NULL);
     lv_obj_set_size(screen_select, 360, 360);
@@ -504,23 +533,28 @@ void build_select_screen(void)
     lv_label_set_text(label_select_title, "Choose player");
     lv_obj_set_style_text_color(label_select_title, lv_color_white(), 0);
     lv_obj_set_style_text_font(label_select_title, &lv_font_montserrat_22, 0);
-    lv_obj_align(label_select_title, LV_ALIGN_TOP_MID, 0, 24);
+    lv_obj_align(label_select_title, LV_ALIGN_TOP_MID, 0, 30);
 
-    lv_obj_t *btn_back = make_button(screen_select, "Back", 88, 42, event_back_main);
-    lv_obj_align(btn_back, LV_ALIGN_TOP_MID, 0, 60);
+    container = lv_obj_create(screen_select);
+    lv_obj_set_size(container, 240, 260);
+    lv_obj_align(container, LV_ALIGN_CENTER, 0, 20);
+    lv_obj_set_style_bg_opa(container, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(container, 0, 0);
+    lv_obj_set_style_pad_all(container, 0, 0);
+    lv_obj_set_scrollbar_mode(container, LV_SCROLLBAR_MODE_AUTO);
 
-    for (i = 0; i < ENEMY_COUNT; i++) {
-        lv_obj_t *row = lv_btn_create(screen_select);
-        lv_obj_set_size(row, 220, 46);
-        lv_obj_align(row, LV_ALIGN_CENTER, 0, -30 + (i * 62));
-        lv_obj_add_event_cb(row, select_cb[i], LV_EVENT_CLICKED, NULL);
+    for (i = 0; i < MAX_ENEMY_COUNT; i++) {
+        select_rows[i] = lv_btn_create(container);
+        lv_obj_set_size(select_rows[i], 220, 46);
+        lv_obj_set_pos(select_rows[i], 0, i * 56);
+        lv_obj_add_event_cb(select_rows[i], event_select_enemy, LV_EVENT_CLICKED, (void *)(intptr_t)i);
 
-        label_enemy_name[i] = lv_label_create(row);
+        label_enemy_name[i] = lv_label_create(select_rows[i]);
         lv_obj_set_style_text_font(label_enemy_name[i], &lv_font_montserrat_22, 0);
         lv_obj_set_style_text_color(label_enemy_name[i], lv_color_white(), 0);
         lv_obj_align(label_enemy_name[i], LV_ALIGN_LEFT_MID, 16, 0);
 
-        label_enemy_damage[i] = lv_label_create(row);
+        label_enemy_damage[i] = lv_label_create(select_rows[i]);
         lv_obj_set_style_text_font(label_enemy_damage[i], &lv_font_montserrat_22, 0);
         lv_obj_set_style_text_color(label_enemy_damage[i], lv_palette_main(LV_PALETTE_RED), 0);
         lv_obj_align(label_enemy_damage[i], LV_ALIGN_RIGHT_MID, -16, 0);
@@ -548,8 +582,11 @@ void build_damage_screen(void)
     lv_obj_align(label_damage_value, LV_ALIGN_CENTER, 0, -10);
 
     label_damage_hint = lv_label_create(screen_damage);
-    lv_label_set_text(label_damage_hint, "Turn knob for damage");
+    lv_label_set_text(label_damage_hint, "Turn knob, then apply");
     lv_obj_set_style_text_color(label_damage_hint, lv_color_hex(0x6A6A6A), 0);
     lv_obj_set_style_text_font(label_damage_hint, &lv_font_montserrat_14, 0);
     lv_obj_align(label_damage_hint, LV_ALIGN_CENTER, 0, 24);
+
+    lv_obj_t *btn = make_button(screen_damage, "apply", 120, 46, event_damage_apply);
+    lv_obj_align(btn, LV_ALIGN_BOTTOM_MID, 0, -46);
 }

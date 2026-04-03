@@ -3,9 +3,9 @@
 #include "knob_nvs.h"
 #include "knob_dice.h"
 #include "knob_timer.h"
+#include "knob_game_mode.h"
 
 // Forward declarations for cross-module calls
-extern void open_multiplayer_screen(void);
 extern void reset_all_values(void);
 extern void back_to_main(void);
 
@@ -25,7 +25,7 @@ static lv_obj_t *label_settings_battery = NULL;
 static lv_obj_t *label_settings_battery_detail = NULL;
 
 // ---------- quadrant menu builder ----------
-static void build_quad_screen(lv_obj_t **screen, quad_item_t items[4])
+void build_quad_screen(lv_obj_t **screen, quad_item_t items[4])
 {
     int i;
     static const lv_coord_t qx[4] = {0,   182, 0,   182};
@@ -49,7 +49,7 @@ static void build_quad_screen(lv_obj_t **screen, quad_item_t items[4])
         lv_obj_set_style_border_width(btn, 0, 0);
 
         if (items[i].cb != NULL && items[i].enabled) {
-            lv_obj_add_event_cb(btn, items[i].cb, LV_EVENT_CLICKED, NULL);
+            lv_obj_add_event_cb(btn, items[i].cb, items[i].event, NULL);
             lv_obj_set_style_bg_color(btn, lv_color_hex(0x1A1A2E), 0);
         } else {
             lv_obj_set_style_bg_color(btn, lv_color_hex(0x111111), 0);
@@ -168,10 +168,10 @@ static void event_quad_tools(lv_event_t *e)
     lv_scr_load(screen_tools_menu);
 }
 
-static void event_general_multiplayer(lv_event_t *e)
+static void event_general_game_mode(lv_event_t *e)
 {
     (void)e;
-    open_multiplayer_screen();
+    open_game_mode_menu();
 }
 
 static void event_general_reset(lv_event_t *e)
@@ -185,26 +185,26 @@ static void event_general_reset(lv_event_t *e)
 void build_quad_menus(void)
 {
     quad_item_t main_items[4] = {
-        {"Settings", event_quad_screen_settings, true},
-        {"Game\nMode", event_general_multiplayer, true},
-        {"Tools",             event_quad_tools, true},
-        {"Reset",             event_general_reset, true},
+        {"Settings", event_quad_screen_settings, true, LV_EVENT_CLICKED},
+        {"Game\nMode", event_general_game_mode, true, LV_EVENT_CLICKED},
+        {"Tools",             event_quad_tools, true, LV_EVENT_CLICKED},
+        {"Reset\n(Long Press)", event_general_reset, true, LV_EVENT_LONG_PRESSED},
     };
     build_quad_screen(&screen_quad_menu, main_items);
 
     quad_item_t tools_items[4] = {
-        {"Dice",        event_tool_dice, true},
-        {"Timer",       event_tool_timer, true},
-        {"",            NULL, false},
-        {"",            NULL, false},
+        {"Dice",        event_tool_dice, true, LV_EVENT_CLICKED},
+        {"Timer",       event_tool_timer, true, LV_EVENT_CLICKED},
+        {"",            NULL, false, LV_EVENT_CLICKED},
+        {"",            NULL, false, LV_EVENT_CLICKED},
     };
     build_quad_screen(&screen_tools_menu, tools_items);
 
     quad_item_t screen_items[4] = {
-        {"Brightness", event_screen_brightness, true},
-        {auto_dim_enabled ? "Auto-dim\nON" : "Auto-dim\nOFF", event_screen_autodim, true},
-        {"Battery",       event_screen_battery, true},
-        {"",              NULL, false},
+        {"Brightness", event_screen_brightness, true, LV_EVENT_CLICKED},
+        {auto_dim_enabled ? "Auto-dim\nON" : "Auto-dim\nOFF", event_screen_autodim, true, LV_EVENT_CLICKED},
+        {"Battery",       event_screen_battery, true, LV_EVENT_CLICKED},
+        {"",              NULL, false, LV_EVENT_CLICKED},
     };
     build_quad_screen(&screen_screen_settings_menu, screen_items);
     // Store auto-dim label reference so we can update it on toggle

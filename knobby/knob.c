@@ -8,6 +8,7 @@
 #include "knob_scr_main.h"
 #include "knob_scr_multiplayer.h"
 #include "knob_scr_menus.h"
+#include "knob_game_mode.h"
 
 // ---------- swipe state ----------
 static lv_obj_t *previous_screen = NULL;
@@ -49,8 +50,6 @@ void reset_all_values(void)
     refresh_multiplayer_ui();
     refresh_multiplayer_menu_ui();
     refresh_multiplayer_name_ui();
-    refresh_multiplayer_cmd_select_ui();
-    refresh_multiplayer_cmd_damage_ui();
     refresh_multiplayer_all_damage_ui();
 }
 
@@ -68,23 +67,23 @@ void knob_gui(void)
     build_dice_screen();
     build_main_screen();
     build_multiplayer_screen();
+    build_multiplayer_2p_screen();
+    build_multiplayer_3p_screen();
     build_multiplayer_menu_screen();
     build_multiplayer_name_screen();
-    build_multiplayer_cmd_select_screen();
-    build_multiplayer_cmd_damage_screen();
     build_multiplayer_all_damage_screen();
     build_select_screen();
     build_damage_screen();
     build_settings_screen();
     build_battery_screen();
     build_quad_menus();
+    build_game_mode_menu_screen();
+    build_custom_life_screen();
 
     refresh_main_ui();
     refresh_multiplayer_ui();
     refresh_multiplayer_menu_ui();
     refresh_multiplayer_name_ui();
-    refresh_multiplayer_cmd_select_ui();
-    refresh_multiplayer_cmd_damage_ui();
     refresh_select_ui();
     refresh_damage_ui();
     refresh_multiplayer_all_damage_ui();
@@ -124,20 +123,21 @@ static void handle_knob_event(knob_event_t k)
         else if (k == KNOB_RIGHT) change_brightness(+1);
         refresh_settings_ui();
     }
-    else if (lv_scr_act() == screen_multiplayer)
+    else if (lv_scr_act() == screen_multiplayer ||
+             lv_scr_act() == screen_multiplayer_2p)
     {
         if (k == KNOB_LEFT)      change_multiplayer_life(-1);
         else if (k == KNOB_RIGHT) change_multiplayer_life(+1);
-    }
-    else if (lv_scr_act() == screen_multiplayer_cmd_damage)
-    {
-        if (k == KNOB_LEFT)      change_multiplayer_cmd_damage(-1);
-        else if (k == KNOB_RIGHT) change_multiplayer_cmd_damage(+1);
     }
     else if (lv_scr_act() == screen_multiplayer_all_damage)
     {
         if (k == KNOB_LEFT)      change_multiplayer_all_damage(-1);
         else if (k == KNOB_RIGHT) change_multiplayer_all_damage(+1);
+    }
+    else if (lv_scr_act() == screen_custom_life)
+    {
+        if (k == KNOB_LEFT)      change_custom_life(-1);
+        else if (k == KNOB_RIGHT) change_custom_life(+1);
     }
 }
 
@@ -172,6 +172,9 @@ void knob_process_pending(void)
         lv_obj_t *cur = lv_scr_act();
         if (cur != screen_quad_menu && cur != screen_tools_menu &&
             cur != screen_screen_settings_menu &&
+            cur != screen_game_mode_menu && cur != screen_custom_life &&
+            cur != screen_multiplayer_menu && cur != screen_multiplayer_name &&
+            cur != screen_multiplayer_all_damage &&
             cur != screen_intro) {
             previous_screen = cur;
             open_quad_menu();
@@ -194,10 +197,22 @@ void knob_process_pending(void)
             lv_scr_load(screen_screen_settings_menu);
         } else if (cur == screen_dice) {
             lv_scr_load(screen_tools_menu);
+        } else if (cur == screen_select) {
+            back_to_main();
         } else if (cur == screen_damage) {
-            back_to_main();
-        } else if (cur == screen_multiplayer) {
-            back_to_main();
+            damage_cancel();
+            open_select_screen();
+        } else if (cur == screen_game_mode_menu) {
+            lv_scr_load(screen_quad_menu);
+        } else if (cur == screen_custom_life) {
+            refresh_game_mode_menu_ui();
+            lv_scr_load(screen_game_mode_menu);
+        } else if (cur == screen_multiplayer_menu) {
+            open_multiplayer_screen();
+        } else if (cur == screen_multiplayer_name) {
+            open_multiplayer_menu_screen(multiplayer_menu_player);
+        } else if (cur == screen_multiplayer_all_damage) {
+            open_multiplayer_menu_screen(multiplayer_menu_player);
         }
     }
 

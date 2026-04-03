@@ -7,7 +7,8 @@
 #include <string.h>
 
 // ---------- constants ----------
-#define ENEMY_COUNT 3
+#define MAX_ENEMY_COUNT 3
+#define MAX_PLAYERS 4
 #define LIFE_MIN -999
 #define LIFE_MAX 999
 #define DEFAULT_LIFE_TOTAL 40
@@ -32,6 +33,7 @@ typedef struct {
     const char *label;
     lv_event_cb_t cb;
     bool enabled;
+    lv_event_code_t event;
 } quad_item_t;
 
 // ---------- 7-segment map ----------
@@ -63,18 +65,18 @@ static inline int clamp_brightness(int value)
     return value;
 }
 
-static inline int get_arc_display_value(int value)
+static inline int get_arc_display_value(int value, int max_life)
 {
     if (value < 0) return 0;
-    if (value > 40) return 40;
+    if (value > max_life) return max_life;
     return value;
 }
 
-static inline lv_color_t get_life_color(int value)
+static inline lv_color_t get_life_color(int value, int max_life)
 {
-    if (value > 40)  return lv_palette_main(LV_PALETTE_PURPLE);
-    if (value >= 30) return lv_palette_main(LV_PALETTE_GREEN);
-    if (value >= 11) return lv_palette_main(LV_PALETTE_YELLOW);
+    if (value > max_life)          return lv_palette_main(LV_PALETTE_PURPLE);
+    if (value >= max_life * 3 / 4) return lv_palette_main(LV_PALETTE_GREEN);
+    if (value >= max_life / 4)     return lv_palette_main(LV_PALETTE_YELLOW);
     return lv_palette_main(LV_PALETTE_RED);
 }
 
