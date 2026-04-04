@@ -135,8 +135,7 @@ void MultiplayerController::adjustLife(int delta) {
 }
 
 void MultiplayerController::adjustCmdDamage(int delta) {
-    if (!state_.isActivePlayerIndex(state_.cmd_target)) return;
-    if (!state_.isActivePlayerIndex(state_.cmd_source)) return;
+    if (!isValidCmdDamagePair(state_.cmd_source, state_.cmd_target)) return;
 
     int updated = state_.cmd_damage_totals[state_.cmd_source][state_.cmd_target] + delta;
     if (updated < 0) {
@@ -168,7 +167,7 @@ void MultiplayerController::selectPlayer(int player_index) {
 }
 
 void MultiplayerController::saveName(const char* name) {
-    if (!state_.isActivePlayerIndex(state_.menu_player)) return;
+    if (!isValidMenuPlayer()) return;
 
     const size_t len = strlen(name);
     if (len == 0) {
@@ -227,6 +226,14 @@ void MultiplayerController::resetAll(SettingsState& settings) {
 void MultiplayerController::incrementCommanderTax(int player_index) {
     if (!state_.isActivePlayerIndex(player_index)) return;
     state_.commander_tax[player_index] += 1;
+}
+
+bool MultiplayerController::isValidCmdDamagePair(int source, int target) const {
+    return state_.isActivePlayerIndex(source) && state_.isActivePlayerIndex(target);
+}
+
+bool MultiplayerController::isValidMenuPlayer() const {
+    return state_.isActivePlayerIndex(state_.menu_player);
 }
 
 int MultiplayerController::clampLife(int value) {

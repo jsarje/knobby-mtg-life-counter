@@ -3,6 +3,7 @@
 
 #include "screen_multiplayer.h"
 #include "ui_helpers.h"
+#include "multiplayer_controller.h"
 #include <stdio.h>
 
 // ---------------------------------------------------------------------------
@@ -389,7 +390,7 @@ void MultiplayerCmdSelectScreen::create(lv_event_cb_t target_pick_cb, lv_event_c
 void MultiplayerCmdSelectScreen::refresh(const MultiplayerGameState& state)
 {
     char buf[48];
-    if (!state.isActivePlayerIndex(state.menu_player)) return;
+    if (!g_multiplayer_controller.isValidMenuPlayer()) return;
 
     if (label_title_ != nullptr) {
         snprintf(buf, sizeof(buf), "Source -> %s", state.names[state.menu_player]);
@@ -433,19 +434,10 @@ void MultiplayerCmdSelectScreen::refresh(const MultiplayerGameState& state)
 void MultiplayerCmdDamageScreen::create(lv_event_cb_t back_cb)
 {
     screen_ = ui_create_base_screen();
-
-    label_title_ = ui_create_title_label(screen_, nullptr, 26);
-
-    label_value_ = lv_label_create(screen_);
-    lv_obj_set_style_text_color(label_value_, lv_color_white(), 0);
-    lv_obj_set_style_text_font(label_value_, &lv_font_montserrat_32, 0);
-    lv_obj_align(label_value_, LV_ALIGN_CENTER, 0, -8);
-
-    label_hint_ = lv_label_create(screen_);
-    lv_label_set_text(label_hint_, "Turn knob for damage");
-    lv_obj_set_style_text_color(label_hint_, lv_color_hex(0x7A7A7A), 0);
-    lv_obj_set_style_text_font(label_hint_, &lv_font_montserrat_14, 0);
-    lv_obj_align(label_hint_, LV_ALIGN_CENTER, 0, 38);
+    auto vh = ui_create_value_hint_layout(screen_, nullptr, "Turn knob for damage", 26, -8, 38);
+    label_title_ = vh.title_label;
+    label_value_ = vh.value_label;
+    label_hint_ = vh.hint_label;
 
     lv_obj_t* btn_back = ui_create_action_button(screen_, "Back", 120, 46, back_cb);
     lv_obj_align(btn_back, LV_ALIGN_BOTTOM_MID, 0, -24);
@@ -454,8 +446,7 @@ void MultiplayerCmdDamageScreen::create(lv_event_cb_t back_cb)
 void MultiplayerCmdDamageScreen::refresh(const MultiplayerGameState& state)
 {
     char buf[48];
-    if (!state.isActivePlayerIndex(state.cmd_target) ||
-        !state.isActivePlayerIndex(state.cmd_source)) {
+    if (!g_multiplayer_controller.isValidCmdDamagePair(state.cmd_source, state.cmd_target)) {
         return;
     }
 
@@ -478,22 +469,10 @@ void MultiplayerCmdDamageScreen::refresh(const MultiplayerGameState& state)
 void MultiplayerAllDamageScreen::create(lv_event_cb_t apply_cb, lv_event_cb_t back_cb)
 {
     screen_ = ui_create_base_screen();
-
-    label_title_ = lv_label_create(screen_);
-    lv_obj_set_style_text_color(label_title_, lv_color_white(), 0);
-    lv_obj_set_style_text_font(label_title_, &lv_font_montserrat_22, 0);
-    lv_obj_align(label_title_, LV_ALIGN_TOP_MID, 0, 26);
-
-    label_value_ = lv_label_create(screen_);
-    lv_obj_set_style_text_color(label_value_, lv_color_white(), 0);
-    lv_obj_set_style_text_font(label_value_, &lv_font_montserrat_32, 0);
-    lv_obj_align(label_value_, LV_ALIGN_CENTER, 0, -8);
-
-    label_hint_ = lv_label_create(screen_);
-    lv_label_set_text(label_hint_, "Turn knob, then apply");
-    lv_obj_set_style_text_color(label_hint_, lv_color_hex(0x7A7A7A), 0);
-    lv_obj_set_style_text_font(label_hint_, &lv_font_montserrat_14, 0);
-    lv_obj_align(label_hint_, LV_ALIGN_CENTER, 0, 38);
+    auto vh = ui_create_value_hint_layout(screen_, "All Players", "Turn knob, then apply", 26, -8, 38);
+    label_title_ = vh.title_label;
+    label_value_ = vh.value_label;
+    label_hint_ = vh.hint_label;
 
     lv_obj_t* btn_apply = ui_create_action_button(screen_, "Apply", 120, 46, apply_cb);
     lv_obj_align(btn_apply, LV_ALIGN_BOTTOM_MID, 0, -78);

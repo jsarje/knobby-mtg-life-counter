@@ -124,6 +124,12 @@ static void refresh_multiplayer_name_ui()    { g_screen_multiplayer_name.refresh
 static void refresh_multiplayer_cmd_select_ui() { g_screen_multiplayer_cmd_select.refresh(mp); }
 static void refresh_multiplayer_cmd_damage_ui() { g_screen_multiplayer_cmd_damage.refresh(mp); }
 static void refresh_multiplayer_all_damage_ui() { g_screen_multiplayer_all_damage.refresh(mp); }
+
+// Grouped refresh for all value-focused multiplayer screens (damage views).
+static void refresh_multiplayer_value_ui() {
+    g_screen_multiplayer_cmd_damage.refresh(mp);
+    g_screen_multiplayer_all_damage.refresh(mp);
+}
 static void refresh_multiplayer_player_count_ui() { g_screen_multiplayer_player_count.refresh(mp); }
 static void refresh_multiplayer_player_count_confirm_ui() { g_screen_multiplayer_player_count_confirm.refresh(mp); }
 
@@ -133,8 +139,7 @@ static void refresh_all_multiplayer_ui()
     refresh_multiplayer_menu_ui();
     refresh_multiplayer_name_ui();
     refresh_multiplayer_cmd_select_ui();
-    refresh_multiplayer_cmd_damage_ui();
-    refresh_multiplayer_all_damage_ui();
+    refresh_multiplayer_value_ui();
     refresh_multiplayer_player_count_ui();
     refresh_multiplayer_player_count_confirm_ui();
 }

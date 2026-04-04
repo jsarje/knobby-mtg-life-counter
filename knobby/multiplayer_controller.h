@@ -109,6 +109,10 @@ public:
     // Increments the commander tax counter for a given player by 1.
     void incrementCommanderTax(int player_index);
 
+    // Validation helpers
+    bool isValidCmdDamagePair(int source, int target) const;
+    bool isValidMenuPlayer() const;
+
 private:
     MultiplayerGameState& state_;
     lv_timer_t*           preview_timer_ = nullptr;

@@ -35,3 +35,28 @@ lv_obj_t* ui_create_action_button(lv_obj_t* parent, const char* text,
     lv_obj_center(label);
     return btn;
 }
+
+ValueHintLayout ui_create_value_hint_layout(lv_obj_t* parent,
+                                            const char* title_text,
+                                            const char* hint_text,
+                                            lv_coord_t title_y,
+                                            lv_coord_t value_y,
+                                            lv_coord_t hint_y)
+{
+    ValueHintLayout out = {nullptr, nullptr, nullptr};
+
+    out.title_label = ui_create_title_label(parent, title_text, title_y);
+
+    out.value_label = lv_label_create(parent);
+    lv_obj_set_style_text_color(out.value_label, lv_color_white(), 0);
+    lv_obj_set_style_text_font(out.value_label, &lv_font_montserrat_32, 0);
+    lv_obj_align(out.value_label, LV_ALIGN_CENTER, 0, value_y);
+
+    out.hint_label = lv_label_create(parent);
+    if (hint_text != nullptr) lv_label_set_text(out.hint_label, hint_text);
+    lv_obj_set_style_text_color(out.hint_label, lv_color_hex(0x7A7A7A), 0);
+    lv_obj_set_style_text_font(out.hint_label, &lv_font_montserrat_14, 0);
+    lv_obj_align(out.hint_label, LV_ALIGN_CENTER, 0, hint_y);
+
+    return out;
+}
