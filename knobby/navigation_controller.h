@@ -16,6 +16,7 @@
 #pragma once
 
 #include <lvgl.h>
+#include <functional>
 #include "session_state.h"
 
 class NavigationController {
@@ -54,6 +55,13 @@ private:
     // Flushes stale encoder events and calls lv_scr_load if the target screen
     // is not already active.
     void loadScreen(lv_obj_t* screen);
+
+    // Internal navigation helper that centralises the common transition
+    // sequence: commit preview, optional state setup, optional refresh,
+    // flush input, and screen load.
+    void navigateTo(lv_obj_t* screen,
+                    std::function<void()> state_setup,
+                    std::function<void()> refresh_fn);
 
     FlushFn    flush_fn_       = nullptr;
     bool       swipe_tracking_ = false;

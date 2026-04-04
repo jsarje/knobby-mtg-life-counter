@@ -6,6 +6,7 @@
 #include "screen_intro.h"
 #include "screen_settings.h"
 #include "screen_multiplayer.h"
+#include <functional>
 
 // ---------------------------------------------------------------------------
 // Init
@@ -31,71 +32,83 @@ void NavigationController::loadScreen(lv_obj_t* screen) {
     lv_scr_load(screen);
 }
 
+void NavigationController::navigateTo(lv_obj_t* screen,
+                                     std::function<void()> state_setup,
+                                     std::function<void()> refresh_fn)
+{
+    // Commit any active life preview and ensure multiplayer overview is
+    // refreshed so committed totals are visible before transitioning.
+    commitPreviewAndRefreshMultiplayer();
+
+    if (state_setup) state_setup();
+    if (refresh_fn) refresh_fn();
+
+    loadScreen(screen);
+}
+
 // ---------------------------------------------------------------------------
 // Public navigation methods
 // ---------------------------------------------------------------------------
 
 void NavigationController::openMultiplayerScreen() {
-    commitPreviewAndRefreshMultiplayer();
-    g_screen_multiplayer.refresh(g_multiplayer_game_state);
-    loadScreen(g_screen_multiplayer.lvObject());
+    navigateTo(g_screen_multiplayer.lvObject(), nullptr,
+               [](){ g_screen_multiplayer.refresh(g_multiplayer_game_state); });
 }
 
 void NavigationController::openSettingsScreen() {
-    commitPreviewAndRefreshMultiplayer();
-    g_settings_controller.updateBattery(true);
-    g_settings_state.battery_percent = g_settings_controller.readBatteryPercent();
-    g_screen_settings.refresh(g_settings_state);
-    loadScreen(g_screen_settings.lvObject());
+    navigateTo(g_screen_settings.lvObject(),
+               [](){
+                   g_settings_controller.updateBattery(true);
+                   g_settings_state.battery_percent = g_settings_controller.readBatteryPercent();
+               },
+               [](){ g_screen_settings.refresh(g_settings_state); });
 }
 
 void NavigationController::openMenuScreen(int player_index, MultiplayerMenuMode mode) {
-    commitPreviewAndRefreshMultiplayer();
-    g_multiplayer_game_state.menu_player = player_index;
-    g_multiplayer_game_state.menu_mode   = mode;
-    g_screen_multiplayer_menu.refresh(g_multiplayer_game_state);
-    loadScreen(g_screen_multiplayer_menu.lvObject());
+    navigateTo(g_screen_multiplayer_menu.lvObject(),
+               [player_index, mode](){
+                   g_multiplayer_game_state.menu_player = player_index;
+                   g_multiplayer_game_state.menu_mode   = mode;
+               },
+               [](){ g_screen_multiplayer_menu.refresh(g_multiplayer_game_state); });
 }
 
 void NavigationController::openNameScreen() {
-    commitPreviewAndRefreshMultiplayer();
-    g_screen_multiplayer_name.refresh(g_multiplayer_game_state);
-    loadScreen(g_screen_multiplayer_name.lvObject());
+    navigateTo(g_screen_multiplayer_name.lvObject(), nullptr,
+               [](){ g_screen_multiplayer_name.refresh(g_multiplayer_game_state); });
 }
 
 void NavigationController::openCmdSelectScreen() {
-    commitPreviewAndRefreshMultiplayer();
-    g_screen_multiplayer_cmd_select.refresh(g_multiplayer_game_state);
-    loadScreen(g_screen_multiplayer_cmd_select.lvObject());
+    navigateTo(g_screen_multiplayer_cmd_select.lvObject(), nullptr,
+               [](){ g_screen_multiplayer_cmd_select.refresh(g_multiplayer_game_state); });
 }
 
 void NavigationController::openCmdDamageScreen(int target_index) {
-    commitPreviewAndRefreshMultiplayer();
-    g_multiplayer_game_state.cmd_source = target_index;
-    g_multiplayer_game_state.cmd_target = g_multiplayer_game_state.menu_player;
-    g_screen_multiplayer_cmd_damage.refresh(g_multiplayer_game_state);
-    loadScreen(g_screen_multiplayer_cmd_damage.lvObject());
+    navigateTo(g_screen_multiplayer_cmd_damage.lvObject(),
+               [target_index](){
+                   g_multiplayer_game_state.cmd_source = target_index;
+                   g_multiplayer_game_state.cmd_target = g_multiplayer_game_state.menu_player;
+               },
+               [](){ g_screen_multiplayer_cmd_damage.refresh(g_multiplayer_game_state); });
 }
 
 void NavigationController::openAllDamageScreen() {
-    commitPreviewAndRefreshMultiplayer();
-    g_multiplayer_game_state.all_damage_value = 0;
-    g_screen_multiplayer_all_damage.refresh(g_multiplayer_game_state);
-    loadScreen(g_screen_multiplayer_all_damage.lvObject());
+    navigateTo(g_screen_multiplayer_all_damage.lvObject(),
+               [](){ g_multiplayer_game_state.all_damage_value = 0; },
+               [](){ g_screen_multiplayer_all_damage.refresh(g_multiplayer_game_state); });
 }
 
 void NavigationController::openPlayerCountScreen() {
-    commitPreviewAndRefreshMultiplayer();
-    g_screen_multiplayer_player_count.refresh(g_multiplayer_game_state);
-    loadScreen(g_screen_multiplayer_player_count.lvObject());
+    navigateTo(g_screen_multiplayer_player_count.lvObject(), nullptr,
+               [](){ g_screen_multiplayer_player_count.refresh(g_multiplayer_game_state); });
 }
 
 void NavigationController::openPlayerCountConfirmScreen(int new_count) {
-    commitPreviewAndRefreshMultiplayer();
+    // Validate before navigation
     if (new_count < kMinActivePlayerCount || new_count > kMultiplayerCount) return;
-    g_multiplayer_game_state.pending_player_count = new_count;
-    g_screen_multiplayer_player_count_confirm.refresh(g_multiplayer_game_state);
-    loadScreen(g_screen_multiplayer_player_count_confirm.lvObject());
+    navigateTo(g_screen_multiplayer_player_count_confirm.lvObject(),
+               [new_count](){ g_multiplayer_game_state.pending_player_count = new_count; },
+               [](){ g_screen_multiplayer_player_count_confirm.refresh(g_multiplayer_game_state); });
 }
 
 // ---------------------------------------------------------------------------
