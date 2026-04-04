@@ -32,6 +32,12 @@ LayoutMetrics build_layout(int active_player_count)
     LayoutMetrics layout = {};
 
     switch (active_player_count) {
+    case 1:
+        // Single-player: one full-screen/top-centered region.
+        layout.seats[0] = {true, 0, 0, 360, 360, 180, 20, 20};
+        // Hide remaining seats
+        for (int i = 1; i < kMultiplayerCount; ++i) layout.seats[i].visible = false;
+        break;
     case 2:
         layout.seats[0] = {true, 0, 0, 360, 180, 180, 20, 18};
         layout.seats[1] = {true, 0, 180, 360, 180, 0, 20, 18};
@@ -497,7 +503,8 @@ void MultiplayerAllDamageScreen::refresh(const MultiplayerGameState& state)
 // MultiplayerPlayerCountScreen
 // ---------------------------------------------------------------------------
 
-void MultiplayerPlayerCountScreen::create(lv_event_cb_t select_two_cb,
+void MultiplayerPlayerCountScreen::create(lv_event_cb_t select_one_cb,
+                                          lv_event_cb_t select_two_cb,
                                           lv_event_cb_t select_three_cb,
                                           lv_event_cb_t select_four_cb,
                                           lv_event_cb_t back_cb)
@@ -505,6 +512,10 @@ void MultiplayerPlayerCountScreen::create(lv_event_cb_t select_two_cb,
     screen_ = ui_create_base_screen();
 
     label_title_ = ui_create_title_label(screen_, "Players", 26);
+
+    // Buttons: 1,2,3,4 Players
+    btn_one_ = ui_create_action_button(screen_, "1 Player", 180, 44, select_one_cb);
+    lv_obj_align(btn_one_, LV_ALIGN_CENTER, 0, -108);
 
     btn_two_ = ui_create_action_button(screen_, "2 Players", 180, 44, select_two_cb);
     lv_obj_align(btn_two_, LV_ALIGN_CENTER, 0, -56);
@@ -532,6 +543,7 @@ void MultiplayerPlayerCountScreen::refresh(const MultiplayerGameState& state)
         lv_obj_set_style_bg_opa(btn, LV_OPA_COVER, 0);
     };
 
+    style_button(btn_one_, 1);
     style_button(btn_two_, 2);
     style_button(btn_three_, 3);
     style_button(btn_four_, 4);

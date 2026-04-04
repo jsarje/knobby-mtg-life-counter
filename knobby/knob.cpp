@@ -430,6 +430,12 @@ static void event_multiplayer_player_count_two(lv_event_t *e)
     apply_active_player_count_change(2);
 }
 
+static void event_multiplayer_player_count_one(lv_event_t *e)
+{
+    (void)e;
+    apply_active_player_count_change(1);
+}
+
 static void event_multiplayer_player_count_three(lv_event_t *e)
 {
     (void)e;
@@ -496,6 +502,7 @@ void knob_gui(void)
         event_multiplayer_all_damage_apply,
         event_multiplayer_all_damage_back);
     g_screen_multiplayer_player_count.create(
+        event_multiplayer_player_count_one,
         event_multiplayer_player_count_two,
         event_multiplayer_player_count_three,
         event_multiplayer_player_count_four,

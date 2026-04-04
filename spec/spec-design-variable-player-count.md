@@ -9,14 +9,14 @@ tags: [design, multiplayer, ui, layout, session]
 
 # Introduction
 
-This specification defines how the multiplayer firmware shall support a runtime-configurable player count of 2, 3, or 4 players while keeping 4 players as the default on boot. It also defines an adaptive overview layout that scales from halves to thirds to quarters on the round display without requiring persistent storage of the selected player count.
+This specification defines how the multiplayer firmware shall support a runtime-configurable player count of 1, 2, 3, or 4 players while keeping 4 players as the default on boot. It also defines an adaptive overview layout that scales from a full-screen seat to halves, thirds, and quarters on the round display without requiring persistent storage of the selected player count.
 
 ## 1. Purpose & Scope
 
 Purpose: define the gameplay, state, and UI contracts required to support a variable active player count in the multiplayer overview and related flows.
 
 Scope:
-- Session-state changes required to track an active player count between 2 and 4.
+- Session-state changes required to track an active player count between 1 and 4.
 - UI and navigation changes required to let the user change player count during runtime.
 - Overview layout behavior for 2-player, 3-player, and 4-player games.
 - Rules for how existing multiplayer features behave when fewer than 4 players are active.
@@ -30,24 +30,24 @@ Assumptions:
 
 ## 2. Definitions
 
-- Active Player Count (APC): the number of currently active seats in the session. Valid values are 2, 3, and 4.
+- Active Player Count (APC): the number of currently active seats in the session. Valid values are 1, 2, 3, and 4.
 - Seat: one active player slot in the multiplayer session.
 - Seat Segment: the screen region assigned to one active player in the multiplayer overview.
 - Radial Layout: a layout where seat regions are distributed around the circular display by angle.
 - Overview Screen: the default multiplayer gameplay screen that shows all active players.
-- Count Selector: the UI flow that allows choosing 2, 3, or 4 active players.
+- Count Selector: the UI flow that allows choosing 1, 2, 3, or 4 active players.
 - Dirty Session: a session whose gameplay state differs from new-game defaults for the current APC.
 
 ## 3. Requirements, Constraints & Guidelines
 
-- **REQ-001**: The multiplayer session shall support an active player count of 2, 3, or 4.
+- **REQ-001**: The multiplayer session shall support an active player count of 1, 2, 3, or 4.
 - **REQ-002**: The firmware shall default to 4 active players on boot.
 - **REQ-003**: The selected active player count shall not be persisted across power cycles, reboots, or firmware restarts.
 - **REQ-004**: The user shall be able to change the active player count from the multiplayer global menu.
-- **REQ-005**: The player-count selector shall offer exactly three choices: `2 Players`, `3 Players`, and `4 Players`.
+- **REQ-005**: The player-count selector shall offer exactly four choices: `1 Player`, `2 Players`, `3 Players`, and `4 Players`.
 - **REQ-006**: Changing the active player count shall reset gameplay session data that depends on seat count, including life totals, commander tax, commander damage totals, selected player, pending preview state, and default player names.
 - **REQ-007**: The overview screen shall render one seat segment per active player and shall not show inactive player slots.
-- **REQ-008**: The overview layout shall use equal angular segmentation of the circular display: 180 degrees per seat for 2 players, 120 degrees per seat for 3 players, and 90 degrees per seat for 4 players.
+- **REQ-008**: The overview layout shall use equal angular segmentation of the circular display: 360 degrees per seat for 1 player, 180 degrees per seat for 2 players, 120 degrees per seat for 3 players, and 90 degrees per seat for 4 players.
 - **REQ-009**: Each seat segment shall display the assigned player's life total as the primary value, the player name as secondary text, and commander tax when greater than 0.
 - **REQ-010**: Text and numeric content in each seat segment shall be oriented toward that player's edge of the display by rotating an inner content container, not by rotating the touch target itself.
 - **REQ-011**: The currently selected active player shall remain visually highlighted in every supported layout.
@@ -67,7 +67,7 @@ Assumptions:
 - **GUD-001**: The count selector should live in the multiplayer global menu rather than the settings screen because player count is part of game setup, not device configuration.
 - **GUD-002**: Hidden player slots should be reset to new-game defaults whenever APC changes so that expanding from a lower count back to a higher count yields predictable state.
 - **GUD-003**: The selected player's highlight treatment should remain color-based and consistent with the current multiplayer screen language.
-- **PAT-001**: Use a template-driven radial layout planner that derives segment geometry from APC instead of maintaining separate hard-coded screens for 2, 3, and 4 players.
+- **PAT-001**: Use a template-driven radial layout planner that derives segment geometry from APC instead of maintaining separate hard-coded screens for 1, 2, 3, and 4 players.
 - **PAT-002**: Keep fixed-size backing arrays sized to 4 and add an `active_player_count` field to the gameplay state.
 
 ## 4. Interfaces & Data Contracts
@@ -79,7 +79,7 @@ The gameplay state shall continue to support a maximum capacity of 4 players whi
 ```cpp
 static constexpr int kMaxPlayers = 4;
 static constexpr int kDefaultActivePlayerCount = 4;
-static constexpr int kMinActivePlayerCount = 2;
+static constexpr int kMinActivePlayerCount = 1;
 
 struct MultiplayerGameState {
     int active_player_count = kDefaultActivePlayerCount;
@@ -124,6 +124,7 @@ struct MultiplayerLayoutPlan {
 ```
 
 Layout rules:
+- For APC `1`, the layout planner shall create one full 360-degree seat segment (centered/full-screen presentation).
 - For APC `2`, the layout planner shall create two opposing 180-degree seat segments.
 - For APC `3`, the layout planner shall create three evenly spaced 120-degree seat segments.
 - For APC `4`, the layout planner shall create four evenly spaced 90-degree seat segments.
@@ -141,6 +142,7 @@ Players
 Selecting `Players` shall open a count selector screen with:
 
 ```text
+1 Player
 2 Players
 3 Players
 4 Players
@@ -172,7 +174,7 @@ MultiplayerLayoutPlan buildLayoutPlan(int active_player_count);
 ```
 
 Behavioral rules:
-- `setActivePlayerCount(new_count)` shall reject values outside `2..4`.
+-- `setActivePlayerCount(new_count)` shall reject values outside `1..4`.
 - `setActivePlayerCount(new_count)` shall no-op when `new_count == active_player_count`.
 - `setActivePlayerCount(new_count)` shall reset session gameplay state and clamp all navigation indices to the active range.
 - `buildLayoutPlan(active_player_count)` shall be deterministic for the same input.
@@ -181,16 +183,17 @@ Behavioral rules:
 
 - **AC-001**: Given the firmware boots, When the multiplayer overview first appears, Then exactly 4 players shall be active and visible.
 - **AC-002**: Given the user opens the multiplayer global menu, When the menu is shown, Then a `Players` option shall be available.
-- **AC-003**: Given the user selects `Players`, When the selector screen opens, Then it shall offer `2 Players`, `3 Players`, `4 Players`, and `Back`.
+- **AC-003**: Given the user selects `Players`, When the selector screen opens, Then it shall offer `1 Player`, `2 Players`, `3 Players`, `4 Players`, and `Back`.
 - **AC-004**: Given a clean 4-player session, When the user selects `3 Players` and confirms if required, Then the overview shall immediately redraw with exactly 3 visible seat segments and only players `P1..P3` active.
 - **AC-005**: Given a dirty session, When the user selects a different player count, Then the firmware shall request confirmation before discarding the current game.
 - **AC-006**: Given the active player count is 2, When the overview is displayed, Then it shall render two opposing half-screen seat segments with readable, edge-oriented content.
 - **AC-007**: Given the active player count is 3, When the overview is displayed, Then it shall render three evenly distributed third-screen seat segments with readable, edge-oriented content.
 - **AC-008**: Given the active player count is 4, When the overview is displayed, Then it shall render four evenly distributed quarter-screen seat segments equivalent in behavior to the current four-player mode.
-- **AC-009**: Given the active player count is 2 or 3, When commander-damage source selection opens, Then only active opponent seats shall be listed.
-- **AC-010**: Given the active player count is 3, When global damage is applied, Then only the three active players shall lose life.
-- **AC-011**: Given the active player count is 3, When the user resets the game, Then the session shall reset to new-game defaults for 3 players rather than reverting to 4.
-- **AC-012**: Given the user power-cycles the device after previously using 2 or 3 players, When the device boots again, Then the active player count shall be 4.
+- **AC-009**: Given the active player count is 1, When the overview is displayed, Then it shall render a single full-screen seat region with readable content and player controls available for the single active player.
+- **AC-010**: Given the active player count is 2 or 3, When commander-damage source selection opens, Then only active opponent seats shall be listed.
+- **AC-011**: Given the active player count is 3, When global damage is applied, Then only the three active players shall lose life.
+- **AC-012**: Given the active player count is 3, When the user resets the game, Then the session shall reset to new-game defaults for 3 players rather than reverting to 4.
+- **AC-013**: Given the user power-cycles the device after previously using 2 or 3 players, When the device boots again, Then the active player count shall be 4.
 
 ## 6. Test Automation Strategy
 
@@ -198,12 +201,12 @@ Behavioral rules:
 - **Frameworks**: Reuse the repository's existing C++ test approach where available; add lightweight host-side tests for layout planning and controller state transitions.
 - **Test Data Management**: Construct fresh `MultiplayerGameState` instances per test case; avoid shared mutable state across tests.
 - **CI/CD Integration**: Build validation shall include compilation for the multiplayer UI and controller code paths touched by APC support.
-- **Coverage Requirements**: Unit coverage shall include APC validation, session reset semantics, active-player iteration bounds, and layout-plan generation for APC values `2`, `3`, and `4`.
+-- **Coverage Requirements**: Unit coverage shall include APC validation, session reset semantics, active-player iteration bounds, and layout-plan generation for APC values `1`, `2`, `3`, and `4`.
 - **Performance Testing**: Verify that overview refresh after APC changes completes within the same UI update cycle and does not introduce visible redraw flicker on device.
 
 Recommended automated tests:
-- Layout planner returns 2, 3, and 4 seat descriptors with correct angular sweep values.
-- Controller rejects APC values below 2 and above 4.
+Layout planner returns 1, 2, 3, and 4 seat descriptors with correct angular sweep values.
+Controller rejects APC values below 1 and above 4.
 - Changing APC resets life totals, commander tax, commander damage totals, names, and selection state.
 - Selecting the current APC is a no-op.
 - Commander-damage target lists and global damage loops honor `active_player_count`.
@@ -245,7 +248,7 @@ Example APC change flow:
 
 ```cpp
 void apply_player_count_change(int new_count) {
-    if (new_count < 2 || new_count > 4) return;
+    if (new_count < 1 || new_count > 4) return;
     if (new_count == state.active_player_count) return;
 
     if (controller.isSessionDirty()) {
@@ -261,6 +264,7 @@ void apply_player_count_change(int new_count) {
 Example layout mapping:
 
 ```text
+APC = 1 -> seat sweeps: [360]
 APC = 2 -> seat sweeps: [180, 180]
 APC = 3 -> seat sweeps: [120, 120, 120]
 APC = 4 -> seat sweeps: [90, 90, 90, 90]
@@ -276,7 +280,7 @@ Edge cases:
 ## 10. Validation Criteria
 
 - The firmware builds successfully after introducing APC-aware state and UI changes.
-- The overview screen renders correctly for APC values `2`, `3`, and `4` without overlapping primary content.
+- The overview screen renders correctly for APC values `1`, `2`, `3`, and `4` without overlapping primary content.
 - All multiplayer actions operate only on active players.
 - Manual device testing confirms that content orientation remains readable from each player's edge.
 - Boot behavior confirms APC defaults to `4` after restart.

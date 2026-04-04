@@ -9,7 +9,7 @@
 // ---------------------------------------------------------------------------
 
 static constexpr int kMultiplayerCount         = 4;
-static constexpr int kMinActivePlayerCount     = 2;
+static constexpr int kMinActivePlayerCount     = 1;
 static constexpr int kDefaultActivePlayerCount = 4;
 static constexpr int kDefaultLifeTotal         = 40;
 static constexpr int kDefaultBrightnessPercent = 25;

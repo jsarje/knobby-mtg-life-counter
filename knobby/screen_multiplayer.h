@@ -166,7 +166,8 @@ private:
 
 class MultiplayerPlayerCountScreen {
 public:
-    void create(lv_event_cb_t select_two_cb,
+    void create(lv_event_cb_t select_one_cb,
+                lv_event_cb_t select_two_cb,
                 lv_event_cb_t select_three_cb,
                 lv_event_cb_t select_four_cb,
                 lv_event_cb_t back_cb);
@@ -176,6 +177,7 @@ public:
 private:
     lv_obj_t* screen_      = nullptr;
     lv_obj_t* label_title_ = nullptr;
+    lv_obj_t* btn_one_     = nullptr;
     lv_obj_t* btn_two_     = nullptr;
     lv_obj_t* btn_three_   = nullptr;
     lv_obj_t* btn_four_    = nullptr;
