@@ -2,6 +2,7 @@
 // Phase 5: SettingsScreen implementation.
 
 #include "screen_settings.h"
+#include "ui_helpers.h"
 #include <stdio.h>
 
 // ---------------------------------------------------------------------------
@@ -12,11 +13,7 @@ void SettingsScreen::create(lv_event_cb_t back_cb)
 {
     char brightness_label[32];
 
-    screen_ = lv_obj_create(NULL);
-    lv_obj_set_size(screen_, 360, 360);
-    lv_obj_set_style_bg_color(screen_, lv_color_black(), 0);
-    lv_obj_set_style_border_width(screen_, 0, 0);
-    lv_obj_set_scrollbar_mode(screen_, LV_SCROLLBAR_MODE_OFF);
+    screen_ = ui_create_base_screen();
 
     arc_brightness_ = lv_arc_create(screen_);
     lv_obj_set_size(arc_brightness_, 280, 280);
@@ -28,11 +25,7 @@ void SettingsScreen::create(lv_event_cb_t back_cb)
     lv_obj_remove_style(arc_brightness_, NULL, LV_PART_KNOB);
     lv_obj_clear_flag(arc_brightness_, LV_OBJ_FLAG_CLICKABLE);
 
-    label_title_ = lv_label_create(screen_);
-    lv_label_set_text(label_title_, "knobby");
-    lv_obj_set_style_text_color(label_title_, lv_color_white(), 0);
-    lv_obj_set_style_text_font(label_title_, &lv_font_montserrat_22, 0);
-    lv_obj_align(label_title_, LV_ALIGN_TOP_MID, 0, 24);
+    label_title_ = ui_create_title_label(screen_, "knobby", 24);
 
     label_value_ = lv_label_create(screen_);
     snprintf(brightness_label, sizeof(brightness_label), "Brightness: %d%%", kDefaultBrightnessPercent);
@@ -59,13 +52,8 @@ void SettingsScreen::create(lv_event_cb_t back_cb)
     lv_obj_set_style_text_font(label_hint_, &lv_font_montserrat_14, 0);
     lv_obj_align(label_hint_, LV_ALIGN_BOTTOM_MID, 0, -76);
 
-    lv_obj_t* btn_back = lv_btn_create(screen_);
-    lv_obj_set_size(btn_back, 120, 52);
-    lv_obj_add_event_cb(btn_back, back_cb, LV_EVENT_CLICKED, NULL);
+    lv_obj_t* btn_back = ui_create_action_button(screen_, "Back", 120, 52, back_cb);
     lv_obj_align(btn_back, LV_ALIGN_BOTTOM_MID, 0, -22);
-    lv_obj_t* lbl = lv_label_create(btn_back);
-    lv_label_set_text(lbl, "Back");
-    lv_obj_center(lbl);
 }
 
 void SettingsScreen::refresh(const SettingsState& state)

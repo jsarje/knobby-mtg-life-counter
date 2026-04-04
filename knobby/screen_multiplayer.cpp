@@ -2,6 +2,7 @@
 // Phase 5: multiplayer screen class implementations.
 
 #include "screen_multiplayer.h"
+#include "ui_helpers.h"
 #include <stdio.h>
 
 // ---------------------------------------------------------------------------
@@ -50,22 +51,6 @@ LayoutMetrics build_layout(int active_player_count)
     }
 
     return layout;
-}
-
-lv_obj_t* make_button(lv_obj_t* parent, const char* txt,
-                       lv_coord_t w, lv_coord_t h, lv_event_cb_t cb)
-{
-    lv_obj_t* btn = lv_btn_create(parent);
-    lv_obj_set_size(btn, w, h);
-    if (cb != nullptr) {
-        lv_obj_add_event_cb(btn, cb, LV_EVENT_CLICKED, NULL);
-    }
-
-    lv_obj_t* label = lv_label_create(btn);
-    lv_label_set_text(label, txt);
-    lv_obj_center(label);
-
-    return btn;
 }
 
 } // namespace
@@ -122,11 +107,7 @@ void MultiplayerScreen::create(lv_event_cb_t select_cb,
                                 lv_event_cb_t swipe_pressed_cb,
                                 lv_event_cb_t swipe_released_cb)
 {
-    screen_ = lv_obj_create(NULL);
-    lv_obj_set_size(screen_, 360, 360);
-    lv_obj_set_style_bg_color(screen_, lv_color_black(), 0);
-    lv_obj_set_style_border_width(screen_, 0, 0);
-    lv_obj_set_scrollbar_mode(screen_, LV_SCROLLBAR_MODE_OFF);
+    screen_ = ui_create_base_screen();
     if (swipe_pressed_cb)  lv_obj_add_event_cb(screen_, swipe_pressed_cb,  LV_EVENT_PRESSED,  NULL);
     if (swipe_released_cb) lv_obj_add_event_cb(screen_, swipe_released_cb, LV_EVENT_RELEASED, NULL);
 
@@ -277,39 +258,32 @@ void MultiplayerMenuScreen::create(lv_event_cb_t rename_cb,
                                     lv_event_cb_t reset_cb,
                                     lv_event_cb_t back_cb)
 {
-    screen_ = lv_obj_create(NULL);
-    lv_obj_set_size(screen_, 360, 360);
-    lv_obj_set_style_bg_color(screen_, lv_color_black(), 0);
-    lv_obj_set_style_border_width(screen_, 0, 0);
-    lv_obj_set_scrollbar_mode(screen_, LV_SCROLLBAR_MODE_OFF);
+    screen_ = ui_create_base_screen();
 
-    label_title_ = lv_label_create(screen_);
-    lv_obj_set_style_text_color(label_title_, lv_color_white(), 0);
-    lv_obj_set_style_text_font(label_title_, &lv_font_montserrat_22, 0);
-    lv_obj_align(label_title_, LV_ALIGN_TOP_MID, 0, 26);
+    label_title_ = ui_create_title_label(screen_, nullptr, 26);
 
-    btn_rename_    = make_button(screen_, "Rename",    180, 44, rename_cb);
+    btn_rename_    = ui_create_action_button(screen_, "Rename",    180, 44, rename_cb);
     lv_obj_align(btn_rename_,    LV_ALIGN_CENTER, 0, -56);
 
-    btn_cmd_damage_ = make_button(screen_, "Commander", 180, 44, cmd_damage_cb);
+    btn_cmd_damage_ = ui_create_action_button(screen_, "Commander", 180, 44, cmd_damage_cb);
     lv_obj_align(btn_cmd_damage_, LV_ALIGN_CENTER, 0, -4);
 
-    btn_inc_commander_ = make_button(screen_, "Tax", 180, 44, inc_commander_cb);
+    btn_inc_commander_ = ui_create_action_button(screen_, "Tax", 180, 44, inc_commander_cb);
     lv_obj_align(btn_inc_commander_, LV_ALIGN_CENTER, 0, 48);
 
-    btn_all_damage_ = make_button(screen_, "Global",    180, 44, all_damage_cb);
+    btn_all_damage_ = ui_create_action_button(screen_, "Global",    180, 44, all_damage_cb);
     lv_obj_align(btn_all_damage_, LV_ALIGN_CENTER, 0, -82);
 
-    btn_players_ = make_button(screen_, "Players", 180, 44, players_cb);
+    btn_players_ = ui_create_action_button(screen_, "Players", 180, 44, players_cb);
     lv_obj_align(btn_players_, LV_ALIGN_CENTER, 0, -30);
 
-    btn_menu_ = make_button(screen_, "Settings",  180, 44, settings_cb);
+    btn_menu_ = ui_create_action_button(screen_, "Settings",  180, 44, settings_cb);
     lv_obj_align(btn_menu_, LV_ALIGN_CENTER, 0, 22);
 
-    btn_reset_ = make_button(screen_, "Reset",     180, 44, reset_cb);
+    btn_reset_ = ui_create_action_button(screen_, "Reset",     180, 44, reset_cb);
     lv_obj_align(btn_reset_, LV_ALIGN_CENTER, 0, 74);
 
-    btn_back_ = make_button(screen_, "Back", 88, 42, back_cb);
+    btn_back_ = ui_create_action_button(screen_, "Back", 88, 42, back_cb);
     lv_obj_set_style_radius(btn_back_, LV_RADIUS_CIRCLE, 0);
     lv_obj_set_style_pad_all(btn_back_, 0, 0);
     lv_obj_align(btn_back_, LV_ALIGN_BOTTOM_MID, 0, -24);
@@ -351,16 +325,9 @@ void MultiplayerMenuScreen::refresh(const MultiplayerGameState& state)
 
 void MultiplayerNameScreen::create(lv_event_cb_t save_cb, lv_event_cb_t back_cb)
 {
-    screen_ = lv_obj_create(NULL);
-    lv_obj_set_size(screen_, 360, 360);
-    lv_obj_set_style_bg_color(screen_, lv_color_black(), 0);
-    lv_obj_set_style_border_width(screen_, 0, 0);
-    lv_obj_set_scrollbar_mode(screen_, LV_SCROLLBAR_MODE_OFF);
+    screen_ = ui_create_base_screen();
 
-    label_title_ = lv_label_create(screen_);
-    lv_obj_set_style_text_color(label_title_, lv_color_white(), 0);
-    lv_obj_set_style_text_font(label_title_, &lv_font_montserrat_22, 0);
-    lv_obj_align(label_title_, LV_ALIGN_TOP_MID, 0, 18);
+    label_title_ = ui_create_title_label(screen_, nullptr, 18);
 
     textarea_ = lv_textarea_create(screen_);
     lv_obj_set_size(textarea_, 240, 44);
@@ -373,10 +340,10 @@ void MultiplayerNameScreen::create(lv_event_cb_t save_cb, lv_event_cb_t back_cb)
     lv_obj_align(keyboard_, LV_ALIGN_BOTTOM_MID, 0, 0);
     lv_keyboard_set_textarea(keyboard_, textarea_);
 
-    lv_obj_t* btn_save = make_button(screen_, "Save", 88, 38, save_cb);
+    lv_obj_t* btn_save = ui_create_action_button(screen_, "Save", 88, 38, save_cb);
     lv_obj_align(btn_save, LV_ALIGN_TOP_RIGHT, -24, 116);
 
-    lv_obj_t* btn_back = make_button(screen_, "Back", 88, 38, back_cb);
+    lv_obj_t* btn_back = ui_create_action_button(screen_, "Back", 88, 38, back_cb);
     lv_obj_align(btn_back, LV_ALIGN_TOP_LEFT, 24, 116);
 }
 
@@ -398,16 +365,9 @@ void MultiplayerNameScreen::refresh(const MultiplayerGameState& state)
 
 void MultiplayerCmdSelectScreen::create(lv_event_cb_t target_pick_cb, lv_event_cb_t back_cb)
 {
-    screen_ = lv_obj_create(NULL);
-    lv_obj_set_size(screen_, 360, 360);
-    lv_obj_set_style_bg_color(screen_, lv_color_black(), 0);
-    lv_obj_set_style_border_width(screen_, 0, 0);
-    lv_obj_set_scrollbar_mode(screen_, LV_SCROLLBAR_MODE_OFF);
+    screen_ = ui_create_base_screen();
 
-    label_title_ = lv_label_create(screen_);
-    lv_obj_set_style_text_color(label_title_, lv_color_white(), 0);
-    lv_obj_set_style_text_font(label_title_, &lv_font_montserrat_22, 0);
-    lv_obj_align(label_title_, LV_ALIGN_TOP_MID, 0, 22);
+    label_title_ = ui_create_title_label(screen_, nullptr, 22);
 
     for (int i = 0; i < kMultiplayerCount - 1; ++i) {
         btn_target_[i] = lv_btn_create(screen_);
@@ -422,7 +382,7 @@ void MultiplayerCmdSelectScreen::create(lv_event_cb_t target_pick_cb, lv_event_c
         lv_obj_center(label_target_[i]);
     }
 
-    lv_obj_t* btn_back = make_button(screen_, "Back", 120, 46, back_cb);
+    lv_obj_t* btn_back = ui_create_action_button(screen_, "Back", 120, 46, back_cb);
     lv_obj_align(btn_back, LV_ALIGN_BOTTOM_MID, 0, -24);
 }
 
@@ -472,16 +432,9 @@ void MultiplayerCmdSelectScreen::refresh(const MultiplayerGameState& state)
 
 void MultiplayerCmdDamageScreen::create(lv_event_cb_t back_cb)
 {
-    screen_ = lv_obj_create(NULL);
-    lv_obj_set_size(screen_, 360, 360);
-    lv_obj_set_style_bg_color(screen_, lv_color_black(), 0);
-    lv_obj_set_style_border_width(screen_, 0, 0);
-    lv_obj_set_scrollbar_mode(screen_, LV_SCROLLBAR_MODE_OFF);
+    screen_ = ui_create_base_screen();
 
-    label_title_ = lv_label_create(screen_);
-    lv_obj_set_style_text_color(label_title_, lv_color_white(), 0);
-    lv_obj_set_style_text_font(label_title_, &lv_font_montserrat_22, 0);
-    lv_obj_align(label_title_, LV_ALIGN_TOP_MID, 0, 26);
+    label_title_ = ui_create_title_label(screen_, nullptr, 26);
 
     label_value_ = lv_label_create(screen_);
     lv_obj_set_style_text_color(label_value_, lv_color_white(), 0);
@@ -494,7 +447,7 @@ void MultiplayerCmdDamageScreen::create(lv_event_cb_t back_cb)
     lv_obj_set_style_text_font(label_hint_, &lv_font_montserrat_14, 0);
     lv_obj_align(label_hint_, LV_ALIGN_CENTER, 0, 38);
 
-    lv_obj_t* btn_back = make_button(screen_, "Back", 120, 46, back_cb);
+    lv_obj_t* btn_back = ui_create_action_button(screen_, "Back", 120, 46, back_cb);
     lv_obj_align(btn_back, LV_ALIGN_BOTTOM_MID, 0, -24);
 }
 
@@ -524,11 +477,7 @@ void MultiplayerCmdDamageScreen::refresh(const MultiplayerGameState& state)
 
 void MultiplayerAllDamageScreen::create(lv_event_cb_t apply_cb, lv_event_cb_t back_cb)
 {
-    screen_ = lv_obj_create(NULL);
-    lv_obj_set_size(screen_, 360, 360);
-    lv_obj_set_style_bg_color(screen_, lv_color_black(), 0);
-    lv_obj_set_style_border_width(screen_, 0, 0);
-    lv_obj_set_scrollbar_mode(screen_, LV_SCROLLBAR_MODE_OFF);
+    screen_ = ui_create_base_screen();
 
     label_title_ = lv_label_create(screen_);
     lv_obj_set_style_text_color(label_title_, lv_color_white(), 0);
@@ -546,10 +495,10 @@ void MultiplayerAllDamageScreen::create(lv_event_cb_t apply_cb, lv_event_cb_t ba
     lv_obj_set_style_text_font(label_hint_, &lv_font_montserrat_14, 0);
     lv_obj_align(label_hint_, LV_ALIGN_CENTER, 0, 38);
 
-    lv_obj_t* btn_apply = make_button(screen_, "Apply", 120, 46, apply_cb);
+    lv_obj_t* btn_apply = ui_create_action_button(screen_, "Apply", 120, 46, apply_cb);
     lv_obj_align(btn_apply, LV_ALIGN_BOTTOM_MID, 0, -78);
 
-    lv_obj_t* btn_back = make_button(screen_, "Back", 120, 46, back_cb);
+    lv_obj_t* btn_back = ui_create_action_button(screen_, "Back", 120, 46, back_cb);
     lv_obj_align(btn_back, LV_ALIGN_BOTTOM_MID, 0, -24);
 }
 
@@ -574,28 +523,20 @@ void MultiplayerPlayerCountScreen::create(lv_event_cb_t select_two_cb,
                                           lv_event_cb_t select_four_cb,
                                           lv_event_cb_t back_cb)
 {
-    screen_ = lv_obj_create(NULL);
-    lv_obj_set_size(screen_, 360, 360);
-    lv_obj_set_style_bg_color(screen_, lv_color_black(), 0);
-    lv_obj_set_style_border_width(screen_, 0, 0);
-    lv_obj_set_scrollbar_mode(screen_, LV_SCROLLBAR_MODE_OFF);
+    screen_ = ui_create_base_screen();
 
-    label_title_ = lv_label_create(screen_);
-    lv_label_set_text(label_title_, "Players");
-    lv_obj_set_style_text_color(label_title_, lv_color_white(), 0);
-    lv_obj_set_style_text_font(label_title_, &lv_font_montserrat_22, 0);
-    lv_obj_align(label_title_, LV_ALIGN_TOP_MID, 0, 26);
+    label_title_ = ui_create_title_label(screen_, "Players", 26);
 
-    btn_two_ = make_button(screen_, "2 Players", 180, 44, select_two_cb);
+    btn_two_ = ui_create_action_button(screen_, "2 Players", 180, 44, select_two_cb);
     lv_obj_align(btn_two_, LV_ALIGN_CENTER, 0, -56);
 
-    btn_three_ = make_button(screen_, "3 Players", 180, 44, select_three_cb);
+    btn_three_ = ui_create_action_button(screen_, "3 Players", 180, 44, select_three_cb);
     lv_obj_align(btn_three_, LV_ALIGN_CENTER, 0, -4);
 
-    btn_four_ = make_button(screen_, "4 Players", 180, 44, select_four_cb);
+    btn_four_ = ui_create_action_button(screen_, "4 Players", 180, 44, select_four_cb);
     lv_obj_align(btn_four_, LV_ALIGN_CENTER, 0, 48);
 
-    lv_obj_t* btn_back = make_button(screen_, "Back", 88, 42, back_cb);
+    lv_obj_t* btn_back = ui_create_action_button(screen_, "Back", 88, 42, back_cb);
     lv_obj_set_style_radius(btn_back, LV_RADIUS_CIRCLE, 0);
     lv_obj_set_style_pad_all(btn_back, 0, 0);
     lv_obj_align(btn_back, LV_ALIGN_BOTTOM_MID, 0, -24);
@@ -623,17 +564,9 @@ void MultiplayerPlayerCountScreen::refresh(const MultiplayerGameState& state)
 
 void MultiplayerPlayerCountConfirmScreen::create(lv_event_cb_t confirm_cb, lv_event_cb_t back_cb)
 {
-    screen_ = lv_obj_create(NULL);
-    lv_obj_set_size(screen_, 360, 360);
-    lv_obj_set_style_bg_color(screen_, lv_color_black(), 0);
-    lv_obj_set_style_border_width(screen_, 0, 0);
-    lv_obj_set_scrollbar_mode(screen_, LV_SCROLLBAR_MODE_OFF);
+    screen_ = ui_create_base_screen();
 
-    label_title_ = lv_label_create(screen_);
-    lv_label_set_text(label_title_, "Change Player Count?");
-    lv_obj_set_style_text_color(label_title_, lv_color_white(), 0);
-    lv_obj_set_style_text_font(label_title_, &lv_font_montserrat_22, 0);
-    lv_obj_align(label_title_, LV_ALIGN_TOP_MID, 0, 26);
+    label_title_ = ui_create_title_label(screen_, "Change Player Count?", 26);
 
     label_message_ = lv_label_create(screen_);
     lv_label_set_long_mode(label_message_, LV_LABEL_LONG_WRAP);
@@ -642,10 +575,10 @@ void MultiplayerPlayerCountConfirmScreen::create(lv_event_cb_t confirm_cb, lv_ev
     lv_obj_set_style_text_align(label_message_, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_align(label_message_, LV_ALIGN_CENTER, 0, -12);
 
-    lv_obj_t* btn_confirm = make_button(screen_, "Confirm", 140, 46, confirm_cb);
+    lv_obj_t* btn_confirm = ui_create_action_button(screen_, "Confirm", 140, 46, confirm_cb);
     lv_obj_align(btn_confirm, LV_ALIGN_BOTTOM_MID, 0, -78);
 
-    lv_obj_t* btn_back = make_button(screen_, "Back", 140, 46, back_cb);
+    lv_obj_t* btn_back = ui_create_action_button(screen_, "Back", 140, 46, back_cb);
     lv_obj_align(btn_back, LV_ALIGN_BOTTOM_MID, 0, -24);
 }
 

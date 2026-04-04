@@ -2,6 +2,7 @@
 // Phase 5: IntroScreen implementation.
 
 #include "screen_intro.h"
+#include "ui_helpers.h"
 
 // ---------------------------------------------------------------------------
 // Static assets
@@ -25,11 +26,7 @@ const lv_coord_t IntroScreen::kX[IntroScreen::kCharCount] = {
 
 void IntroScreen::create()
 {
-    screen_ = lv_obj_create(NULL);
-    lv_obj_set_size(screen_, 360, 360);
-    lv_obj_set_style_bg_color(screen_, lv_color_black(), 0);
-    lv_obj_set_style_border_width(screen_, 0, 0);
-    lv_obj_set_scrollbar_mode(screen_, LV_SCROLLBAR_MODE_OFF);
+    screen_ = ui_create_base_screen();
 
     for (int i = 0; i < kCharCount; ++i) {
         letters_[i] = lv_label_create(screen_);
