@@ -108,7 +108,7 @@ void NavigationController::openPlayerCountScreen() {
 
 void NavigationController::openPlayerCountConfirmScreen(int new_count) {
     // Validate before navigation
-    if (new_count < kMinActivePlayerCount || new_count > kMultiplayerCount) return;
+    if (!g_multiplayer_controller.canApplyActivePlayerCount(new_count)) return;
     navigateTo(g_screen_multiplayer_player_count_confirm.lvObject(),
                [new_count](){ g_multiplayer_game_state.pending_player_count = new_count; },
                [](){ g_screen_multiplayer_player_count_confirm.refresh(g_multiplayer_game_state); });

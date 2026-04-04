@@ -241,12 +241,20 @@ void MultiplayerScreen::refresh(const MultiplayerGameState& state)
                 lv_label_set_text(badge_commander_label_[i], ctbuf);
                 lv_obj_set_style_transform_angle(badge_commander_[i], 0, 0);
                 lv_obj_set_style_transform_angle(badge_commander_label_[i], 0, 0);
-                if (top_facing) {
+                // Ensure badge is visible and above other content.
+                lv_obj_set_style_bg_opa(badge_commander_[i], LV_OPA_COVER, 0);
+                if (state.active_player_count == 1) {
+                    // Single-player: move badge closer to center so it's not clipped
+                    // by device bezel or screen rounding. Use center alignment with
+                    // conservative offsets toward the upper-right quadrant.
+                    lv_obj_align(badge_commander_[i], LV_ALIGN_CENTER, 60, -60);
+                } else if (top_facing) {
                     lv_obj_align(badge_commander_[i], LV_ALIGN_BOTTOM_LEFT, 8, -8);
                 } else {
                     lv_obj_align(badge_commander_[i], LV_ALIGN_TOP_RIGHT, -8, 8);
                 }
                 lv_obj_clear_flag(badge_commander_[i], LV_OBJ_FLAG_HIDDEN);
+                lv_obj_move_foreground(badge_commander_[i]);
             }
         }
     }
@@ -404,25 +412,49 @@ void MultiplayerCmdSelectScreen::refresh(const MultiplayerGameState& state)
     }
 
     int row = 0;
-    for (int i = 0; i < state.active_player_count; ++i) {
-        if (i == state.menu_player) continue;
+    // Special-case single-player sessions: present P2..P4 as potential sources
+    // so a lone player can record commander damage from other players even when
+    // those seats are inactive.
+    if (state.active_player_count == 1) {
+        for (int i = 1; i < kMultiplayerCount; ++i) {
+            target_choices_[row] = i;
 
-        target_choices_[row] = i;
+            if (btn_target_[row] != nullptr) {
+                lv_obj_clear_flag(btn_target_[row], LV_OBJ_FLAG_HIDDEN);
+                lv_obj_set_style_bg_color(btn_target_[row],
+                                           MultiplayerScreen::baseColor(i), 0);
+                lv_obj_set_style_bg_opa(btn_target_[row], LV_OPA_COVER, 0);
+            }
+            if (label_target_[row] != nullptr) {
+                snprintf(buf, sizeof(buf), "%s  %d",
+                         state.names[i], state.cmd_damage_totals[i][state.menu_player]);
+                lv_label_set_text(label_target_[row], buf);
+                lv_obj_set_style_text_color(label_target_[row],
+                                             MultiplayerScreen::textColor(i, false), 0);
+            }
+            ++row;
+        }
+    } else {
+        for (int i = 0; i < state.active_player_count; ++i) {
+            if (i == state.menu_player) continue;
 
-        if (btn_target_[row] != nullptr) {
-            lv_obj_clear_flag(btn_target_[row], LV_OBJ_FLAG_HIDDEN);
-            lv_obj_set_style_bg_color(btn_target_[row],
-                                       MultiplayerScreen::baseColor(i), 0);
-            lv_obj_set_style_bg_opa(btn_target_[row], LV_OPA_COVER, 0);
+            target_choices_[row] = i;
+
+            if (btn_target_[row] != nullptr) {
+                lv_obj_clear_flag(btn_target_[row], LV_OBJ_FLAG_HIDDEN);
+                lv_obj_set_style_bg_color(btn_target_[row],
+                                           MultiplayerScreen::baseColor(i), 0);
+                lv_obj_set_style_bg_opa(btn_target_[row], LV_OPA_COVER, 0);
+            }
+            if (label_target_[row] != nullptr) {
+                snprintf(buf, sizeof(buf), "%s  %d",
+                         state.names[i], state.cmd_damage_totals[i][state.menu_player]);
+                lv_label_set_text(label_target_[row], buf);
+                lv_obj_set_style_text_color(label_target_[row],
+                                             MultiplayerScreen::textColor(i, false), 0);
+            }
+            ++row;
         }
-        if (label_target_[row] != nullptr) {
-            snprintf(buf, sizeof(buf), "%s  %d",
-                     state.names[i], state.cmd_damage_totals[i][state.menu_player]);
-            lv_label_set_text(label_target_[row], buf);
-            lv_obj_set_style_text_color(label_target_[row],
-                                         MultiplayerScreen::textColor(i, false), 0);
-        }
-        ++row;
     }
     while (row < kMultiplayerCount - 1) {
         target_choices_[row] = -1;
@@ -537,8 +569,9 @@ void MultiplayerPlayerCountScreen::refresh(const MultiplayerGameState& state)
     auto style_button = [this, &state](lv_obj_t* btn, int count) {
         if (btn == nullptr) return;
         const bool active = (state.active_player_count == count);
+        // Inverted color scheme: active uses darker background, inactive uses accent.
         lv_obj_set_style_bg_color(btn,
-                                  active ? lv_color_hex(0x29B6F6) : lv_color_hex(0x3A3A3A),
+                                  active ? lv_color_hex(0x3A3A3A) : lv_color_hex(0x29B6F6),
                                   0);
         lv_obj_set_style_bg_opa(btn, LV_OPA_COVER, 0);
     };
