@@ -70,38 +70,38 @@ lv_obj_t* make_button(lv_obj_t* parent, const char* txt,
 
 } // namespace
 
+// Shared color tables for multiplayer indices. Keep in the file scope
+// but internal linkage via the anonymous namespace above.
+namespace {
+static const uint32_t kBaseColorHex[kMultiplayerCount] = {
+    0xD45A2B, 0x1F3F5A, 0x7E2C47, 0xC6922E
+};
+
+static const uint32_t kActiveColorHex[kMultiplayerCount] = {
+    0xFC4A03, 0x024378, 0xA50439, 0xF19E04
+};
+} // namespace
+
 // ---------------------------------------------------------------------------
 // MultiplayerScreen
 // ---------------------------------------------------------------------------
 
 lv_color_t MultiplayerScreen::baseColor(int index)
 {
-    static const uint32_t colors[kMultiplayerCount] = {
-        0xD45A2B, 0x1F3F5A, 0x7E2C47, 0xC6922E
-    };
     if (index < 0 || index >= kMultiplayerCount) return lv_color_hex(0x303030);
-    return lv_color_hex(colors[index]);
+    return lv_color_hex(kBaseColorHex[index]);
 }
 
 lv_color_t MultiplayerScreen::activeColor(int index)
 {
-    static const uint32_t colors[kMultiplayerCount] = {
-        0xFC4A03, 0x024378, 0xA50439, 0xF19E04
-    };
     if (index < 0 || index >= kMultiplayerCount) return lv_color_hex(0x505050);
-    return lv_color_hex(colors[index]);
+    return lv_color_hex(kActiveColorHex[index]);
 }
 
 lv_color_t MultiplayerScreen::textColor(int index, bool active)
 {
-    static const uint32_t base_hex[kMultiplayerCount] = {
-        0xD45A2B, 0x7E2C47, 0x1F3F5A, 0xC6922E
-    };
-    static const uint32_t active_hex[kMultiplayerCount] = {
-        0xFC4A03, 0x024378, 0xA50439, 0xF19E04
-    };
     if (index < 0 || index >= kMultiplayerCount) return lv_color_white();
-    const uint32_t hex = active ? active_hex[index] : base_hex[index];
+    const uint32_t hex = active ? kActiveColorHex[index] : kBaseColorHex[index];
     const int r = (hex >> 16) & 0xFF;
     const int g = (hex >> 8) & 0xFF;
     const int b = hex & 0xFF;
