@@ -60,11 +60,11 @@ LayoutMetrics build_layout(int active_player_count)
 // but internal linkage via the anonymous namespace above.
 namespace {
 static const uint32_t kBaseColorHex[kMultiplayerCount] = {
-    0xD45A2B, 0x1F3F5A, 0x7E2C47, 0xC6922E
+    0x7B1FE0, 0x29B6F6, 0xFFD600, 0xA5D6A7
 };
 
 static const uint32_t kActiveColorHex[kMultiplayerCount] = {
-    0xFC4A03, 0x024378, 0xA50439, 0xF19E04
+    0x9C4DFF, 0x4FC3F7, 0xFFEA61, 0xC8E6C9
 };
 } // namespace
 

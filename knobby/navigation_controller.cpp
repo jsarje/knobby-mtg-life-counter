@@ -51,8 +51,11 @@ void NavigationController::navigateTo(lv_obj_t* screen,
 // ---------------------------------------------------------------------------
 
 void NavigationController::openMultiplayerScreen() {
-    navigateTo(g_screen_multiplayer.lvObject(), nullptr,
-               [](){ g_screen_multiplayer.refresh(g_multiplayer_game_state); });
+    // `navigateTo` already commits any active life preview and refreshes
+    // the multiplayer overview. Passing an explicit refresh here causes a
+    // redundant refresh, so pass nullptr to use the shared pre-navigation
+    // refresh behavior.
+    navigateTo(g_screen_multiplayer.lvObject(), nullptr, nullptr);
 }
 
 void NavigationController::openSettingsScreen() {
