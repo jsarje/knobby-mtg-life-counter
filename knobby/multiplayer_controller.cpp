@@ -229,6 +229,15 @@ void MultiplayerController::incrementCommanderTax(int player_index) {
 }
 
 bool MultiplayerController::isValidCmdDamagePair(int source, int target) const {
+    // Target must be an active player. In single-player sessions, allow
+    // selecting commander-damage sources from inactive backing slots (P2..P4)
+    // so a lone player can record damage received from those opponents.
+    if (!state_.isActivePlayerIndex(target)) return false;
+
+    if (state_.active_player_count == 1) {
+        return (source >= 0 && source < kMultiplayerCount && source != target);
+    }
+
     return state_.isActivePlayerIndex(source) && state_.isActivePlayerIndex(target);
 }
 
