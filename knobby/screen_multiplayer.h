@@ -43,6 +43,7 @@ private:
     lv_obj_t* screen_                              = nullptr;
     lv_obj_t* quadrants_[kMultiplayerCount]        = {};
     lv_obj_t* content_[kMultiplayerCount]          = {};
+    lv_obj_t* rotator_[kMultiplayerCount]          = {};
     lv_obj_t* label_life_[kMultiplayerCount]       = {};
     lv_obj_t* label_name_[kMultiplayerCount]       = {};
     // Circular badge shown when commander tax > 0. Badge is a container

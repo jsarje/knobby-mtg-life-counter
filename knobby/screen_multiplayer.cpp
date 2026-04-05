@@ -27,7 +27,7 @@ struct SeatMetrics {
     lv_coord_t y;
     lv_coord_t w;
     lv_coord_t h;
-    int16_t    text_rotation_tenths;
+    int16_t    content_rotation_tenths;
     lv_coord_t content_pad_x;
     lv_coord_t content_pad_y;
     lv_coord_t content_offset_x;
@@ -81,7 +81,7 @@ void set_seat(SeatMetrics& seat,
               lv_coord_t y,
               lv_coord_t w,
               lv_coord_t h,
-              int16_t text_rotation_tenths,
+              int16_t content_rotation_tenths,
               lv_coord_t pad_x,
               lv_coord_t pad_y,
               lv_coord_t inward_offset,
@@ -93,7 +93,7 @@ void set_seat(SeatMetrics& seat,
     seat.y = y;
     seat.w = w;
     seat.h = h;
-    seat.text_rotation_tenths = text_rotation_tenths;
+    seat.content_rotation_tenths = content_rotation_tenths;
     seat.content_pad_x = pad_x;
     seat.content_pad_y = pad_y;
     seat.content_offset_x = 0;
@@ -107,8 +107,13 @@ void apply_rotation(lv_obj_t* obj, int16_t angle_tenths)
 {
     if (obj == nullptr) return;
     lv_obj_update_layout(obj);
-    lv_obj_set_style_transform_pivot_x(obj, lv_obj_get_width(obj) / 2, 0);
-    lv_obj_set_style_transform_pivot_y(obj, lv_obj_get_height(obj) / 2, 0);
+    const lv_coord_t width = lv_obj_get_width(obj);
+    const lv_coord_t height = lv_obj_get_height(obj);
+    const lv_coord_t ext_draw = LV_MAX(width, height) / 2;
+    lv_obj_set_style_transform_pivot_x(obj, width / 2, 0);
+    lv_obj_set_style_transform_pivot_y(obj, height / 2, 0);
+    lv_obj_set_style_transform_width(obj, ext_draw, 0);
+    lv_obj_set_style_transform_height(obj, ext_draw, 0);
     lv_obj_set_style_transform_angle(obj, angle_tenths, 0);
 }
 
@@ -334,6 +339,7 @@ void MultiplayerScreen::create(lv_event_cb_t select_cb,
         lv_obj_set_style_shadow_width(quadrants_[i], 0, 0);
         lv_obj_set_style_pad_all(quadrants_[i], 0, 0);
         lv_obj_add_flag(quadrants_[i], LV_OBJ_FLAG_EVENT_BUBBLE);
+        lv_obj_add_flag(quadrants_[i], LV_OBJ_FLAG_OVERFLOW_VISIBLE);
         if (select_cb)    lv_obj_add_event_cb(quadrants_[i], select_cb,    LV_EVENT_CLICKED,      reinterpret_cast<void*>(static_cast<intptr_t>(i)));
         if (open_menu_cb) lv_obj_add_event_cb(quadrants_[i], open_menu_cb, LV_EVENT_LONG_PRESSED, reinterpret_cast<void*>(static_cast<intptr_t>(i)));
 
@@ -345,20 +351,32 @@ void MultiplayerScreen::create(lv_event_cb_t select_cb,
         lv_obj_clear_flag(content_[i], LV_OBJ_FLAG_CLICKABLE);
         lv_obj_clear_flag(content_[i], LV_OBJ_FLAG_SCROLLABLE);
         lv_obj_add_flag(content_[i], LV_OBJ_FLAG_EVENT_BUBBLE);
+        lv_obj_add_flag(content_[i], LV_OBJ_FLAG_OVERFLOW_VISIBLE);
         lv_obj_center(content_[i]);
 
-        label_name_[i] = lv_label_create(content_[i]);
+        rotator_[i] = lv_obj_create(content_[i]);
+        lv_obj_set_style_bg_opa(rotator_[i], LV_OPA_TRANSP, 0);
+        lv_obj_set_style_border_width(rotator_[i], 0, 0);
+        lv_obj_set_style_pad_all(rotator_[i], 0, 0);
+        lv_obj_set_scrollbar_mode(rotator_[i], LV_SCROLLBAR_MODE_OFF);
+        lv_obj_clear_flag(rotator_[i], LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_clear_flag(rotator_[i], LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_add_flag(rotator_[i], LV_OBJ_FLAG_EVENT_BUBBLE);
+        lv_obj_add_flag(rotator_[i], LV_OBJ_FLAG_OVERFLOW_VISIBLE);
+        lv_obj_center(rotator_[i]);
+
+        label_name_[i] = lv_label_create(rotator_[i]);
         lv_label_set_text(label_name_[i], "P?");
         lv_label_set_long_mode(label_name_[i], LV_LABEL_LONG_DOT);
         lv_obj_set_style_text_color(label_name_[i], lv_color_white(), 0);
         lv_obj_set_style_text_font(label_name_[i], &lv_font_montserrat_14, 0);
 
-        label_life_[i] = lv_label_create(content_[i]);
+        label_life_[i] = lv_label_create(rotator_[i]);
         lv_label_set_text(label_life_[i], "40");
         lv_obj_set_style_text_color(label_life_[i], lv_color_white(), 0);
         lv_obj_set_style_text_font(label_life_[i], &lv_font_montserrat_32, 0);
 
-        badge_commander_[i] = lv_obj_create(content_[i]);
+        badge_commander_[i] = lv_obj_create(rotator_[i]);
         lv_obj_set_size(badge_commander_[i], 28, 28);
         lv_obj_set_style_radius(badge_commander_[i], LV_RADIUS_CIRCLE, 0);
         lv_obj_set_style_bg_color(badge_commander_[i], lv_color_hex(0xFFD600), 0);
@@ -417,7 +435,14 @@ void MultiplayerScreen::refresh(const MultiplayerGameState& state)
             lv_obj_align(content_[i], LV_ALIGN_CENTER,
                          layout.seats[i].content_offset_x,
                          layout.seats[i].content_offset_y);
-            lv_obj_set_style_transform_angle(content_[i], 0, 0);
+        }
+
+        if (rotator_[i] != nullptr && content_[i] != nullptr) {
+            const lv_coord_t rotator_w = lv_obj_get_width(content_[i]);
+            const lv_coord_t rotator_h = lv_obj_get_height(content_[i]);
+            lv_obj_set_size(rotator_[i], rotator_w, rotator_h);
+            lv_obj_center(rotator_[i]);
+            apply_rotation(rotator_[i], layout.seats[i].content_rotation_tenths);
         }
 
         if (label_life_[i] != nullptr) {
@@ -435,9 +460,9 @@ void MultiplayerScreen::refresh(const MultiplayerGameState& state)
         if (label_name_[i] != nullptr) {
             lv_label_set_text(label_name_[i], state.names[i]);
             lv_obj_set_width(label_name_[i],
-                             lv_obj_get_width(content_[i]) > 28
-                                 ? lv_obj_get_width(content_[i]) - 28
-                                 : lv_obj_get_width(content_[i]));
+                             lv_obj_get_width(rotator_[i]) > 28
+                                 ? lv_obj_get_width(rotator_[i]) - 28
+                                 : lv_obj_get_width(rotator_[i]));
             lv_obj_set_style_text_color(label_name_[i], txt_color, 0);
         }
 
@@ -447,8 +472,8 @@ void MultiplayerScreen::refresh(const MultiplayerGameState& state)
             align_standard_stack(layout.seats[i], label_name_[i], label_life_[i], badge_commander_[i]);
         }
 
-        apply_rotation(label_name_[i], layout.seats[i].text_rotation_tenths);
-        apply_rotation(label_life_[i], layout.seats[i].text_rotation_tenths);
+        lv_obj_set_style_transform_angle(label_name_[i], 0, 0);
+        lv_obj_set_style_transform_angle(label_life_[i], 0, 0);
 
         if (badge_commander_[i] != nullptr && badge_commander_label_[i] != nullptr) {
             if (state.commander_tax[i] <= 0) {
@@ -458,7 +483,7 @@ void MultiplayerScreen::refresh(const MultiplayerGameState& state)
                 snprintf(ctbuf, sizeof(ctbuf), "%d", state.commander_tax[i]);
                 lv_label_set_text(badge_commander_label_[i], ctbuf);
                 lv_obj_set_style_bg_opa(badge_commander_[i], LV_OPA_COVER, 0);
-                apply_rotation(badge_commander_[i], layout.seats[i].text_rotation_tenths);
+                lv_obj_set_style_transform_angle(badge_commander_[i], 0, 0);
                 lv_obj_set_style_transform_angle(badge_commander_label_[i], 0, 0);
                 lv_obj_clear_flag(badge_commander_[i], LV_OBJ_FLAG_HIDDEN);
                 lv_obj_move_foreground(badge_commander_[i]);
