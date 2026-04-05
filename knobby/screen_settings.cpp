@@ -27,27 +27,34 @@ void SettingsScreen::create(lv_event_cb_t back_cb)
 
     label_title_ = ui_create_title_label(screen_, "knobby", 24);
 
-    label_value_ = lv_label_create(screen_);
+    lv_obj_t* parent = ui_get_safe_content();
+    if (parent == nullptr) parent = screen_;
+
+    label_value_ = lv_label_create(parent);
     snprintf(brightness_label, sizeof(brightness_label), "Brightness: %d%%", kDefaultBrightnessPercent);
     lv_label_set_text(label_value_, brightness_label);
     lv_obj_set_style_text_color(label_value_, lv_color_white(), 0);
     lv_obj_set_style_text_font(label_value_, &lv_font_montserrat_32, 0);
     lv_obj_align(label_value_, LV_ALIGN_CENTER, 0, -18);
 
-    label_battery_ = lv_label_create(screen_);
+    label_battery_ = lv_label_create(parent);
     lv_label_set_text(label_battery_, "Battery: --%");
     lv_obj_set_style_text_color(label_battery_, lv_color_hex(0xB8B8B8), 0);
     lv_obj_set_style_text_font(label_battery_, &lv_font_montserrat_22, 0);
     lv_obj_align(label_battery_, LV_ALIGN_CENTER, 0, 16);
 
-    label_battery_detail_ = lv_label_create(screen_);
+    label_battery_detail_ = lv_label_create(parent);
     lv_label_set_text(label_battery_detail_, "No calibrated reading");
+    lv_label_set_long_mode(label_battery_detail_, LV_LABEL_LONG_WRAP);
+    lv_obj_set_width(label_battery_detail_, ui_safe_width() - 48);
     lv_obj_set_style_text_color(label_battery_detail_, lv_color_hex(0x7A7A7A), 0);
     lv_obj_set_style_text_font(label_battery_detail_, &lv_font_montserrat_14, 0);
     lv_obj_align(label_battery_detail_, LV_ALIGN_CENTER, 0, 50);
 
-    label_hint_ = lv_label_create(screen_);
+    label_hint_ = lv_label_create(parent);
     lv_label_set_text(label_hint_, "Turn knob for brightness");
+    lv_label_set_long_mode(label_hint_, LV_LABEL_LONG_DOT);
+    lv_obj_set_width(label_hint_, ui_safe_width() - 48);
     lv_obj_set_style_text_color(label_hint_, lv_color_hex(0x6A6A6A), 0);
     lv_obj_set_style_text_font(label_hint_, &lv_font_montserrat_14, 0);
     lv_obj_align(label_hint_, LV_ALIGN_BOTTOM_MID, 0, -76);

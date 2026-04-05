@@ -5,6 +5,7 @@
 #include "ui_helpers.h"
 #include "multiplayer_controller.h"
 #include <stdio.h>
+#include <algorithm>
 
 // ---------------------------------------------------------------------------
 // Shared helpers
@@ -141,6 +142,7 @@ void MultiplayerScreen::create(lv_event_cb_t select_cb,
 
         label_name_[i] = lv_label_create(content_[i]);
         lv_label_set_text(label_name_[i], "P?");
+        lv_label_set_long_mode(label_name_[i], LV_LABEL_LONG_DOT);
         lv_obj_set_style_text_color(label_name_[i], lv_color_white(), 0);
         lv_obj_set_style_text_font(label_name_[i], &lv_font_montserrat_14, 0);
 
@@ -243,11 +245,13 @@ void MultiplayerScreen::refresh(const MultiplayerGameState& state)
                 lv_obj_set_style_transform_angle(badge_commander_label_[i], 0, 0);
                 // Ensure badge is visible and above other content.
                 lv_obj_set_style_bg_opa(badge_commander_[i], LV_OPA_COVER, 0);
-                if (state.active_player_count == 1) {
+                    if (state.active_player_count == 1) {
                     // Single-player: move badge closer to center so it's not clipped
                     // by device bezel or screen rounding. Use center alignment with
-                    // conservative offsets toward the upper-right quadrant.
-                    lv_obj_align(badge_commander_[i], LV_ALIGN_CENTER, 60, -60);
+                    // offsets based on safe radius to avoid hard-coded pixels.
+                    lv_coord_t r = ui_safe_radius();
+                    lv_coord_t off = std::max<lv_coord_t>(16, r / 4);
+                    lv_obj_align(badge_commander_[i], LV_ALIGN_CENTER, off, -off);
                 } else if (top_facing) {
                     lv_obj_align(badge_commander_[i], LV_ALIGN_BOTTOM_LEFT, 8, -8);
                 } else {
@@ -392,6 +396,8 @@ void MultiplayerCmdSelectScreen::create(lv_event_cb_t target_pick_cb, lv_event_c
                             reinterpret_cast<void*>(static_cast<intptr_t>(i)));
 
         label_target_[i] = lv_label_create(btn_target_[i]);
+        lv_label_set_long_mode(label_target_[i], LV_LABEL_LONG_DOT);
+        lv_obj_set_width(label_target_[i], 220 - 16);
         lv_obj_set_style_text_font(label_target_[i], &lv_font_montserrat_22, 0);
         lv_obj_set_style_text_color(label_target_[i], lv_color_white(), 0);
         lv_obj_center(label_target_[i]);
@@ -590,7 +596,7 @@ void MultiplayerPlayerCountConfirmScreen::create(lv_event_cb_t confirm_cb, lv_ev
 {
     screen_ = ui_create_base_screen();
 
-    label_title_ = ui_create_title_label(screen_, "Change Player Count?", 26);
+    label_title_ = ui_create_title_label(screen_, "Confirm", 26);
 
     label_message_ = lv_label_create(screen_);
     lv_label_set_long_mode(label_message_, LV_LABEL_LONG_WRAP);

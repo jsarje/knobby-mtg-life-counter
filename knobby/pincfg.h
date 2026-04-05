@@ -3,6 +3,9 @@
 
 #define TFT_BLK 47
 
+// UI safe inset (pixels) to avoid placing UI near circular bezel edges
+#define UI_SAFE_INSET_PX 20
+
 #define TFT_RST 21
 #define TFT_CS 14
 #define TFT_SCK 13

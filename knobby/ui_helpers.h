@@ -5,6 +5,14 @@
 // Create a standardized LVGL root screen with project defaults.
 lv_obj_t* ui_create_base_screen();
 
+// Safe-area helpers for circular displays
+void ui_init_safe_area(lv_obj_t* parent);
+lv_obj_t* ui_get_safe_content();
+lv_coord_t ui_safe_center_x();
+lv_coord_t ui_safe_center_y();
+lv_coord_t ui_safe_radius();
+lv_coord_t ui_safe_width();
+
 // Create a standardized title label (white, montserrat_22, top-centered)
 lv_obj_t* ui_create_title_label(lv_obj_t* parent, const char* text, lv_coord_t y_offset);
 
