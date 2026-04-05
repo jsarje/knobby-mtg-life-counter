@@ -20,6 +20,8 @@ Knobby is a non-commercial hobby project for tabletop games such as Magic: The G
 
 Hardware assumptions, pin mappings, and platform details are documented in [docs/specifications/system-spec.md](./docs/specifications/system-spec.md).
 
+Additional engineering and design specifications have been consolidated under the top-level [spec/](spec/) directory. See examples such as [spec/hardening-spec.md](spec/hardening-spec.md) and [spec/spec-design-multiplayer-focus.md](spec/spec-design-multiplayer-focus.md).
+
 ## Fork Direction
 
 - Focus on multiplayer commander support on a shared pod-tracking screen
@@ -30,8 +32,9 @@ Hardware assumptions, pin mappings, and platform details are documented in [docs
 ## Current Behavior
 
 - Boot into the intro screen, then transition directly to the multiplayer overview
-- Track life totals for four players on one screen
+- Track life totals for a runtime-selected 2, 3, or 4 players on one screen
 - Support commander damage tracking between players
+- Support commander tax tracking from the player menu
 - Support global damage application, player renaming, brightness control, and battery estimate display
 - Exclude single-player, timer, and d20 flows from the shipped UI
 
@@ -72,7 +75,7 @@ arduino-cli upload -p <PORT> --fqbn esp32:esp32:esp32s3 ./knobby
 
 ## Current Limitations
 
-- The current firmware is built around a fixed four-player layout
+- Player count is session-only and resets to 4 on reboot
 - Battery percentage is an estimate based on a fixed voltage curve
 - State is not persisted across reboots
 - LVGL compatibility is intentionally conservative; upgrading beyond 8.4.x will require code changes

@@ -6,7 +6,6 @@
 
 #define SCREEN_RES_HOR 360
 #define SCREEN_RES_VER 360
-#define DEFAULT_UI_BRIGHTNESS_PERCENT 30
 
 bool scr_lvgl_init(void);
 void setRotation(uint8_t rot);

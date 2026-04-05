@@ -90,7 +90,7 @@ void MultiplayerController::setPreviewTimer(lv_timer_t* timer) {
 void MultiplayerController::commitLifePreview() {
     if (!state_.life_preview_active ||
         state_.preview_player < 0 ||
-        state_.preview_player >= kMultiplayerCount) {
+        !state_.isActivePlayerIndex(state_.preview_player)) {
         if (preview_timer_ != nullptr) {
             lv_timer_pause(preview_timer_);
         }
@@ -109,7 +109,7 @@ void MultiplayerController::commitLifePreview() {
 }
 
 void MultiplayerController::adjustLife(int delta) {
-    if (state_.selected < 0 || state_.selected >= kMultiplayerCount) return;
+    if (!state_.isActivePlayerIndex(state_.selected)) return;
 
     if (state_.life_preview_active && state_.preview_player != state_.selected) {
         commitLifePreview();
@@ -135,8 +135,7 @@ void MultiplayerController::adjustLife(int delta) {
 }
 
 void MultiplayerController::adjustCmdDamage(int delta) {
-    if (state_.cmd_target < 0 || state_.cmd_target >= kMultiplayerCount) return;
-    if (state_.cmd_source < 0 || state_.cmd_source >= kMultiplayerCount) return;
+    if (!isValidCmdDamagePair(state_.cmd_source, state_.cmd_target)) return;
 
     int updated = state_.cmd_damage_totals[state_.cmd_source][state_.cmd_target] + delta;
     if (updated < 0) {
@@ -153,13 +152,14 @@ void MultiplayerController::adjustAllDamage(int delta) {
 }
 
 void MultiplayerController::applyAllDamage() {
-    for (int i = 0; i < kMultiplayerCount; ++i) {
+    for (int i = 0; i < state_.active_player_count; ++i) {
         state_.life[i] = clampLife(state_.life[i] - state_.all_damage_value);
     }
     state_.all_damage_value = 0;
 }
 
 void MultiplayerController::selectPlayer(int player_index) {
+    if (!state_.isActivePlayerIndex(player_index)) return;
     if (state_.life_preview_active && state_.preview_player != player_index) {
         commitLifePreview();
     }
@@ -167,6 +167,8 @@ void MultiplayerController::selectPlayer(int player_index) {
 }
 
 void MultiplayerController::saveName(const char* name) {
+    if (!isValidMenuPlayer()) return;
+
     const size_t len = strlen(name);
     if (len == 0) {
         snprintf(state_.names[state_.menu_player],
@@ -176,18 +178,81 @@ void MultiplayerController::saveName(const char* name) {
     }
 }
 
+bool MultiplayerController::isSessionDirty() const {
+    if (state_.life_preview_active || state_.pending_life_delta != 0 || state_.all_damage_value != 0) {
+        return true;
+    }
+
+    for (int i = 0; i < state_.active_player_count; ++i) {
+        char default_name[kPlayerNameMaxLen];
+        snprintf(default_name, sizeof(default_name), "P%d", i + 1);
+
+        if (state_.life[i] != kDefaultLifeTotal) return true;
+        if (state_.commander_tax[i] != 0) return true;
+        if (strncmp(state_.names[i], default_name, kPlayerNameMaxLen) != 0) return true;
+    }
+
+    for (int source = 0; source < state_.active_player_count; ++source) {
+        for (int target = 0; target < state_.active_player_count; ++target) {
+            if (state_.cmd_damage_totals[source][target] != 0) return true;
+        }
+    }
+
+    return false;
+}
+
+bool MultiplayerController::canApplyActivePlayerCount(int new_count) const {
+    return isSupportedActivePlayerCount(new_count);
+}
+
+void MultiplayerController::setActivePlayerCount(int new_count) {
+    if (!isSupportedActivePlayerCount(new_count)) return;
+    if (new_count == state_.active_player_count) return;
+
+    state_.reset(new_count);
+    if (preview_timer_ != nullptr) {
+        lv_timer_pause(preview_timer_);
+    }
+}
+
 void MultiplayerController::resetAll(SettingsState& settings) {
-    state_.reset();
+    state_.reset(state_.active_player_count);
     settings.reset();
     if (preview_timer_ != nullptr) {
         lv_timer_pause(preview_timer_);
     }
 }
 
+void MultiplayerController::incrementCommanderTax(int player_index) {
+    if (!state_.isActivePlayerIndex(player_index)) return;
+    state_.commander_tax[player_index] += 1;
+}
+
+bool MultiplayerController::isValidCmdDamagePair(int source, int target) const {
+    // Target must be an active player. In single-player sessions, allow
+    // selecting commander-damage sources from inactive backing slots (P2..P4)
+    // so a lone player can record damage received from those opponents.
+    if (!state_.isActivePlayerIndex(target)) return false;
+
+    if (state_.active_player_count == 1) {
+        return (source >= 0 && source < kMultiplayerCount && source != target);
+    }
+
+    return state_.isActivePlayerIndex(source) && state_.isActivePlayerIndex(target);
+}
+
+bool MultiplayerController::isValidMenuPlayer() const {
+    return state_.isActivePlayerIndex(state_.menu_player);
+}
+
 int MultiplayerController::clampLife(int value) {
     if (value < kLifeMin) return kLifeMin;
     if (value > kLifeMax) return kLifeMax;
     return value;
+}
+
+bool MultiplayerController::isSupportedActivePlayerCount(int value) {
+    return value >= kMinActivePlayerCount && value <= kMultiplayerCount;
 }
 
 // ---------------------------------------------------------------------------

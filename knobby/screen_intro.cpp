@@ -2,6 +2,7 @@
 // Phase 5: IntroScreen implementation.
 
 #include "screen_intro.h"
+#include "ui_helpers.h"
 
 // ---------------------------------------------------------------------------
 // Static assets
@@ -25,18 +26,19 @@ const lv_coord_t IntroScreen::kX[IntroScreen::kCharCount] = {
 
 void IntroScreen::create()
 {
-    screen_ = lv_obj_create(NULL);
-    lv_obj_set_size(screen_, 360, 360);
-    lv_obj_set_style_bg_color(screen_, lv_color_black(), 0);
-    lv_obj_set_style_border_width(screen_, 0, 0);
-    lv_obj_set_scrollbar_mode(screen_, LV_SCROLLBAR_MODE_OFF);
+    screen_ = ui_create_base_screen();
 
     for (int i = 0; i < kCharCount; ++i) {
-        letters_[i] = lv_label_create(screen_);
+        lv_obj_t* parent = ui_get_safe_content();
+        if (parent == nullptr) parent = screen_;
+        letters_[i] = lv_label_create(parent);
         lv_label_set_text(letters_[i], kText[i]);
         lv_obj_set_style_text_color(letters_[i], lv_color_hex(kColors[i]), 0);
         lv_obj_set_style_text_font(letters_[i], &lv_font_montserrat_32, 0);
-        lv_obj_set_pos(letters_[i], kX[i], 146);
+        // Position relative to center so layout adapts to safe content.
+        lv_coord_t x_off = kX[i] - ui_safe_center_x();
+        lv_coord_t y_off = 146 - ui_safe_center_y();
+        lv_obj_align(letters_[i], LV_ALIGN_CENTER, x_off, y_off);
         lv_obj_add_flag(letters_[i], LV_OBJ_FLAG_HIDDEN);
     }
 }

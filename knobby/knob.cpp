@@ -102,28 +102,76 @@ static void report_knob_queue_status(void)
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
-// Phase 5: screen refresh wrappers – thin calls into screen class refresh().
-// make_button and player color helpers moved to screen_multiplayer.cpp.
+// Phase 5: grouped screen refresh API – replace many thin wrappers with a
+// single, explicit refresh grouping helper. Callers in this file use the
+// `refresh_group()` function to request coherent refresh sets.
 // ---------------------------------------------------------------------------
 
-static void refresh_intro_ui(void)
-{
-    g_screen_intro.refresh(intro_step);
-}
+enum class ScreenRefreshGroup {
+    Intro,
+    Settings,
+    MultiplayerCore,      // main multiplayer overview
+    MultiplayerMenus,     // menu, name, cmd_select
+    MultiplayerValues,    // cmd_damage, all_damage
+    PlayerCount,
+    PlayerCountConfirm,
+    ResetConfirm,
+    AllMultiplayer
+};
 
-static void refresh_settings_ui()
+static void refresh_group(ScreenRefreshGroup group)
 {
-    // Ensure battery state is current before the screen reads from ss.
-    ss.battery_percent = g_settings_controller.readBatteryPercent();
-    g_screen_settings.refresh(ss);
-}
+    switch (group) {
+    case ScreenRefreshGroup::Intro:
+        g_screen_intro.refresh(intro_step);
+        break;
 
-static void refresh_multiplayer_ui()         { g_screen_multiplayer.refresh(mp); }
-static void refresh_multiplayer_menu_ui()    { g_screen_multiplayer_menu.refresh(mp); }
-static void refresh_multiplayer_name_ui()    { g_screen_multiplayer_name.refresh(mp); }
-static void refresh_multiplayer_cmd_select_ui() { g_screen_multiplayer_cmd_select.refresh(mp); }
-static void refresh_multiplayer_cmd_damage_ui() { g_screen_multiplayer_cmd_damage.refresh(mp); }
-static void refresh_multiplayer_all_damage_ui() { g_screen_multiplayer_all_damage.refresh(mp); }
+    case ScreenRefreshGroup::Settings:
+        ss.battery_percent = g_settings_controller.readBatteryPercent();
+        g_screen_settings.refresh(ss);
+        break;
+
+    case ScreenRefreshGroup::MultiplayerCore:
+        g_screen_multiplayer.refresh(mp);
+        break;
+
+    case ScreenRefreshGroup::MultiplayerMenus:
+        g_screen_multiplayer_menu.refresh(mp);
+        g_screen_multiplayer_name.refresh(mp);
+        g_screen_multiplayer_cmd_select.refresh(mp);
+        break;
+
+    case ScreenRefreshGroup::MultiplayerValues:
+        g_screen_multiplayer_cmd_damage.refresh(mp);
+        g_screen_multiplayer_all_damage.refresh(mp);
+        break;
+
+    case ScreenRefreshGroup::PlayerCount:
+        g_screen_multiplayer_player_count.refresh(mp);
+        break;
+
+    case ScreenRefreshGroup::PlayerCountConfirm:
+        g_screen_multiplayer_player_count_confirm.refresh(mp);
+        break;
+
+    case ScreenRefreshGroup::ResetConfirm:
+        g_screen_multiplayer_reset_confirm.refresh(mp);
+        break;
+
+    case ScreenRefreshGroup::AllMultiplayer:
+        // Explicit expansion to keep ordering deterministic.
+        g_screen_multiplayer.refresh(mp);
+        g_screen_multiplayer_menu.refresh(mp);
+        g_screen_multiplayer_name.refresh(mp);
+        g_screen_multiplayer_cmd_select.refresh(mp);
+        g_screen_multiplayer_cmd_damage.refresh(mp);
+        g_screen_multiplayer_all_damage.refresh(mp);
+        g_screen_multiplayer_player_count.refresh(mp);
+        g_screen_multiplayer_player_count_confirm.refresh(mp);
+        g_screen_multiplayer_reset_confirm.refresh(mp);
+        break;
+    }
+}
 
 // Timer callback: commits any pending life-delta preview and refreshes the
 // multiplayer screen so the committed total becomes visible.
@@ -131,46 +179,79 @@ static void multiplayer_life_preview_commit_cb(lv_timer_t *timer)
 {
     (void)timer;
     g_multiplayer_controller.commitLifePreview();
-    refresh_multiplayer_ui();
+    refresh_group(ScreenRefreshGroup::MultiplayerCore);
 }
 
 static void change_brightness(int delta)
 {
     g_settings_controller.adjustBrightness(delta);
-    refresh_settings_ui();
+    refresh_group(ScreenRefreshGroup::Settings);
 }
 
 static void change_multiplayer_life(int delta)
 {
     g_multiplayer_controller.adjustLife(delta);
-    refresh_multiplayer_ui();
+    refresh_group(ScreenRefreshGroup::MultiplayerCore);
 }
 
 static void change_multiplayer_cmd_damage(int delta)
 {
     g_multiplayer_controller.adjustCmdDamage(delta);
-    refresh_multiplayer_ui();
-    refresh_multiplayer_cmd_select_ui();
-    refresh_multiplayer_cmd_damage_ui();
+    refresh_group(ScreenRefreshGroup::MultiplayerCore);
+    refresh_group(ScreenRefreshGroup::MultiplayerMenus);
+    refresh_group(ScreenRefreshGroup::MultiplayerValues);
 }
 
 static void change_multiplayer_all_damage(int delta)
 {
     g_multiplayer_controller.adjustAllDamage(delta);
-    refresh_multiplayer_all_damage_ui();
+    refresh_group(ScreenRefreshGroup::MultiplayerValues);
 }
 
 static void reset_all_values(void)
 {
     g_multiplayer_controller.resetAll(ss);
     g_settings_controller.applyBrightness();
-    refresh_settings_ui();
-    refresh_multiplayer_ui();
-    refresh_multiplayer_menu_ui();
-    refresh_multiplayer_name_ui();
-    refresh_multiplayer_cmd_select_ui();
-    refresh_multiplayer_cmd_damage_ui();
-    refresh_multiplayer_all_damage_ui();
+    refresh_group(ScreenRefreshGroup::Settings);
+    refresh_group(ScreenRefreshGroup::AllMultiplayer);
+}
+
+static void apply_active_player_count_change(int new_count)
+{
+    if (!g_multiplayer_controller.canApplyActivePlayerCount(new_count)) {
+        return;
+    }
+
+    if (new_count == mp.active_player_count) {
+        mp.pending_player_count = -1;
+        g_navigation_controller.openMultiplayerScreen();
+        return;
+    }
+
+    if (g_multiplayer_controller.isSessionDirty()) {
+        g_navigation_controller.openPlayerCountConfirmScreen(new_count);
+        return;
+    }
+
+    mp.pending_player_count = -1;
+    g_multiplayer_controller.setActivePlayerCount(new_count);
+    refresh_group(ScreenRefreshGroup::AllMultiplayer);
+    g_navigation_controller.openMultiplayerScreen();
+}
+
+static void confirm_active_player_count_change(void)
+{
+    const int new_count = mp.pending_player_count;
+    if (!g_multiplayer_controller.canApplyActivePlayerCount(new_count)) {
+        mp.pending_player_count = -1;
+        g_navigation_controller.openPlayerCountScreen();
+        return;
+    }
+
+    mp.pending_player_count = -1;
+    g_multiplayer_controller.setActivePlayerCount(new_count);
+    refresh_group(ScreenRefreshGroup::AllMultiplayer);
+    g_navigation_controller.openMultiplayerScreen();
 }
 
 static void intro_timer_cb(lv_timer_t *timer)
@@ -179,7 +260,7 @@ static void intro_timer_cb(lv_timer_t *timer)
 
     if (intro_step < INTRO_CHAR_COUNT) {
         intro_step++;
-        refresh_intro_ui();
+        refresh_group(ScreenRefreshGroup::Intro);
         return;
     }
 
@@ -206,6 +287,23 @@ static void knob_flush_input_queue(void)
 static void event_menu_reset(lv_event_t *e)
 {
     (void)e;
+    if (g_multiplayer_controller.isSessionDirty()) {
+        g_navigation_controller.openResetConfirmScreen();
+    } else {
+        reset_all_values();
+        g_navigation_controller.openMultiplayerScreen();
+    }
+}
+
+static void event_multiplayer_reset_confirm_back(lv_event_t *e)
+{
+    (void)e;
+    g_navigation_controller.openMenuScreen(mp.selected, MULTIPLAYER_MENU_GLOBAL);
+}
+
+static void event_multiplayer_reset_confirm_apply(lv_event_t *e)
+{
+    (void)e;
     reset_all_values();
     g_navigation_controller.openMultiplayerScreen();
 }
@@ -214,14 +312,14 @@ static void event_multiplayer_select(lv_event_t *e)
 {
     int new_selected = (int)(intptr_t)lv_event_get_user_data(e);
     g_multiplayer_controller.selectPlayer(new_selected);
-    refresh_multiplayer_ui();
+    refresh_group(ScreenRefreshGroup::MultiplayerCore);
 }
 
 static void event_multiplayer_open_menu(lv_event_t *e)
 {
     int new_selected = (int)(intptr_t)lv_event_get_user_data(e);
     g_multiplayer_controller.selectPlayer(new_selected);
-    refresh_multiplayer_ui();
+    refresh_group(ScreenRefreshGroup::MultiplayerCore);
     g_navigation_controller.openMenuScreen(mp.selected, MULTIPLAYER_MENU_PLAYER);
 }
 
@@ -255,10 +353,30 @@ static void event_multiplayer_menu_settings(lv_event_t *e)
     g_navigation_controller.openSettingsScreen();
 }
 
+static void event_multiplayer_menu_players(lv_event_t *e)
+{
+    (void)e;
+    g_navigation_controller.openPlayerCountScreen();
+}
+
 static void event_multiplayer_menu_rename(lv_event_t *e)
 {
     (void)e;
     g_navigation_controller.openNameScreen();
+}
+
+static void event_multiplayer_menu_inc_commander_tax(lv_event_t *e)
+{
+    (void)e;
+    // Increment commander tax for the menu player and refresh UI.
+    int target_player = mp.menu_player;
+    if (!g_multiplayer_controller.isValidMenuPlayer()) {
+        target_player = mp.selected;
+    }
+    g_multiplayer_controller.incrementCommanderTax(target_player);
+    // Close the menu and return to the multiplayer screen so the user sees
+    // the updated badge immediately.
+    g_navigation_controller.openMultiplayerScreen();
 }
 
 static void event_multiplayer_menu_cmd_damage(lv_event_t *e)
@@ -285,19 +403,17 @@ static void event_multiplayer_name_save(lv_event_t *e)
     if (g_screen_multiplayer_name.textarea() == nullptr) return;
 
     g_multiplayer_controller.saveName(lv_textarea_get_text(g_screen_multiplayer_name.textarea()));
-
-    refresh_multiplayer_ui();
-    refresh_multiplayer_menu_ui();
-    refresh_multiplayer_name_ui();
-    refresh_multiplayer_cmd_select_ui();
-    refresh_multiplayer_cmd_damage_ui();
+    refresh_group(ScreenRefreshGroup::MultiplayerCore);
+    refresh_group(ScreenRefreshGroup::MultiplayerMenus);
+    refresh_group(ScreenRefreshGroup::MultiplayerValues);
     g_navigation_controller.openMenuScreen(mp.menu_player, MULTIPLAYER_MENU_PLAYER);
 }
 
 static void event_multiplayer_cmd_select_back(lv_event_t *e)
 {
     (void)e;
-    g_navigation_controller.openMenuScreen(mp.menu_player, MULTIPLAYER_MENU_PLAYER);
+    // Return to main multiplayer screen instead of the long-press player menu.
+    g_navigation_controller.openMultiplayerScreen();
 }
 
 static void event_multiplayer_cmd_target_pick(lv_event_t *e)
@@ -324,8 +440,51 @@ static void event_multiplayer_all_damage_apply(lv_event_t *e)
 {
     (void)e;
     g_multiplayer_controller.applyAllDamage();
-    refresh_multiplayer_ui();
+    refresh_group(ScreenRefreshGroup::MultiplayerCore);
     g_navigation_controller.openMultiplayerScreen();
+}
+
+static void event_multiplayer_player_count_back(lv_event_t *e)
+{
+    (void)e;
+    mp.pending_player_count = -1;
+    g_navigation_controller.openMenuScreen(mp.selected, MULTIPLAYER_MENU_GLOBAL);
+}
+
+static void event_multiplayer_player_count_two(lv_event_t *e)
+{
+    (void)e;
+    apply_active_player_count_change(2);
+}
+
+static void event_multiplayer_player_count_one(lv_event_t *e)
+{
+    (void)e;
+    apply_active_player_count_change(1);
+}
+
+static void event_multiplayer_player_count_three(lv_event_t *e)
+{
+    (void)e;
+    apply_active_player_count_change(3);
+}
+
+static void event_multiplayer_player_count_four(lv_event_t *e)
+{
+    (void)e;
+    apply_active_player_count_change(4);
+}
+
+static void event_multiplayer_player_count_confirm_back(lv_event_t *e)
+{
+    (void)e;
+    g_navigation_controller.openPlayerCountScreen();
+}
+
+static void event_multiplayer_player_count_confirm_apply(lv_event_t *e)
+{
+    (void)e;
+    confirm_active_player_count_change();
 }
 
 
@@ -353,7 +512,9 @@ void knob_gui(void)
     g_screen_multiplayer_menu.create(
         event_multiplayer_menu_rename,
         event_multiplayer_menu_cmd_damage,
+        event_multiplayer_menu_inc_commander_tax,
         event_multiplayer_menu_all_damage,
+        event_multiplayer_menu_players,
         event_multiplayer_menu_settings,
         event_menu_reset,
         event_multiplayer_menu_back);
@@ -367,18 +528,25 @@ void knob_gui(void)
     g_screen_multiplayer_all_damage.create(
         event_multiplayer_all_damage_apply,
         event_multiplayer_all_damage_back);
+    g_screen_multiplayer_player_count.create(
+        event_multiplayer_player_count_one,
+        event_multiplayer_player_count_two,
+        event_multiplayer_player_count_three,
+        event_multiplayer_player_count_four,
+        event_multiplayer_player_count_back);
+    g_screen_multiplayer_player_count_confirm.create(
+        event_multiplayer_player_count_confirm_apply,
+        event_multiplayer_player_count_confirm_back);
+    g_screen_multiplayer_reset_confirm.create(
+        event_multiplayer_reset_confirm_apply,
+        event_multiplayer_reset_confirm_back);
     g_screen_settings.create(event_multiplayer_menu_back);
 
-    refresh_multiplayer_ui();
-    refresh_multiplayer_menu_ui();
-    refresh_multiplayer_name_ui();
-    refresh_multiplayer_cmd_select_ui();
-    refresh_multiplayer_cmd_damage_ui();
-    refresh_multiplayer_all_damage_ui();
-    refresh_settings_ui();
+    refresh_group(ScreenRefreshGroup::AllMultiplayer);
+    refresh_group(ScreenRefreshGroup::Settings);
 
     intro_step = 0;
-    refresh_intro_ui();
+    refresh_group(ScreenRefreshGroup::Intro);
     intro_timer = lv_timer_create(intro_timer_cb, 500, NULL);
     multiplayer_life_preview_timer = lv_timer_create(multiplayer_life_preview_commit_cb, 4000, NULL);
     if (multiplayer_life_preview_timer != NULL) {

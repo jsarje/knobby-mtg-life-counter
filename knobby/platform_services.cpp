@@ -62,7 +62,6 @@ class BacklightService {
   void applyPercent(int percent) const {
     const uint8_t clamped_percent = clampPercent(percent);
     set_brightness(clamped_percent);
-    screen_switch(clamped_percent > 0U);
   }
 
  private:

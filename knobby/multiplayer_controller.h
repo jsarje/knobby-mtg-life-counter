@@ -92,14 +92,33 @@ public:
     // the provided name is empty.
     void saveName(const char* name);
 
+    // Returns true when gameplay state differs from new-game defaults for the
+    // current active player count.
+    bool isSessionDirty() const;
+
+    // Returns true when new_count is a supported active player count.
+    bool canApplyActivePlayerCount(int new_count) const;
+
+    // Updates the active player count and resets gameplay state if the count
+    // changes.
+    void setActivePlayerCount(int new_count);
+
     // Resets all multiplayer and settings state to new-game defaults.
     void resetAll(SettingsState& settings);
+    
+    // Increments the commander tax counter for a given player by 1.
+    void incrementCommanderTax(int player_index);
+
+    // Validation helpers
+    bool isValidCmdDamagePair(int source, int target) const;
+    bool isValidMenuPlayer() const;
 
 private:
     MultiplayerGameState& state_;
     lv_timer_t*           preview_timer_ = nullptr;
 
     static int clampLife(int value);
+    static bool isSupportedActivePlayerCount(int value);
 };
 
 // ---------------------------------------------------------------------------

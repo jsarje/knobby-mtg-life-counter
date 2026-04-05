@@ -8,6 +8,7 @@
 #include "esp_log.h"
 #include "knob.h"
 #include "pincfg.h"
+#include "session_state.h"
 
 #define EXAMPLE_TOUCH_I2C_SCL_PULLUP    (1)  // 0/1
 #define EXAMPLE_TOUCH_I2C_SDA_PULLUP    (1)  // 0/1
@@ -509,8 +510,7 @@ bool scr_lvgl_init(void)
   // setRotation(0);  // Set screen orientation.
   new_lcd->displayOn();
 
-  new_backlight->setBrightness(DEFAULT_UI_BRIGHTNESS_PERCENT);
-  new_backlight->on();
+  new_backlight->setBrightness(kDefaultBrightnessPercent);
 
   lv_init();
   draw_buffer_size = lv_cache_rows * SCREEN_RES_HOR * sizeof(lv_color_t);
