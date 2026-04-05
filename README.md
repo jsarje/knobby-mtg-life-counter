@@ -20,6 +20,8 @@ Knobby is a non-commercial hobby project for tabletop games such as Magic: The G
 
 Hardware assumptions, pin mappings, and platform details are documented in [docs/specifications/system-spec.md](./docs/specifications/system-spec.md).
 
+Additional engineering and design specifications have been consolidated under the top-level [spec/](spec/) directory. See examples such as [spec/hardening-spec.md](spec/hardening-spec.md) and [spec/spec-design-multiplayer-focus.md](spec/spec-design-multiplayer-focus.md).
+
 ## Fork Direction
 
 - Focus on multiplayer commander support on a shared pod-tracking screen

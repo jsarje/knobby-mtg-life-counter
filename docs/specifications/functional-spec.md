@@ -2,6 +2,8 @@
 
 This document describes the behavior implemented in the current firmware. It is a descriptive specification of the existing codebase, not a proposal for future behavior.
 
+Note: Engineering and design specifications have been consolidated under the top-level `spec/` directory. For implementation hardening and design intent see `spec/hardening-spec.md` and `spec/spec-design-multiplayer-focus.md`.
+
 ## 1. Product Scope
 
 The firmware implements a touch-and-rotary life counter for trading card games on an ESP32-S3 board with a 360x360 round display. The current product supports:
