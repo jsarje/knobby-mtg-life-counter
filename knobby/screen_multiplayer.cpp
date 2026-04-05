@@ -632,3 +632,34 @@ MultiplayerCmdDamageScreen g_screen_multiplayer_cmd_damage;
 MultiplayerAllDamageScreen g_screen_multiplayer_all_damage;
 MultiplayerPlayerCountScreen g_screen_multiplayer_player_count;
 MultiplayerPlayerCountConfirmScreen g_screen_multiplayer_player_count_confirm;
+MultiplayerResetConfirmScreen g_screen_multiplayer_reset_confirm;
+
+// ---------------------------------------------------------------------------
+// MultiplayerResetConfirmScreen
+// ---------------------------------------------------------------------------
+
+void MultiplayerResetConfirmScreen::create(lv_event_cb_t confirm_cb, lv_event_cb_t back_cb)
+{
+    screen_ = ui_create_base_screen();
+
+    label_title_ = ui_create_title_label(screen_, "Confirm", 26);
+
+    label_message_ = lv_label_create(screen_);
+    lv_label_set_long_mode(label_message_, LV_LABEL_LONG_WRAP);
+    lv_obj_set_width(label_message_, 250);
+    lv_obj_set_style_text_color(label_message_, lv_color_hex(0xD0D0D0), 0);
+    lv_obj_set_style_text_align(label_message_, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_align(label_message_, LV_ALIGN_CENTER, 0, -12);
+
+    lv_obj_t* btn_confirm = ui_create_action_button(screen_, "Confirm", 140, 46, confirm_cb);
+    lv_obj_align(btn_confirm, LV_ALIGN_BOTTOM_MID, 0, -78);
+
+    lv_obj_t* btn_back = ui_create_action_button(screen_, "Back", 140, 46, back_cb);
+    lv_obj_align(btn_back, LV_ALIGN_BOTTOM_MID, 0, -24);
+}
+
+void MultiplayerResetConfirmScreen::refresh(const MultiplayerGameState& state)
+{
+    (void)state;
+    lv_label_set_text(label_message_, "Reset the current game?\nThis restores defaults.");
+}

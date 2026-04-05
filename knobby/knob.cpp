@@ -115,6 +115,7 @@ enum class ScreenRefreshGroup {
     MultiplayerValues,    // cmd_damage, all_damage
     PlayerCount,
     PlayerCountConfirm,
+    ResetConfirm,
     AllMultiplayer
 };
 
@@ -153,6 +154,10 @@ static void refresh_group(ScreenRefreshGroup group)
         g_screen_multiplayer_player_count_confirm.refresh(mp);
         break;
 
+    case ScreenRefreshGroup::ResetConfirm:
+        g_screen_multiplayer_reset_confirm.refresh(mp);
+        break;
+
     case ScreenRefreshGroup::AllMultiplayer:
         // Explicit expansion to keep ordering deterministic.
         g_screen_multiplayer.refresh(mp);
@@ -163,6 +168,7 @@ static void refresh_group(ScreenRefreshGroup group)
         g_screen_multiplayer_all_damage.refresh(mp);
         g_screen_multiplayer_player_count.refresh(mp);
         g_screen_multiplayer_player_count_confirm.refresh(mp);
+        g_screen_multiplayer_reset_confirm.refresh(mp);
         break;
     }
 }
@@ -279,6 +285,23 @@ static void knob_flush_input_queue(void)
 // ---------------------------------------------------------------------------
 
 static void event_menu_reset(lv_event_t *e)
+{
+    (void)e;
+    if (g_multiplayer_controller.isSessionDirty()) {
+        g_navigation_controller.openResetConfirmScreen();
+    } else {
+        reset_all_values();
+        g_navigation_controller.openMultiplayerScreen();
+    }
+}
+
+static void event_multiplayer_reset_confirm_back(lv_event_t *e)
+{
+    (void)e;
+    g_navigation_controller.openMenuScreen(mp.selected, MULTIPLAYER_MENU_GLOBAL);
+}
+
+static void event_multiplayer_reset_confirm_apply(lv_event_t *e)
 {
     (void)e;
     reset_all_values();
@@ -514,6 +537,9 @@ void knob_gui(void)
     g_screen_multiplayer_player_count_confirm.create(
         event_multiplayer_player_count_confirm_apply,
         event_multiplayer_player_count_confirm_back);
+    g_screen_multiplayer_reset_confirm.create(
+        event_multiplayer_reset_confirm_apply,
+        event_multiplayer_reset_confirm_back);
     g_screen_settings.create(event_multiplayer_menu_back);
 
     refresh_group(ScreenRefreshGroup::AllMultiplayer);

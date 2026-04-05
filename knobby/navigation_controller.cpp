@@ -114,6 +114,12 @@ void NavigationController::openPlayerCountConfirmScreen(int new_count) {
                [](){ g_screen_multiplayer_player_count_confirm.refresh(g_multiplayer_game_state); });
 }
 
+void NavigationController::openResetConfirmScreen() {
+    navigateTo(g_screen_multiplayer_reset_confirm.lvObject(),
+               nullptr,
+               [](){ g_screen_multiplayer_reset_confirm.refresh(g_multiplayer_game_state); });
+}
+
 // ---------------------------------------------------------------------------
 // Swipe-gesture tracking
 // ---------------------------------------------------------------------------

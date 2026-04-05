@@ -211,3 +211,17 @@ extern MultiplayerCmdDamageScreen  g_screen_multiplayer_cmd_damage;
 extern MultiplayerAllDamageScreen  g_screen_multiplayer_all_damage;
 extern MultiplayerPlayerCountScreen g_screen_multiplayer_player_count;
 extern MultiplayerPlayerCountConfirmScreen g_screen_multiplayer_player_count_confirm;
+// Reset confirmation screen (shown before destructive global reset)
+class MultiplayerResetConfirmScreen {
+public:
+    void create(lv_event_cb_t confirm_cb, lv_event_cb_t back_cb);
+    void refresh(const MultiplayerGameState& state);
+    lv_obj_t* lvObject() const { return screen_; }
+
+private:
+    lv_obj_t* screen_        = nullptr;
+    lv_obj_t* label_title_   = nullptr;
+    lv_obj_t* label_message_ = nullptr;
+};
+
+extern MultiplayerResetConfirmScreen g_screen_multiplayer_reset_confirm;
