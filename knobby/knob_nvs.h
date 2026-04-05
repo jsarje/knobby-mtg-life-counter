@@ -11,6 +11,11 @@ void nvs_set_brightness(int value);
 bool nvs_get_auto_dim(void);
 void nvs_set_auto_dim(bool value);
 
+int nvs_get_color_mode(void);
+void nvs_set_color_mode(int value);
+int nvs_get_deselect_timeout(void);
+void nvs_set_deselect_timeout(int value);
+
 int nvs_get_num_players(void);
 void nvs_set_num_players(int value);
 int nvs_get_players_to_track(void);

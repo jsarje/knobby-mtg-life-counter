@@ -13,11 +13,14 @@ extern void back_to_main(void);
 lv_obj_t *screen_quad_menu = NULL;
 lv_obj_t *screen_tools_menu = NULL;
 lv_obj_t *screen_screen_settings_menu = NULL;
+lv_obj_t *screen_settings_page2 = NULL;
 lv_obj_t *screen_settings = NULL;
 lv_obj_t *screen_battery = NULL;
 
 // ---------- widgets ----------
 static lv_obj_t *label_autodim_quad = NULL;
+static lv_obj_t *label_color_mode_quad = NULL;
+static lv_obj_t *label_deselect_quad = NULL;
 static lv_obj_t *arc_brightness = NULL;
 static lv_obj_t *label_settings_value = NULL;
 static lv_obj_t *label_settings_hint = NULL;
@@ -42,11 +45,13 @@ void build_quad_screen(lv_obj_t **screen, quad_item_t items[4])
 
     for (i = 0; i < 4; i++) {
         lv_obj_t *btn = lv_btn_create(*screen);
+        lv_obj_remove_style_all(btn);
         lv_obj_set_size(btn, 178, 178);
         lv_obj_set_style_radius(btn, 0, 0);
         lv_obj_set_pos(btn, qx[i], qy[i]);
         lv_obj_set_style_shadow_width(btn, 0, 0);
         lv_obj_set_style_border_width(btn, 0, 0);
+        lv_obj_set_style_bg_opa(btn, LV_OPA_COVER, 0);
 
         if (items[i].cb != NULL && items[i].enabled) {
             lv_obj_add_event_cb(btn, items[i].cb, items[i].event, NULL);
@@ -59,6 +64,7 @@ void build_quad_screen(lv_obj_t **screen, quad_item_t items[4])
 
         lv_obj_t *lbl = lv_label_create(btn);
         lv_label_set_text(lbl, items[i].label);
+        lv_obj_set_style_text_color(lbl, lv_color_white(), 0);
         lv_obj_set_style_text_font(lbl, &lv_font_montserrat_16, 0);
         lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_CENTER, 0);
         lv_obj_align(lbl, LV_ALIGN_CENTER, lx[i], ly[i]);
@@ -154,6 +160,52 @@ static void event_screen_autodim(lv_event_t *e)
     }
 }
 
+static const char *color_mode_label(int mode)
+{
+    switch (mode) {
+        case COLOR_MODE_LIFE:   return "Colors\nLife";
+        default:                return "Colors\nPlayer";
+    }
+}
+
+static void event_screen_color_mode(lv_event_t *e)
+{
+    int mode;
+    (void)e;
+    mode = (nvs_get_color_mode() + 1) % COLOR_MODE_COUNT;
+    nvs_set_color_mode(mode);
+    if (label_color_mode_quad) {
+        lv_label_set_text(label_color_mode_quad, color_mode_label(mode));
+    }
+}
+
+static const char *deselect_label(int index)
+{
+    switch (index) {
+        case DESELECT_5S:    return "Deselect\n5s";
+        case DESELECT_15S:   return "Deselect\n15s";
+        case DESELECT_30S:   return "Deselect\n30s";
+        default:             return "Deselect\nNever";
+    }
+}
+
+static void event_screen_deselect(lv_event_t *e)
+{
+    int val;
+    (void)e;
+    val = (nvs_get_deselect_timeout() + 1) % DESELECT_COUNT;
+    nvs_set_deselect_timeout(val);
+    if (label_deselect_quad) {
+        lv_label_set_text(label_deselect_quad, deselect_label(val));
+    }
+}
+
+static void event_screen_more(lv_event_t *e)
+{
+    (void)e;
+    lv_scr_load(screen_settings_page2);
+}
+
 static void event_screen_battery(lv_event_t *e)
 {
     (void)e;
@@ -204,12 +256,26 @@ void build_quad_menus(void)
         {"Brightness", event_screen_brightness, true, LV_EVENT_CLICKED},
         {auto_dim_enabled ? "Auto-dim\nON" : "Auto-dim\nOFF", event_screen_autodim, true, LV_EVENT_CLICKED},
         {"Battery",       event_screen_battery, true, LV_EVENT_CLICKED},
-        {"",              NULL, false, LV_EVENT_CLICKED},
+        {"More",          event_screen_more, true, LV_EVENT_CLICKED},
     };
     build_quad_screen(&screen_screen_settings_menu, screen_items);
-    // Store auto-dim label reference so we can update it on toggle
+
     lv_obj_t *autodim_btn = lv_obj_get_child(screen_screen_settings_menu, 1);
     label_autodim_quad = lv_obj_get_child(autodim_btn, 0);
+
+    quad_item_t page2_items[4] = {
+        {color_mode_label(nvs_get_color_mode()), event_screen_color_mode, true, LV_EVENT_CLICKED},
+        {deselect_label(nvs_get_deselect_timeout()), event_screen_deselect, true, LV_EVENT_CLICKED},
+        {"",              NULL, false, LV_EVENT_CLICKED},
+        {"",              NULL, false, LV_EVENT_CLICKED},
+    };
+    build_quad_screen(&screen_settings_page2, page2_items);
+
+    lv_obj_t *color_btn = lv_obj_get_child(screen_settings_page2, 0);
+    label_color_mode_quad = lv_obj_get_child(color_btn, 0);
+
+    lv_obj_t *deselect_btn = lv_obj_get_child(screen_settings_page2, 1);
+    label_deselect_quad = lv_obj_get_child(deselect_btn, 0);
 }
 
 void build_settings_screen(void)

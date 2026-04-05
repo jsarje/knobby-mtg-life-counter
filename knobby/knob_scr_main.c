@@ -545,6 +545,8 @@ void build_select_screen(void)
 
     for (i = 0; i < MAX_ENEMY_COUNT; i++) {
         select_rows[i] = lv_btn_create(container);
+        lv_obj_remove_style_all(select_rows[i]);
+        lv_obj_set_style_bg_opa(select_rows[i], LV_OPA_COVER, 0);
         lv_obj_set_size(select_rows[i], 220, 46);
         lv_obj_set_pos(select_rows[i], 0, i * 56);
         lv_obj_add_event_cb(select_rows[i], event_select_enemy, LV_EVENT_CLICKED, (void *)(intptr_t)i);

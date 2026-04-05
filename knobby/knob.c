@@ -172,7 +172,7 @@ void knob_process_pending(void)
         swipe_up_pending = false;
         lv_obj_t *cur = lv_scr_act();
         if (cur != screen_quad_menu && cur != screen_tools_menu &&
-            cur != screen_screen_settings_menu &&
+            cur != screen_screen_settings_menu && cur != screen_settings_page2 &&
             cur != screen_game_mode_menu && cur != screen_custom_life &&
             cur != screen_multiplayer_menu && cur != screen_multiplayer_name &&
             cur != screen_multiplayer_all_damage &&
@@ -186,12 +186,15 @@ void knob_process_pending(void)
         swipe_down_pending = false;
         lv_obj_t *cur = lv_scr_act();
         if (cur == screen_quad_menu && previous_screen != NULL) {
+            refresh_multiplayer_ui();
             lv_scr_load(previous_screen);
         } else if (cur == screen_tools_menu) {
             lv_scr_load(screen_quad_menu);
         } else if (cur == screen_screen_settings_menu) {
             settings_save();
             lv_scr_load(screen_quad_menu);
+        } else if (cur == screen_settings_page2) {
+            lv_scr_load(screen_screen_settings_menu);
         } else if (cur == screen_settings) {
             lv_scr_load(screen_screen_settings_menu);
         } else if (cur == screen_battery) {

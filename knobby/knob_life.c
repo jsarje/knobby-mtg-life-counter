@@ -7,6 +7,7 @@ extern void refresh_select_ui(void);
 extern void refresh_damage_ui(void);
 extern void refresh_multiplayer_ui(void);
 extern void refresh_multiplayer_all_damage_ui(void);
+extern void select_kick_timer(void);
 
 // ---------- state ----------
 int active_enemy_count = 3;
@@ -23,7 +24,7 @@ int selected_enemy = -1;
 int dice_result = 0;
 
 int multiplayer_life[MAX_PLAYERS] = {40, 40, 40, 40, 40, 40, 40, 40};
-int multiplayer_selected = 0;
+int multiplayer_selected = -1;
 char multiplayer_names[MAX_PLAYERS][16] = {"P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8"};
 int multiplayer_menu_player = 0;
 int multiplayer_cmd_damage_totals[MAX_PLAYERS][MAX_PLAYERS] = {{0}};
@@ -228,6 +229,8 @@ void change_multiplayer_life(int delta)
 
     if (multiplayer_selected < 0 || multiplayer_selected >= track) return;
 
+    select_kick_timer();
+
     if (multiplayer_life_preview_active &&
         multiplayer_preview_player != multiplayer_selected) {
         multiplayer_life_preview_commit_cb(NULL);
@@ -304,7 +307,7 @@ void knob_life_reset(void)
         multiplayer_life[i] = starting_life;
         snprintf(multiplayer_names[i], sizeof(multiplayer_names[i]), "P%d", i + 1);
     }
-    multiplayer_selected = 0;
+    multiplayer_selected = -1;
     multiplayer_menu_player = 0;
     cmd_damage_target = -1;
     memset(multiplayer_cmd_damage_totals, 0, sizeof(multiplayer_cmd_damage_totals));

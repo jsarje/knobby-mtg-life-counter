@@ -6,6 +6,8 @@
 static bool settings_dirty = false;
 static int cached_brightness = DEFAULT_BRIGHTNESS_PERCENT;
 static bool cached_auto_dim = false;
+static int cached_color_mode = 0;
+static int cached_deselect_timeout = 0; /* index: 0=never, 1=5s, 2=15s, 3=30s */
 static int cached_num_players = 4;
 static int cached_players_to_track = 1;
 static int cached_life_total = DEFAULT_LIFE_TOTAL;
@@ -19,17 +21,23 @@ void knob_nvs_init(void)
     if (nvs_open("knobby", NVS_READONLY, &handle) == ESP_OK) {
         int8_t dim_val = 0;
         int8_t bri_val = DEFAULT_BRIGHTNESS_PERCENT;
+        int8_t lc_val = 0;
+        int8_t dt_val = 0;
         int8_t np_val = 4;
         int8_t pt_val = 1;
         int16_t lt_val = DEFAULT_LIFE_TOTAL;
 
         nvs_get_i8(handle, "auto_dim", &dim_val);
         nvs_get_i8(handle, "brightness", &bri_val);
+        nvs_get_i8(handle, "color_mode", &lc_val);
+        nvs_get_i8(handle, "desel_time", &dt_val);
         nvs_get_i8(handle, "num_players", &np_val);
         nvs_get_i8(handle, "track", &pt_val);
         nvs_get_i16(handle, "life_total", &lt_val);
 
         cached_auto_dim = (dim_val != 0);
+        cached_color_mode = lc_val;
+        cached_deselect_timeout = (dt_val < 0) ? 0 : (dt_val > 3) ? 3 : dt_val;
         cached_brightness = clamp_brightness(bri_val);
         cached_num_players = (np_val < 1) ? 1 : (np_val > MAX_PLAYERS) ? MAX_PLAYERS : np_val;
         cached_players_to_track = (pt_val < 1) ? 1 : (pt_val > 4) ? 4 : pt_val;
@@ -60,6 +68,28 @@ void nvs_set_brightness(int value)
 void nvs_set_auto_dim(bool value)
 {
     cached_auto_dim = value;
+    settings_dirty = true;
+}
+
+int nvs_get_color_mode(void)
+{
+    return cached_color_mode;
+}
+
+void nvs_set_color_mode(int value)
+{
+    cached_color_mode = value;
+    settings_dirty = true;
+}
+
+int nvs_get_deselect_timeout(void)
+{
+    return cached_deselect_timeout;
+}
+
+void nvs_set_deselect_timeout(int value)
+{
+    cached_deselect_timeout = (value < 0) ? 0 : (value > 3) ? 3 : value;
     settings_dirty = true;
 }
 
@@ -105,6 +135,8 @@ void settings_save(void)
     if (nvs_open("knobby", NVS_READWRITE, &handle) == ESP_OK) {
         nvs_set_i8(handle, "auto_dim", cached_auto_dim ? 1 : 0);
         nvs_set_i8(handle, "brightness", (int8_t)cached_brightness);
+        nvs_set_i8(handle, "color_mode", (int8_t)cached_color_mode);
+        nvs_set_i8(handle, "desel_time", (int8_t)cached_deselect_timeout);
         nvs_set_i8(handle, "num_players", (int8_t)cached_num_players);
         nvs_set_i8(handle, "track", (int8_t)cached_players_to_track);
         nvs_set_i16(handle, "life_total", (int16_t)cached_life_total);

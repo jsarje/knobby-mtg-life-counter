@@ -28,6 +28,9 @@ static lv_obj_t *mp2_panels[2];
 static lv_obj_t *label_mp2_life[2];
 static lv_obj_t *label_mp2_name[2];
 
+// ---------- selection auto-deselect ----------
+static lv_timer_t *select_timeout_timer = NULL;
+
 // ---------- 3-player widgets (reuses 4p layout, slot 3 empty) ----------
 
 // ---------- forward declarations ----------
@@ -39,11 +42,24 @@ static void refresh_mp_panel(lv_obj_t *panel, lv_obj_t *life_lbl, lv_obj_t *name
 {
     char buf[8];
     bool preview_here = multiplayer_life_preview_active && (multiplayer_preview_player == i);
-    lv_color_t text_color = get_player_text_color(i);
+    bool selected = (i == multiplayer_selected);
+    lv_color_t bg_color;
+    lv_color_t text_color;
+
+    if (nvs_get_color_mode() == COLOR_MODE_LIFE) {
+        int tier = get_life_tier(multiplayer_life[i], nvs_get_life_total());
+        int vib;
+        if (multiplayer_selected < 0) vib = LIFE_VIB_MID;
+        else vib = selected ? LIFE_VIB_VIV : LIFE_VIB_DIM;
+        bg_color = get_life_color_vib(tier, vib);
+        text_color = color_is_light(bg_color) ? lv_color_black() : lv_color_white();
+    } else {
+        bg_color = selected ? get_player_active_color(i) : get_player_base_color(i);
+        text_color = get_player_text_color(i);
+    }
 
     if (panel != NULL) {
-        lv_obj_set_style_bg_color(panel,
-            (i == multiplayer_selected) ? get_player_active_color(i) : get_player_base_color(i), 0);
+        lv_obj_set_style_bg_color(panel, bg_color, 0);
         lv_obj_set_style_bg_opa(panel, LV_OPA_COVER, 0);
     }
 
@@ -211,6 +227,34 @@ static int quad_to_player(int quad)
     return quad;
 }
 
+// ---------- selection timeout ----------
+static void select_timeout_cb(lv_timer_t *timer)
+{
+    (void)timer;
+    multiplayer_selected = -1;
+    if (select_timeout_timer != NULL)
+        lv_timer_pause(select_timeout_timer);
+    refresh_multiplayer_ui();
+}
+
+void select_kick_timer(void)
+{
+    int idx = nvs_get_deselect_timeout();
+    int ms = deselect_ms[idx];
+
+    if (select_timeout_timer == NULL) {
+        select_timeout_timer = lv_timer_create(select_timeout_cb, 15000, NULL);
+        lv_timer_pause(select_timeout_timer);
+    }
+    if (multiplayer_selected >= 0 && ms > 0) {
+        lv_timer_set_period(select_timeout_timer, (uint32_t)ms);
+        lv_timer_reset(select_timeout_timer);
+        lv_timer_resume(select_timeout_timer);
+    } else {
+        lv_timer_pause(select_timeout_timer);
+    }
+}
+
 // ---------- events ----------
 static void event_multiplayer_select(lv_event_t *e)
 {
@@ -223,7 +267,12 @@ static void event_multiplayer_select(lv_event_t *e)
         multiplayer_life_preview_commit_cb(NULL);
     }
 
-    multiplayer_selected = player;
+    if (multiplayer_selected == player) {
+        multiplayer_selected = -1;
+    } else {
+        multiplayer_selected = player;
+    }
+    select_kick_timer();
     refresh_multiplayer_ui();
 }
 
@@ -317,6 +366,8 @@ void build_multiplayer_screen(void)
 
     for (i = 0; i < MULTIPLAYER_COUNT; i++) {
         multiplayer_quadrants[i] = lv_btn_create(screen_multiplayer);
+        lv_obj_remove_style_all(multiplayer_quadrants[i]);
+        lv_obj_set_style_bg_opa(multiplayer_quadrants[i], LV_OPA_COVER, 0);
         lv_obj_set_size(multiplayer_quadrants[i], 180, 180);
         lv_obj_set_pos(multiplayer_quadrants[i], quad_x[i], quad_y[i]);
         lv_obj_set_style_radius(multiplayer_quadrants[i], 0, 0);
@@ -434,6 +485,8 @@ void build_multiplayer_2p_screen(void)
 
     for (i = 0; i < 2; i++) {
         mp2_panels[i] = lv_btn_create(screen_multiplayer_2p);
+        lv_obj_remove_style_all(mp2_panels[i]);
+        lv_obj_set_style_bg_opa(mp2_panels[i], LV_OPA_COVER, 0);
         lv_obj_set_size(mp2_panels[i], 360, 178);
         lv_obj_set_pos(mp2_panels[i], 0, panel_y[i]);
         lv_obj_set_style_radius(mp2_panels[i], 0, 0);

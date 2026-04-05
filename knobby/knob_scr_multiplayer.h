@@ -26,5 +26,6 @@ void refresh_multiplayer_all_damage_ui(void);
 
 void open_multiplayer_screen(void);
 void open_multiplayer_menu_screen(int player_index);
+void select_kick_timer(void);
 
 #endif // _KNOB_SCR_MULTIPLAYER_H
