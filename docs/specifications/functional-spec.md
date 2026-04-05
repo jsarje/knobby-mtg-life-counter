@@ -8,7 +8,7 @@ Note: Engineering and design specifications have been consolidated under the top
 
 The firmware implements a touch-and-rotary life counter for trading card games on an ESP32-S3 board with a 360x360 round display. The current product supports:
 
-- A multiplayer mode for a runtime-selected 2, 3, or 4 players
+- A multiplayer mode for a runtime-selected 1, 2, 3, or 4 players
 - Multiplayer commander damage tracking between players
 - Multiplayer commander tax tracking per player
 - Multiplayer all-player damage application
@@ -18,19 +18,14 @@ The firmware implements a touch-and-rotary life counter for trading card games o
 
 ## 2. Startup Behavior
 
-On boot, the firmware shall:
-
 - Set the CPU frequency to 240 MHz
 - Disable Wi-Fi and Bluetooth
 - Initialize the display, touch controller, LVGL, and rotary encoder
 - Initialize the UI and backlight control
 - Show an intro screen that reveals the text `knobby.` one character every 500 ms
-
 - Transition automatically to the multiplayer overview after the intro finishes
 
 ## 3. Multiplayer Overview
-
-The multiplayer overview is the default gameplay screen.
 
 ### 3.1 Initial state
 
@@ -45,9 +40,10 @@ The multiplayer overview is the default gameplay screen.
 ### 3.2 Layout
 
 - The overview contains one large seat card per active player
-- The seat-card arrangement adapts to `2`, `3`, or `4` active players
+- The seat-card arrangement adapts to `1`, `2`, `3`, or `4` active players
 - Each visible seat card shows a player name and life total
 - A commander-tax badge is shown on a seat card when that player's commander tax is greater than `0`
+- For `2`, `3`, and `4` active players, the overview layout also depends on the selected orientation mode
 
 ### 3.3 Selection behavior
 
@@ -86,16 +82,24 @@ Swiping upward on the multiplayer overview shall open the multiplayer global men
 The global menu shall provide:
 
 - `Global`
-- `Players`
+- `New Game`
 - `Settings`
 - `Reset`
 - `Back`
 
 Selecting `Back` shall return to the multiplayer overview.
 
-Selecting `Players` shall open a player-count screen with `2 Players`, `3 Players`, `4 Players`, and `Back`.
+Selecting `New Game` shall open a player-count screen with `1 Player`, `2 Players`, `3 Players`, `4 Players`, and `Back`.
 
-If the user selects a different player count while gameplay state is dirty, the firmware shall require confirmation before resetting the current game.
+Selecting `1 Player` shall start a new 1-player game immediately when the session is clean, or require confirmation when the session is dirty.
+
+Selecting `2 Players`, `3 Players`, or `4 Players` shall open a second page with `Same Direction`, `Opposite Sides`, `Round Table`, and `Back`.
+
+For `3 Players` with `Opposite Sides`, player 1 shall be the top player and players 2 and 3 shall be on the bottom side.
+
+For `4 Players` with `Opposite Sides`, players 1 and 2 shall be on the top side and players 3 and 4 shall be on the bottom side.
+
+If the user selects a different new-game configuration while gameplay state is dirty, the firmware shall require confirmation before resetting the current game.
 
 ## 6. Multiplayer Rename Flow
 

@@ -99,6 +99,27 @@ public:
     // Returns true when new_count is a supported active player count.
     bool canApplyActivePlayerCount(int new_count) const;
 
+    // Returns true when the given count and orientation can be applied as a
+    // new game configuration.
+    bool canApplyNewGameConfig(int player_count,
+                               MultiplayerOrientationMode orientation) const;
+
+    // Returns true when the requested new game configuration matches the
+    // current active session configuration.
+    bool isCurrentNewGameConfig(int player_count,
+                                MultiplayerOrientationMode orientation) const;
+
+    // Stores a pending new game configuration while the UI flow is in
+    // progress.
+    void stageNewGamePlayerCount(int player_count);
+    void stageNewGameOrientation(MultiplayerOrientationMode orientation);
+    void clearPendingNewGameConfig();
+
+    // Applies a full new game configuration, resetting gameplay state only
+    // when the configuration differs from the current one.
+    void applyNewGameConfig(int player_count,
+                            MultiplayerOrientationMode orientation);
+
     // Updates the active player count and resets gameplay state if the count
     // changes.
     void setActivePlayerCount(int new_count);
@@ -119,6 +140,9 @@ private:
 
     static int clampLife(int value);
     static bool isSupportedActivePlayerCount(int value);
+    static MultiplayerOrientationMode normalizeOrientation(
+        int player_count,
+        MultiplayerOrientationMode orientation);
 };
 
 // ---------------------------------------------------------------------------

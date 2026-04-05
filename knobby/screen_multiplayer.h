@@ -7,8 +7,9 @@
 // MultiplayerCmdSelectScreen – commander-damage source selection
 // MultiplayerCmdDamageScreen – commander-damage adjustment
 // MultiplayerAllDamageScreen – global damage application
-// MultiplayerPlayerCountScreen – active-player-count selection
-// MultiplayerPlayerCountConfirmScreen – destructive APC change confirmation
+// MultiplayerPlayerCountScreen – New Game player-count selection
+// MultiplayerOrientationScreen – New Game orientation selection
+// MultiplayerPlayerCountConfirmScreen – destructive New Game confirmation
 //
 // Each class owns its LVGL screen object and all child widgets; the file-
 // scope global arrays in knob.cpp have been moved here.  LVGL event
@@ -61,7 +62,7 @@ public:
                 lv_event_cb_t cmd_damage_cb,
                 lv_event_cb_t inc_commander_cb,
                 lv_event_cb_t all_damage_cb,
-                lv_event_cb_t players_cb,
+                lv_event_cb_t new_game_cb,
                 lv_event_cb_t settings_cb,
                 lv_event_cb_t reset_cb,
                 lv_event_cb_t back_cb);
@@ -184,6 +185,27 @@ private:
 };
 
 // ---------------------------------------------------------------------------
+// MultiplayerOrientationScreen
+// ---------------------------------------------------------------------------
+
+class MultiplayerOrientationScreen {
+public:
+    void create(lv_event_cb_t same_direction_cb,
+                lv_event_cb_t opposite_sides_cb,
+                lv_event_cb_t round_table_cb,
+                lv_event_cb_t back_cb);
+    void refresh(const MultiplayerGameState& state);
+    lv_obj_t* lvObject() const { return screen_; }
+
+private:
+    lv_obj_t* screen_       = nullptr;
+    lv_obj_t* label_title_  = nullptr;
+    lv_obj_t* btn_same_     = nullptr;
+    lv_obj_t* btn_opposite_ = nullptr;
+    lv_obj_t* btn_round_    = nullptr;
+};
+
+// ---------------------------------------------------------------------------
 // MultiplayerPlayerCountConfirmScreen
 // ---------------------------------------------------------------------------
 
@@ -210,6 +232,7 @@ extern MultiplayerCmdSelectScreen  g_screen_multiplayer_cmd_select;
 extern MultiplayerCmdDamageScreen  g_screen_multiplayer_cmd_damage;
 extern MultiplayerAllDamageScreen  g_screen_multiplayer_all_damage;
 extern MultiplayerPlayerCountScreen g_screen_multiplayer_player_count;
+extern MultiplayerOrientationScreen g_screen_multiplayer_orientation;
 extern MultiplayerPlayerCountConfirmScreen g_screen_multiplayer_player_count_confirm;
 // Reset confirmation screen (shown before destructive global reset)
 class MultiplayerResetConfirmScreen {

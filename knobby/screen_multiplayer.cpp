@@ -13,48 +13,255 @@
 
 namespace {
 
+enum class SeatContentSide {
+    Top,
+    Bottom,
+    Left,
+    Right,
+    Center
+};
+
 struct SeatMetrics {
     bool       visible;
     lv_coord_t x;
     lv_coord_t y;
     lv_coord_t w;
     lv_coord_t h;
-    int16_t    rotation_deg;
+    int16_t    text_rotation_tenths;
     lv_coord_t content_pad_x;
     lv_coord_t content_pad_y;
+    lv_coord_t content_offset_x;
+    lv_coord_t content_offset_y;
+    SeatContentSide inward_side;
+    bool       use_center_stack;
 };
 
 struct LayoutMetrics {
     SeatMetrics seats[kMultiplayerCount];
 };
 
-LayoutMetrics build_layout(int active_player_count)
+const char* orientation_label(MultiplayerOrientationMode mode)
+{
+    switch (normalizeOrientationForPlayerCount(2, mode)) {
+    case MULTIPLAYER_ORIENTATION_SAME_DIRECTION:
+        return "Same Direction";
+    case MULTIPLAYER_ORIENTATION_OPPOSITE_SIDES:
+        return "Opposite Sides";
+    case MULTIPLAYER_ORIENTATION_ROUND_TABLE:
+    default:
+        return "Round Table";
+    }
+}
+
+void apply_inward_offset(SeatMetrics& seat, lv_coord_t magnitude)
+{
+    const lv_coord_t center_x = ui_safe_center_x();
+    const lv_coord_t center_y = ui_safe_center_y();
+    const lv_coord_t seat_center_x = seat.x + (seat.w / 2);
+    const lv_coord_t seat_center_y = seat.y + (seat.h / 2);
+
+    seat.content_offset_x = 0;
+    seat.content_offset_y = 0;
+
+    if (seat_center_x < (center_x - 8)) {
+        seat.content_offset_x = magnitude;
+    } else if (seat_center_x > (center_x + 8)) {
+        seat.content_offset_x = -magnitude;
+    }
+
+    if (seat_center_y < (center_y - 8)) {
+        seat.content_offset_y = magnitude;
+    } else if (seat_center_y > (center_y + 8)) {
+        seat.content_offset_y = -magnitude;
+    }
+}
+
+void set_seat(SeatMetrics& seat,
+              lv_coord_t x,
+              lv_coord_t y,
+              lv_coord_t w,
+              lv_coord_t h,
+              int16_t text_rotation_tenths,
+              lv_coord_t pad_x,
+              lv_coord_t pad_y,
+              lv_coord_t inward_offset,
+              SeatContentSide inward_side,
+              bool use_center_stack = false)
+{
+    seat.visible = true;
+    seat.x = x;
+    seat.y = y;
+    seat.w = w;
+    seat.h = h;
+    seat.text_rotation_tenths = text_rotation_tenths;
+    seat.content_pad_x = pad_x;
+    seat.content_pad_y = pad_y;
+    seat.content_offset_x = 0;
+    seat.content_offset_y = 0;
+    seat.inward_side = inward_side;
+    seat.use_center_stack = use_center_stack;
+    apply_inward_offset(seat, inward_offset);
+}
+
+void apply_rotation(lv_obj_t* obj, int16_t angle_tenths)
+{
+    if (obj == nullptr) return;
+    lv_obj_update_layout(obj);
+    lv_obj_set_style_transform_pivot_x(obj, lv_obj_get_width(obj) / 2, 0);
+    lv_obj_set_style_transform_pivot_y(obj, lv_obj_get_height(obj) / 2, 0);
+    lv_obj_set_style_transform_angle(obj, angle_tenths, 0);
+}
+
+void align_standard_stack(const SeatMetrics& seat,
+                          lv_obj_t* name_label,
+                          lv_obj_t* life_label,
+                          lv_obj_t* badge)
+{
+    switch (seat.inward_side) {
+    case SeatContentSide::Bottom:
+        if (name_label != nullptr) lv_obj_align(name_label, LV_ALIGN_BOTTOM_MID, 0, -8);
+        if (life_label != nullptr) lv_obj_align(life_label, LV_ALIGN_CENTER, 0, 14);
+        if (badge != nullptr) lv_obj_align(badge, LV_ALIGN_BOTTOM_LEFT, 8, -8);
+        break;
+    case SeatContentSide::Top:
+        if (name_label != nullptr) lv_obj_align(name_label, LV_ALIGN_TOP_MID, 0, 8);
+        if (life_label != nullptr) lv_obj_align(life_label, LV_ALIGN_CENTER, 0, -14);
+        if (badge != nullptr) lv_obj_align(badge, LV_ALIGN_TOP_RIGHT, -8, 8);
+        break;
+    case SeatContentSide::Left:
+        if (name_label != nullptr) lv_obj_align(name_label, LV_ALIGN_LEFT_MID, 8, -30);
+        if (life_label != nullptr) lv_obj_align(life_label, LV_ALIGN_CENTER, -14, 0);
+        if (badge != nullptr) lv_obj_align(badge, LV_ALIGN_TOP_LEFT, 8, 8);
+        break;
+    case SeatContentSide::Right:
+        if (name_label != nullptr) lv_obj_align(name_label, LV_ALIGN_RIGHT_MID, -8, -30);
+        if (life_label != nullptr) lv_obj_align(life_label, LV_ALIGN_CENTER, 14, 0);
+        if (badge != nullptr) lv_obj_align(badge, LV_ALIGN_TOP_RIGHT, -8, 8);
+        break;
+    case SeatContentSide::Center:
+    default:
+        if (name_label != nullptr) lv_obj_align(name_label, LV_ALIGN_TOP_MID, 0, 8);
+        if (life_label != nullptr) lv_obj_align(life_label, LV_ALIGN_CENTER, 0, 10);
+        if (badge != nullptr) lv_obj_align(badge, LV_ALIGN_TOP_RIGHT, -8, 8);
+        break;
+    }
+}
+
+void align_round_table_stack(const SeatMetrics& seat,
+                             lv_obj_t* name_label,
+                             lv_obj_t* life_label,
+                             lv_obj_t* badge)
+{
+    lv_coord_t name_x = 0;
+    lv_coord_t name_y = -34;
+    lv_coord_t life_x = 0;
+    lv_coord_t life_y = 8;
+    lv_coord_t badge_x = 34;
+    lv_coord_t badge_y = -40;
+
+    switch (seat.inward_side) {
+    case SeatContentSide::Bottom:
+        name_y = -30;
+        life_y = 10;
+        badge_x = 38;
+        badge_y = -40;
+        break;
+    case SeatContentSide::Top:
+        name_y = -38;
+        life_y = 0;
+        badge_x = 38;
+        badge_y = -44;
+        break;
+    case SeatContentSide::Left:
+        name_x = -8;
+        name_y = -36;
+        life_x = -6;
+        life_y = 6;
+        badge_x = 26;
+        badge_y = -40;
+        break;
+    case SeatContentSide::Right:
+        name_x = 8;
+        name_y = -36;
+        life_x = 6;
+        life_y = 6;
+        badge_x = 26;
+        badge_y = -40;
+        break;
+    case SeatContentSide::Center:
+    default:
+        break;
+    }
+
+    if (name_label != nullptr) lv_obj_align(name_label, LV_ALIGN_CENTER, name_x, name_y);
+    if (life_label != nullptr) lv_obj_align(life_label, LV_ALIGN_CENTER, life_x, life_y);
+    if (badge != nullptr) lv_obj_align(badge, LV_ALIGN_CENTER, badge_x, badge_y);
+}
+
+LayoutMetrics build_layout(int active_player_count,
+                           MultiplayerOrientationMode orientation_mode)
 {
     LayoutMetrics layout = {};
+    const MultiplayerOrientationMode orientation =
+        normalizeOrientationForPlayerCount(active_player_count, orientation_mode);
 
     switch (active_player_count) {
     case 1:
-        // Single-player: one full-screen/top-centered region.
-        layout.seats[0] = {true, 0, 0, 360, 360, 180, 20, 20};
-        // Hide remaining seats
+        set_seat(layout.seats[0], 0, 0, 360, 360, 0, 34, 34, 0,
+                 SeatContentSide::Center);
         for (int i = 1; i < kMultiplayerCount; ++i) layout.seats[i].visible = false;
         break;
     case 2:
-        layout.seats[0] = {true, 0, 0, 360, 180, 180, 20, 18};
-        layout.seats[1] = {true, 0, 180, 360, 180, 0, 20, 18};
+        set_seat(layout.seats[0], 0, 0, 360, 180,
+                 orientation == MULTIPLAYER_ORIENTATION_SAME_DIRECTION ? 0 : 1800,
+                 28, 26, 16, SeatContentSide::Bottom,
+                 orientation == MULTIPLAYER_ORIENTATION_ROUND_TABLE);
+        set_seat(layout.seats[1], 0, 180, 360, 180,
+                 0,
+                 28, 26, 16, SeatContentSide::Top,
+                 orientation == MULTIPLAYER_ORIENTATION_ROUND_TABLE);
         break;
     case 3:
-        // Player 1 takes the full top half; players 2 and 3 split bottom half
-        layout.seats[0] = {true, 0, 0, 360, 180, 180, 20, 16};
-        layout.seats[1] = {true, 0, 180, 180, 180, 0, 16, 20};
-        layout.seats[2] = {true, 180, 180, 180, 180, 0, 16, 20};
+        if (orientation == MULTIPLAYER_ORIENTATION_ROUND_TABLE) {
+            set_seat(layout.seats[0], 56, 0, 248, 120, 1800, 30, 22, 16,
+                     SeatContentSide::Bottom, true);
+            set_seat(layout.seats[1], 0, 134, 176, 186, 3150, 26, 28, 18,
+                     SeatContentSide::Right, true);
+            set_seat(layout.seats[2], 184, 134, 176, 186, 450, 26, 28, 18,
+                     SeatContentSide::Left, true);
+        } else {
+            set_seat(layout.seats[0], 0, 0, 360, 180,
+                     orientation == MULTIPLAYER_ORIENTATION_SAME_DIRECTION ? 0 : 1800,
+                     28, 24, 16, SeatContentSide::Bottom);
+            set_seat(layout.seats[1], 0, 180, 180, 180, 0, 22, 24, 14,
+                     SeatContentSide::Top);
+            set_seat(layout.seats[2], 180, 180, 180, 180, 0, 22, 24, 14,
+                     SeatContentSide::Top);
+        }
         break;
     case 4:
     default:
-        layout.seats[0] = {true, 0, 0, 180, 180, 180, 18, 18};
-        layout.seats[1] = {true, 180, 0, 180, 180, 180, 18, 18};
-        layout.seats[2] = {true, 180, 180, 180, 180, 0, 18, 18};
-        layout.seats[3] = {true, 0, 180, 180, 180, 0, 18, 18};
+        if (orientation == MULTIPLAYER_ORIENTATION_ROUND_TABLE) {
+            set_seat(layout.seats[0], 72, 0, 216, 112, 1800, 26, 18, 16,
+                     SeatContentSide::Bottom, true);
+            set_seat(layout.seats[1], 236, 72, 124, 216, 2700, 18, 26, 16,
+                     SeatContentSide::Left, true);
+            set_seat(layout.seats[2], 72, 248, 216, 112, 0, 26, 18, 16,
+                     SeatContentSide::Top, true);
+            set_seat(layout.seats[3], 0, 72, 124, 216, 900, 18, 26, 16,
+                     SeatContentSide::Right, true);
+        } else {
+            const int16_t top_rotation =
+                orientation == MULTIPLAYER_ORIENTATION_SAME_DIRECTION ? 0 : 1800;
+            set_seat(layout.seats[0], 0, 0, 180, 180, top_rotation, 24, 24, 16,
+                     SeatContentSide::Bottom);
+            set_seat(layout.seats[1], 180, 0, 180, 180, top_rotation, 24, 24, 16,
+                     SeatContentSide::Bottom);
+            set_seat(layout.seats[2], 180, 180, 180, 180, 0, 24, 24, 16,
+                     SeatContentSide::Top);
+            set_seat(layout.seats[3], 0, 180, 180, 180, 0, 24, 24, 16,
+                     SeatContentSide::Top);
+        }
         break;
     }
 
@@ -172,13 +379,13 @@ void MultiplayerScreen::create(lv_event_cb_t select_cb,
 
 void MultiplayerScreen::refresh(const MultiplayerGameState& state)
 {
-    const LayoutMetrics layout = build_layout(state.active_player_count);
+    const LayoutMetrics layout = build_layout(state.active_player_count,
+                                              state.orientation_mode);
     char buf[8];
 
     for (int i = 0; i < kMultiplayerCount; ++i) {
         const bool active = state.isActivePlayerIndex(i) && layout.seats[i].visible;
         const bool preview_here = state.life_preview_active && (state.preview_player == i);
-        const bool top_facing = (layout.seats[i].rotation_deg == 180);
         const lv_color_t txt_color = textColor(i, (i == state.selected));
 
         if (quadrants_[i] != nullptr) {
@@ -202,10 +409,14 @@ void MultiplayerScreen::refresh(const MultiplayerGameState& state)
         }
 
         if (content_[i] != nullptr) {
-            lv_obj_set_size(content_[i],
-                            layout.seats[i].w - (layout.seats[i].content_pad_x * 2),
-                            layout.seats[i].h - (layout.seats[i].content_pad_y * 2));
-            lv_obj_center(content_[i]);
+            const lv_coord_t content_w =
+                layout.seats[i].w - (layout.seats[i].content_pad_x * 2);
+            const lv_coord_t content_h =
+                layout.seats[i].h - (layout.seats[i].content_pad_y * 2);
+            lv_obj_set_size(content_[i], content_w, content_h);
+            lv_obj_align(content_[i], LV_ALIGN_CENTER,
+                         layout.seats[i].content_offset_x,
+                         layout.seats[i].content_offset_y);
             lv_obj_set_style_transform_angle(content_[i], 0, 0);
         }
 
@@ -219,20 +430,25 @@ void MultiplayerScreen::refresh(const MultiplayerGameState& state)
                 lv_label_set_text(label_life_[i], buf);
                 lv_obj_set_style_text_color(label_life_[i], txt_color, 0);
             }
-            lv_obj_set_style_transform_angle(label_life_[i], 0, 0);
-            lv_obj_align(label_life_[i], LV_ALIGN_CENTER, 0, top_facing ? -10 : 12);
         }
 
         if (label_name_[i] != nullptr) {
             lv_label_set_text(label_name_[i], state.names[i]);
+            lv_obj_set_width(label_name_[i],
+                             lv_obj_get_width(content_[i]) > 28
+                                 ? lv_obj_get_width(content_[i]) - 28
+                                 : lv_obj_get_width(content_[i]));
             lv_obj_set_style_text_color(label_name_[i], txt_color, 0);
-            lv_obj_set_style_transform_angle(label_name_[i], 0, 0);
-            if (top_facing) {
-                lv_obj_align(label_name_[i], LV_ALIGN_BOTTOM_MID, 0, -8);
-            } else {
-                lv_obj_align(label_name_[i], LV_ALIGN_TOP_MID, 0, 8);
-            }
         }
+
+        if (layout.seats[i].use_center_stack) {
+            align_round_table_stack(layout.seats[i], label_name_[i], label_life_[i], badge_commander_[i]);
+        } else {
+            align_standard_stack(layout.seats[i], label_name_[i], label_life_[i], badge_commander_[i]);
+        }
+
+        apply_rotation(label_name_[i], layout.seats[i].text_rotation_tenths);
+        apply_rotation(label_life_[i], layout.seats[i].text_rotation_tenths);
 
         if (badge_commander_[i] != nullptr && badge_commander_label_[i] != nullptr) {
             if (state.commander_tax[i] <= 0) {
@@ -241,22 +457,9 @@ void MultiplayerScreen::refresh(const MultiplayerGameState& state)
                 char ctbuf[8];
                 snprintf(ctbuf, sizeof(ctbuf), "%d", state.commander_tax[i]);
                 lv_label_set_text(badge_commander_label_[i], ctbuf);
-                lv_obj_set_style_transform_angle(badge_commander_[i], 0, 0);
-                lv_obj_set_style_transform_angle(badge_commander_label_[i], 0, 0);
-                // Ensure badge is visible and above other content.
                 lv_obj_set_style_bg_opa(badge_commander_[i], LV_OPA_COVER, 0);
-                    if (state.active_player_count == 1) {
-                    // Single-player: move badge closer to center so it's not clipped
-                    // by device bezel or screen rounding. Use center alignment with
-                    // offsets based on safe radius to avoid hard-coded pixels.
-                    lv_coord_t r = ui_safe_radius();
-                    lv_coord_t off = std::max<lv_coord_t>(16, r / 4);
-                    lv_obj_align(badge_commander_[i], LV_ALIGN_CENTER, off, -off);
-                } else if (top_facing) {
-                    lv_obj_align(badge_commander_[i], LV_ALIGN_BOTTOM_LEFT, 8, -8);
-                } else {
-                    lv_obj_align(badge_commander_[i], LV_ALIGN_TOP_RIGHT, -8, 8);
-                }
+                apply_rotation(badge_commander_[i], layout.seats[i].text_rotation_tenths);
+                lv_obj_set_style_transform_angle(badge_commander_label_[i], 0, 0);
                 lv_obj_clear_flag(badge_commander_[i], LV_OBJ_FLAG_HIDDEN);
                 lv_obj_move_foreground(badge_commander_[i]);
             }
@@ -272,7 +475,7 @@ void MultiplayerMenuScreen::create(lv_event_cb_t rename_cb,
                                     lv_event_cb_t cmd_damage_cb,
                                     lv_event_cb_t inc_commander_cb,
                                     lv_event_cb_t all_damage_cb,
-                                    lv_event_cb_t players_cb,
+                                    lv_event_cb_t new_game_cb,
                                     lv_event_cb_t settings_cb,
                                     lv_event_cb_t reset_cb,
                                     lv_event_cb_t back_cb)
@@ -293,7 +496,7 @@ void MultiplayerMenuScreen::create(lv_event_cb_t rename_cb,
     btn_all_damage_ = ui_create_action_button(screen_, "Global",    180, 44, all_damage_cb);
     lv_obj_align(btn_all_damage_, LV_ALIGN_CENTER, 0, -82);
 
-    btn_players_ = ui_create_action_button(screen_, "Players", 180, 44, players_cb);
+    btn_players_ = ui_create_action_button(screen_, "New Game", 180, 44, new_game_cb);
     lv_obj_align(btn_players_, LV_ALIGN_CENTER, 0, -30);
 
     btn_menu_ = ui_create_action_button(screen_, "Settings",  180, 44, settings_cb);
@@ -549,7 +752,7 @@ void MultiplayerPlayerCountScreen::create(lv_event_cb_t select_one_cb,
 {
     screen_ = ui_create_base_screen();
 
-    label_title_ = ui_create_title_label(screen_, "Players", 26);
+    label_title_ = ui_create_title_label(screen_, "New Game", 26);
 
     // Buttons: 1,2,3,4 Players
     btn_one_ = ui_create_action_button(screen_, "1 Player", 180, 44, select_one_cb);
@@ -574,8 +777,12 @@ void MultiplayerPlayerCountScreen::refresh(const MultiplayerGameState& state)
 {
     auto style_button = [this, &state](lv_obj_t* btn, int count) {
         if (btn == nullptr) return;
-        const bool active = (state.active_player_count == count);
-        // Inverted color scheme: active uses darker background, inactive uses accent.
+        const int staged_count =
+            (state.pending_player_count >= kMinActivePlayerCount &&
+             state.pending_player_count <= kMultiplayerCount)
+                ? state.pending_player_count
+                : state.active_player_count;
+        const bool active = (staged_count == count);
         lv_obj_set_style_bg_color(btn,
                                   active ? lv_color_hex(0x3A3A3A) : lv_color_hex(0x29B6F6),
                                   0);
@@ -586,6 +793,62 @@ void MultiplayerPlayerCountScreen::refresh(const MultiplayerGameState& state)
     style_button(btn_two_, 2);
     style_button(btn_three_, 3);
     style_button(btn_four_, 4);
+}
+
+// ---------------------------------------------------------------------------
+// MultiplayerOrientationScreen
+// ---------------------------------------------------------------------------
+
+void MultiplayerOrientationScreen::create(lv_event_cb_t same_direction_cb,
+                                          lv_event_cb_t opposite_sides_cb,
+                                          lv_event_cb_t round_table_cb,
+                                          lv_event_cb_t back_cb)
+{
+    screen_ = ui_create_base_screen();
+
+    label_title_ = ui_create_title_label(screen_, "Orientation", 26);
+
+    btn_same_ = ui_create_action_button(screen_, "Same Direction", 200, 44, same_direction_cb);
+    lv_obj_align(btn_same_, LV_ALIGN_CENTER, 0, -82);
+
+    btn_opposite_ = ui_create_action_button(screen_, "Opposite Sides", 200, 44, opposite_sides_cb);
+    lv_obj_align(btn_opposite_, LV_ALIGN_CENTER, 0, -30);
+
+    btn_round_ = ui_create_action_button(screen_, "Round Table", 200, 44, round_table_cb);
+    lv_obj_align(btn_round_, LV_ALIGN_CENTER, 0, 22);
+
+    lv_obj_t* btn_back = ui_create_action_button(screen_, "Back", 88, 42, back_cb);
+    lv_obj_set_style_radius(btn_back, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_pad_all(btn_back, 0, 0);
+    lv_obj_align(btn_back, LV_ALIGN_BOTTOM_MID, 0, -24);
+}
+
+void MultiplayerOrientationScreen::refresh(const MultiplayerGameState& state)
+{
+    char title[32];
+    const int pending_count =
+        (state.pending_player_count >= 2 && state.pending_player_count <= kMultiplayerCount)
+            ? state.pending_player_count
+            : state.active_player_count;
+    snprintf(title, sizeof(title), "%dP Orientation", pending_count);
+    lv_label_set_text(label_title_, title);
+
+    const MultiplayerOrientationMode selected = state.pending_orientation_valid
+        ? normalizeOrientationForPlayerCount(pending_count, state.pending_orientation_mode)
+        : normalizeOrientationForPlayerCount(pending_count, state.orientation_mode);
+
+    auto style_button = [selected](lv_obj_t* btn, MultiplayerOrientationMode mode) {
+        if (btn == nullptr) return;
+        const bool active = (selected == mode);
+        lv_obj_set_style_bg_color(btn,
+                                  active ? lv_color_hex(0x3A3A3A) : lv_color_hex(0x29B6F6),
+                                  0);
+        lv_obj_set_style_bg_opa(btn, LV_OPA_COVER, 0);
+    };
+
+    style_button(btn_same_, MULTIPLAYER_ORIENTATION_SAME_DIRECTION);
+    style_button(btn_opposite_, MULTIPLAYER_ORIENTATION_OPPOSITE_SIDES);
+    style_button(btn_round_, MULTIPLAYER_ORIENTATION_ROUND_TABLE);
 }
 
 // ---------------------------------------------------------------------------
@@ -614,9 +877,24 @@ void MultiplayerPlayerCountConfirmScreen::create(lv_event_cb_t confirm_cb, lv_ev
 
 void MultiplayerPlayerCountConfirmScreen::refresh(const MultiplayerGameState& state)
 {
-    char buf[96];
-    snprintf(buf, sizeof(buf), "Switch to %d players?\nThis resets the current game.",
-             state.pending_player_count);
+    char buf[128];
+    const int pending_count =
+        (state.pending_player_count >= kMinActivePlayerCount &&
+         state.pending_player_count <= kMultiplayerCount)
+            ? state.pending_player_count
+            : state.active_player_count;
+    const MultiplayerOrientationMode pending_orientation = state.pending_orientation_valid
+        ? normalizeOrientationForPlayerCount(pending_count, state.pending_orientation_mode)
+        : normalizeOrientationForPlayerCount(pending_count, state.orientation_mode);
+
+    if (pending_count <= 1) {
+        snprintf(buf, sizeof(buf), "Start new %d-player game?\nThis resets the current game.",
+                 pending_count);
+    } else {
+        snprintf(buf, sizeof(buf), "Start new %d-player %s game?\nThis resets the current game.",
+                 pending_count,
+                 orientation_label(pending_orientation));
+    }
     lv_label_set_text(label_message_, buf);
 }
 
@@ -631,6 +909,7 @@ MultiplayerCmdSelectScreen g_screen_multiplayer_cmd_select;
 MultiplayerCmdDamageScreen g_screen_multiplayer_cmd_damage;
 MultiplayerAllDamageScreen g_screen_multiplayer_all_damage;
 MultiplayerPlayerCountScreen g_screen_multiplayer_player_count;
+MultiplayerOrientationScreen g_screen_multiplayer_orientation;
 MultiplayerPlayerCountConfirmScreen g_screen_multiplayer_player_count_confirm;
 MultiplayerResetConfirmScreen g_screen_multiplayer_reset_confirm;
 

@@ -101,16 +101,23 @@ void NavigationController::openAllDamageScreen() {
                [](){ g_screen_multiplayer_all_damage.refresh(g_multiplayer_game_state); });
 }
 
-void NavigationController::openPlayerCountScreen() {
+void NavigationController::openNewGameCountScreen() {
     navigateTo(g_screen_multiplayer_player_count.lvObject(), nullptr,
                [](){ g_screen_multiplayer_player_count.refresh(g_multiplayer_game_state); });
 }
 
-void NavigationController::openPlayerCountConfirmScreen(int new_count) {
-    // Validate before navigation
-    if (!g_multiplayer_controller.canApplyActivePlayerCount(new_count)) return;
+void NavigationController::openNewGameOrientationScreen(int pending_count) {
+    if (!g_multiplayer_controller.canApplyActivePlayerCount(pending_count)) return;
+    navigateTo(g_screen_multiplayer_orientation.lvObject(),
+               [pending_count](){
+                   g_multiplayer_controller.stageNewGamePlayerCount(pending_count);
+               },
+               [](){ g_screen_multiplayer_orientation.refresh(g_multiplayer_game_state); });
+}
+
+void NavigationController::openNewGameConfirmScreen() {
     navigateTo(g_screen_multiplayer_player_count_confirm.lvObject(),
-               [new_count](){ g_multiplayer_game_state.pending_player_count = new_count; },
+               nullptr,
                [](){ g_screen_multiplayer_player_count_confirm.refresh(g_multiplayer_game_state); });
 }
 

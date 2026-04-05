@@ -38,8 +38,9 @@ public:
     void openCmdSelectScreen();
     void openCmdDamageScreen(int target_index);
     void openAllDamageScreen();
-    void openPlayerCountScreen();
-    void openPlayerCountConfirmScreen(int new_count);
+    void openNewGameCountScreen();
+    void openNewGameOrientationScreen(int pending_count);
+    void openNewGameConfirmScreen();
     void openResetConfirmScreen();
 
     // Swipe-gesture tracking: forward LV_EVENT_PRESSED to beginSwipe and

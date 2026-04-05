@@ -205,18 +205,100 @@ bool MultiplayerController::canApplyActivePlayerCount(int new_count) const {
     return isSupportedActivePlayerCount(new_count);
 }
 
+bool MultiplayerController::canApplyNewGameConfig(
+    int player_count,
+    MultiplayerOrientationMode orientation) const
+{
+    if (!isSupportedActivePlayerCount(player_count)) return false;
+    return isValidOrientationMode(normalizeOrientation(player_count, orientation));
+}
+
+bool MultiplayerController::isCurrentNewGameConfig(
+    int player_count,
+    MultiplayerOrientationMode orientation) const
+{
+    if (!isSupportedActivePlayerCount(player_count)) return false;
+
+    const MultiplayerOrientationMode normalized =
+        normalizeOrientation(player_count, orientation);
+    const MultiplayerOrientationMode current =
+        normalizeOrientation(state_.active_player_count, state_.orientation_mode);
+
+    return state_.active_player_count == player_count && current == normalized;
+}
+
+void MultiplayerController::stageNewGamePlayerCount(int player_count) {
+    if (!isSupportedActivePlayerCount(player_count)) {
+        state_.pending_player_count = -1;
+        return;
+    }
+
+    if (player_count > 1 &&
+        state_.pending_player_count == player_count &&
+        state_.pending_orientation_valid) {
+        state_.pending_player_count = player_count;
+        state_.pending_orientation_mode = normalizeOrientation(
+            player_count,
+            state_.pending_orientation_mode);
+        return;
+    }
+
+    state_.pending_player_count = player_count;
+    if (player_count <= 1) {
+        state_.pending_orientation_mode = normalizeOrientation(player_count, state_.orientation_mode);
+        state_.pending_orientation_valid = true;
+    } else {
+        state_.pending_orientation_mode = normalizeOrientation(player_count, state_.orientation_mode);
+        state_.pending_orientation_valid = false;
+    }
+}
+
+void MultiplayerController::stageNewGameOrientation(MultiplayerOrientationMode orientation) {
+    if (!isSupportedActivePlayerCount(state_.pending_player_count)) {
+        state_.pending_orientation_valid = false;
+        return;
+    }
+
+    state_.pending_orientation_mode = normalizeOrientation(state_.pending_player_count, orientation);
+    state_.pending_orientation_valid = true;
+}
+
+void MultiplayerController::clearPendingNewGameConfig() {
+    state_.pending_player_count = -1;
+    state_.pending_orientation_mode = normalizeOrientation(
+        state_.active_player_count,
+        state_.orientation_mode);
+    state_.pending_orientation_valid = false;
+}
+
+void MultiplayerController::applyNewGameConfig(
+    int player_count,
+    MultiplayerOrientationMode orientation)
+{
+    if (!canApplyNewGameConfig(player_count, orientation)) return;
+    if (isCurrentNewGameConfig(player_count, orientation)) {
+        clearPendingNewGameConfig();
+        return;
+    }
+
+    state_.reset(player_count, normalizeOrientation(player_count, orientation), true);
+    if (preview_timer_ != nullptr) {
+        lv_timer_pause(preview_timer_);
+    }
+}
+
 void MultiplayerController::setActivePlayerCount(int new_count) {
     if (!isSupportedActivePlayerCount(new_count)) return;
     if (new_count == state_.active_player_count) return;
 
-    state_.reset(new_count);
+    state_.reset(new_count, state_.orientation_mode, true);
     if (preview_timer_ != nullptr) {
         lv_timer_pause(preview_timer_);
     }
 }
 
 void MultiplayerController::resetAll(SettingsState& settings) {
-    state_.reset(state_.active_player_count);
+    state_.reset(state_.active_player_count, state_.orientation_mode, true);
     settings.reset();
     if (preview_timer_ != nullptr) {
         lv_timer_pause(preview_timer_);
@@ -253,6 +335,13 @@ int MultiplayerController::clampLife(int value) {
 
 bool MultiplayerController::isSupportedActivePlayerCount(int value) {
     return value >= kMinActivePlayerCount && value <= kMultiplayerCount;
+}
+
+MultiplayerOrientationMode MultiplayerController::normalizeOrientation(
+    int player_count,
+    MultiplayerOrientationMode orientation)
+{
+    return normalizeOrientationForPlayerCount(player_count, orientation);
 }
 
 // ---------------------------------------------------------------------------

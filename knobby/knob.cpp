@@ -113,8 +113,9 @@ enum class ScreenRefreshGroup {
     MultiplayerCore,      // main multiplayer overview
     MultiplayerMenus,     // menu, name, cmd_select
     MultiplayerValues,    // cmd_damage, all_damage
-    PlayerCount,
-    PlayerCountConfirm,
+    NewGameCount,
+    NewGameOrientation,
+    NewGameConfirm,
     ResetConfirm,
     AllMultiplayer
 };
@@ -146,11 +147,15 @@ static void refresh_group(ScreenRefreshGroup group)
         g_screen_multiplayer_all_damage.refresh(mp);
         break;
 
-    case ScreenRefreshGroup::PlayerCount:
+    case ScreenRefreshGroup::NewGameCount:
         g_screen_multiplayer_player_count.refresh(mp);
         break;
 
-    case ScreenRefreshGroup::PlayerCountConfirm:
+    case ScreenRefreshGroup::NewGameOrientation:
+        g_screen_multiplayer_orientation.refresh(mp);
+        break;
+
+    case ScreenRefreshGroup::NewGameConfirm:
         g_screen_multiplayer_player_count_confirm.refresh(mp);
         break;
 
@@ -167,6 +172,7 @@ static void refresh_group(ScreenRefreshGroup group)
         g_screen_multiplayer_cmd_damage.refresh(mp);
         g_screen_multiplayer_all_damage.refresh(mp);
         g_screen_multiplayer_player_count.refresh(mp);
+        g_screen_multiplayer_orientation.refresh(mp);
         g_screen_multiplayer_player_count_confirm.refresh(mp);
         g_screen_multiplayer_reset_confirm.refresh(mp);
         break;
@@ -216,40 +222,83 @@ static void reset_all_values(void)
     refresh_group(ScreenRefreshGroup::AllMultiplayer);
 }
 
-static void apply_active_player_count_change(int new_count)
+static int pending_new_game_count(void)
 {
-    if (!g_multiplayer_controller.canApplyActivePlayerCount(new_count)) {
+    if (mp.pending_player_count >= kMinActivePlayerCount &&
+        mp.pending_player_count <= kMultiplayerCount) {
+        return mp.pending_player_count;
+    }
+
+    return mp.active_player_count;
+}
+
+static MultiplayerOrientationMode pending_new_game_orientation(void)
+{
+    const int player_count = pending_new_game_count();
+    if (mp.pending_orientation_valid) {
+        return normalizeOrientationForPlayerCount(player_count,
+                                                  mp.pending_orientation_mode);
+    }
+
+    return normalizeOrientationForPlayerCount(player_count, mp.orientation_mode);
+}
+
+static void finish_new_game_selection(int player_count,
+                                      MultiplayerOrientationMode orientation)
+{
+    if (!g_multiplayer_controller.canApplyNewGameConfig(player_count, orientation)) {
         return;
     }
 
-    if (new_count == mp.active_player_count) {
-        mp.pending_player_count = -1;
+    g_multiplayer_controller.stageNewGamePlayerCount(player_count);
+    g_multiplayer_controller.stageNewGameOrientation(orientation);
+
+    if (g_multiplayer_controller.isCurrentNewGameConfig(player_count, orientation)) {
+        g_multiplayer_controller.clearPendingNewGameConfig();
+        refresh_group(ScreenRefreshGroup::AllMultiplayer);
         g_navigation_controller.openMultiplayerScreen();
         return;
     }
 
     if (g_multiplayer_controller.isSessionDirty()) {
-        g_navigation_controller.openPlayerCountConfirmScreen(new_count);
+        refresh_group(ScreenRefreshGroup::NewGameConfirm);
+        g_navigation_controller.openNewGameConfirmScreen();
         return;
     }
 
-    mp.pending_player_count = -1;
-    g_multiplayer_controller.setActivePlayerCount(new_count);
+    g_multiplayer_controller.applyNewGameConfig(player_count, orientation);
     refresh_group(ScreenRefreshGroup::AllMultiplayer);
     g_navigation_controller.openMultiplayerScreen();
 }
 
-static void confirm_active_player_count_change(void)
+static void begin_new_game_flow_for_count(int new_count)
 {
-    const int new_count = mp.pending_player_count;
     if (!g_multiplayer_controller.canApplyActivePlayerCount(new_count)) {
-        mp.pending_player_count = -1;
-        g_navigation_controller.openPlayerCountScreen();
         return;
     }
 
-    mp.pending_player_count = -1;
-    g_multiplayer_controller.setActivePlayerCount(new_count);
+    g_multiplayer_controller.stageNewGamePlayerCount(new_count);
+
+    if (new_count <= 1) {
+        finish_new_game_selection(new_count, MULTIPLAYER_ORIENTATION_SAME_DIRECTION);
+        return;
+    }
+
+    refresh_group(ScreenRefreshGroup::NewGameOrientation);
+    g_navigation_controller.openNewGameOrientationScreen(new_count);
+}
+
+static void confirm_pending_new_game_selection(void)
+{
+    const int player_count = pending_new_game_count();
+    const MultiplayerOrientationMode orientation = pending_new_game_orientation();
+    if (!g_multiplayer_controller.canApplyNewGameConfig(player_count, orientation)) {
+        g_multiplayer_controller.clearPendingNewGameConfig();
+        g_navigation_controller.openNewGameCountScreen();
+        return;
+    }
+
+    g_multiplayer_controller.applyNewGameConfig(player_count, orientation);
     refresh_group(ScreenRefreshGroup::AllMultiplayer);
     g_navigation_controller.openMultiplayerScreen();
 }
@@ -353,10 +402,11 @@ static void event_multiplayer_menu_settings(lv_event_t *e)
     g_navigation_controller.openSettingsScreen();
 }
 
-static void event_multiplayer_menu_players(lv_event_t *e)
+static void event_multiplayer_menu_new_game(lv_event_t *e)
 {
     (void)e;
-    g_navigation_controller.openPlayerCountScreen();
+    g_multiplayer_controller.clearPendingNewGameConfig();
+    g_navigation_controller.openNewGameCountScreen();
 }
 
 static void event_multiplayer_menu_rename(lv_event_t *e)
@@ -447,44 +497,76 @@ static void event_multiplayer_all_damage_apply(lv_event_t *e)
 static void event_multiplayer_player_count_back(lv_event_t *e)
 {
     (void)e;
-    mp.pending_player_count = -1;
+    g_multiplayer_controller.clearPendingNewGameConfig();
     g_navigation_controller.openMenuScreen(mp.selected, MULTIPLAYER_MENU_GLOBAL);
 }
 
 static void event_multiplayer_player_count_two(lv_event_t *e)
 {
     (void)e;
-    apply_active_player_count_change(2);
+    begin_new_game_flow_for_count(2);
 }
 
 static void event_multiplayer_player_count_one(lv_event_t *e)
 {
     (void)e;
-    apply_active_player_count_change(1);
+    begin_new_game_flow_for_count(1);
 }
 
 static void event_multiplayer_player_count_three(lv_event_t *e)
 {
     (void)e;
-    apply_active_player_count_change(3);
+    begin_new_game_flow_for_count(3);
 }
 
 static void event_multiplayer_player_count_four(lv_event_t *e)
 {
     (void)e;
-    apply_active_player_count_change(4);
+    begin_new_game_flow_for_count(4);
+}
+
+static void event_multiplayer_orientation_back(lv_event_t *e)
+{
+    (void)e;
+    g_navigation_controller.openNewGameCountScreen();
+}
+
+static void event_multiplayer_orientation_same(lv_event_t *e)
+{
+    (void)e;
+    finish_new_game_selection(pending_new_game_count(),
+                              MULTIPLAYER_ORIENTATION_SAME_DIRECTION);
+}
+
+static void event_multiplayer_orientation_opposite(lv_event_t *e)
+{
+    (void)e;
+    finish_new_game_selection(pending_new_game_count(),
+                              MULTIPLAYER_ORIENTATION_OPPOSITE_SIDES);
+}
+
+static void event_multiplayer_orientation_round(lv_event_t *e)
+{
+    (void)e;
+    finish_new_game_selection(pending_new_game_count(),
+                              MULTIPLAYER_ORIENTATION_ROUND_TABLE);
 }
 
 static void event_multiplayer_player_count_confirm_back(lv_event_t *e)
 {
     (void)e;
-    g_navigation_controller.openPlayerCountScreen();
+    if (pending_new_game_count() <= 1) {
+        g_navigation_controller.openNewGameCountScreen();
+        return;
+    }
+
+    g_navigation_controller.openNewGameOrientationScreen(pending_new_game_count());
 }
 
 static void event_multiplayer_player_count_confirm_apply(lv_event_t *e)
 {
     (void)e;
-    confirm_active_player_count_change();
+    confirm_pending_new_game_selection();
 }
 
 
@@ -514,7 +596,7 @@ void knob_gui(void)
         event_multiplayer_menu_cmd_damage,
         event_multiplayer_menu_inc_commander_tax,
         event_multiplayer_menu_all_damage,
-        event_multiplayer_menu_players,
+        event_multiplayer_menu_new_game,
         event_multiplayer_menu_settings,
         event_menu_reset,
         event_multiplayer_menu_back);
@@ -534,6 +616,11 @@ void knob_gui(void)
         event_multiplayer_player_count_three,
         event_multiplayer_player_count_four,
         event_multiplayer_player_count_back);
+    g_screen_multiplayer_orientation.create(
+        event_multiplayer_orientation_same,
+        event_multiplayer_orientation_opposite,
+        event_multiplayer_orientation_round,
+        event_multiplayer_orientation_back);
     g_screen_multiplayer_player_count_confirm.create(
         event_multiplayer_player_count_confirm_apply,
         event_multiplayer_player_count_confirm_back);

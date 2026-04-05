@@ -28,6 +28,35 @@ typedef enum {
     MULTIPLAYER_MENU_GLOBAL = 1
 } MultiplayerMenuMode;
 
+typedef enum {
+    MULTIPLAYER_ORIENTATION_SAME_DIRECTION = 0,
+    MULTIPLAYER_ORIENTATION_OPPOSITE_SIDES = 1,
+    MULTIPLAYER_ORIENTATION_ROUND_TABLE = 2
+} MultiplayerOrientationMode;
+
+static constexpr MultiplayerOrientationMode kDefaultOrientationMode =
+    MULTIPLAYER_ORIENTATION_OPPOSITE_SIDES;
+
+inline bool isValidOrientationMode(MultiplayerOrientationMode mode) {
+    return mode >= MULTIPLAYER_ORIENTATION_SAME_DIRECTION &&
+           mode <= MULTIPLAYER_ORIENTATION_ROUND_TABLE;
+}
+
+inline MultiplayerOrientationMode normalizeOrientationForPlayerCount(
+    int player_count,
+    MultiplayerOrientationMode mode)
+{
+    if (!isValidOrientationMode(mode)) {
+        mode = kDefaultOrientationMode;
+    }
+
+    if (player_count <= 1) {
+        return MULTIPLAYER_ORIENTATION_SAME_DIRECTION;
+    }
+
+    return mode;
+}
+
 // ---------------------------------------------------------------------------
 // SettingsState – owns brightness and battery presentation values.
 // ---------------------------------------------------------------------------
@@ -53,11 +82,14 @@ struct SettingsState {
 
 struct MultiplayerGameState {
     int              active_player_count = kDefaultActivePlayerCount;
+    MultiplayerOrientationMode orientation_mode = kDefaultOrientationMode;
     int              life[kMultiplayerCount];
     int              commander_tax[kMultiplayerCount];
     int              selected          = 0;
     int              menu_player       = 0;
     int              pending_player_count = -1;
+    MultiplayerOrientationMode pending_orientation_mode = kDefaultOrientationMode;
+    bool             pending_orientation_valid = false;
     int              cmd_source        = 0;
     int              cmd_target        = -1;
     int              cmd_damage_totals[kMultiplayerCount][kMultiplayerCount];
@@ -69,11 +101,13 @@ struct MultiplayerGameState {
     char             names[kMultiplayerCount][kPlayerNameMaxLen];
 
     MultiplayerGameState() {
-        reset(kDefaultActivePlayerCount);
+        reset(kDefaultActivePlayerCount, kDefaultOrientationMode, true);
     }
 
     // Resets all gameplay values back to new-game defaults.
-    void reset(int new_active_player_count = -1) {
+    void reset(int new_active_player_count = -1,
+               MultiplayerOrientationMode new_orientation_mode = kDefaultOrientationMode,
+               bool apply_orientation = false) {
         if (new_active_player_count >= kMinActivePlayerCount &&
             new_active_player_count <= kMultiplayerCount) {
             active_player_count = new_active_player_count;
@@ -81,6 +115,10 @@ struct MultiplayerGameState {
                    active_player_count > kMultiplayerCount) {
             active_player_count = kDefaultActivePlayerCount;
         }
+
+        orientation_mode = normalizeOrientationForPlayerCount(
+            active_player_count,
+            apply_orientation ? new_orientation_mode : orientation_mode);
 
         for (int i = 0; i < kMultiplayerCount; ++i) {
             life[i] = kDefaultLifeTotal;
@@ -90,6 +128,8 @@ struct MultiplayerGameState {
         selected          = 0;
         menu_player       = 0;
         pending_player_count = -1;
+        pending_orientation_mode = orientation_mode;
+        pending_orientation_valid = false;
         cmd_source        = 0;
         cmd_target        = -1;
         memset(cmd_damage_totals, 0, sizeof(cmd_damage_totals));
