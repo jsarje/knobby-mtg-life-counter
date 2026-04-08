@@ -4,8 +4,10 @@
 // ---------- data ----------
 typedef struct {
     uint32_t timestamp_ms;
-    int8_t player;      // -1 = single player, 0-3 = multiplayer index
-    int16_t delta;
+    int8_t   player;       // target: -1 = single player, 0-3 = multiplayer index
+    int8_t   source;       // source for cmd damage, -1 if N/A
+    uint8_t  event_type;   // log_event_type_t
+    int16_t  delta;
 } damage_log_entry_t;
 
 static damage_log_entry_t damage_log[DAMAGE_LOG_MAX];
@@ -19,12 +21,14 @@ static lv_obj_t *delete_btn = NULL;
 static int damage_log_selected = -1;  // index into visible list (0 = newest)
 
 // ---------- log operations ----------
-void damage_log_add(int player, int delta)
+void damage_log_add(int player, int delta, uint8_t event_type, int source)
 {
     if (delta == 0) return;
     damage_log[damage_log_head].timestamp_ms = lv_tick_get();
-    damage_log[damage_log_head].player = (int8_t)player;
-    damage_log[damage_log_head].delta = (int16_t)delta;
+    damage_log[damage_log_head].player     = (int8_t)player;
+    damage_log[damage_log_head].source     = (int8_t)source;
+    damage_log[damage_log_head].event_type = event_type;
+    damage_log[damage_log_head].delta      = (int16_t)delta;
     damage_log_head = (damage_log_head + 1) % DAMAGE_LOG_MAX;
     if (damage_log_count < DAMAGE_LOG_MAX) damage_log_count++;
 }
@@ -58,14 +62,21 @@ void damage_log_select_prev(void)
 
 void damage_log_undo_selected(void)
 {
-    int sel_idx, buf_idx, i;
+    int buf_idx, i;
+    damage_log_entry_t *entry;
 
     if (damage_log_selected < 0 || damage_log_selected >= damage_log_count) return;
 
     buf_idx = (damage_log_head - 1 - damage_log_selected + DAMAGE_LOG_MAX) % DAMAGE_LOG_MAX;
+    entry = &damage_log[buf_idx];
 
     /* Reverse the life change */
-    undo_life_change(damage_log[buf_idx].player, damage_log[buf_idx].delta);
+    undo_life_change(entry->player, entry->delta);
+
+    /* Reverse commander damage tracking */
+    if (entry->event_type == LOG_EVT_CMD_DAMAGE && entry->source >= 0) {
+        undo_cmd_damage(entry->source, entry->player, entry->delta);
+    }
 
     /* Remove entry by shifting newer entries down */
     for (i = damage_log_selected; i > 0; i--) {
@@ -99,15 +110,22 @@ static void format_elapsed(uint32_t elapsed_s, char *out, size_t out_sz)
 static void format_log_line(damage_log_entry_t *entry, char *buf, size_t buf_sz)
 {
     uint32_t elapsed_s = lv_tick_elaps(entry->timestamp_ms) / 1000;
-    const char *action = entry->delta > 0 ? "gained" : "lost";
     int abs_delta = entry->delta > 0 ? entry->delta : -entry->delta;
     char time_str[16];
 
     format_elapsed(elapsed_s, time_str, sizeof(time_str));
 
-    if (entry->player < 0) {
+    if (entry->event_type == LOG_EVT_CMD_DAMAGE && entry->source >= 0) {
+        snprintf(buf, buf_sz, "%s: %s dealt %d cmd to %s",
+                 time_str,
+                 multiplayer_names[entry->source],
+                 abs_delta,
+                 multiplayer_names[entry->player]);
+    } else if (entry->player < 0) {
+        const char *action = entry->delta > 0 ? "gained" : "lost";
         snprintf(buf, buf_sz, "%s: %s %d life", time_str, action, abs_delta);
     } else {
+        const char *action = entry->delta > 0 ? "gained" : "lost";
         snprintf(buf, buf_sz, "%s: %s %s %d life",
                  time_str, multiplayer_names[entry->player], action, abs_delta);
     }

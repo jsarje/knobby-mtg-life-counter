@@ -331,7 +331,7 @@ static void event_multiplayer_all_damage_apply(lv_event_t *e)
 
     (void)e;
     for (i = 0; i < nvs_get_players_to_track(); i++) {
-        damage_log_add(i, -multiplayer_all_damage_value);
+        damage_log_add(i, -multiplayer_all_damage_value, LOG_EVT_LIFE, -1);
         multiplayer_life[i] = clamp_life(multiplayer_life[i] - multiplayer_all_damage_value);
     }
 
