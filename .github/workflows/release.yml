@@ -82,4 +82,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: knobby-firmware-${{ github.ref_name }}.zip
+          # Include the deployed GitHub Pages URL in the release body
+          body: "Install via GitHub Pages: ${{ steps.deployment.outputs.page_url }}"
           generate_release_notes: true
