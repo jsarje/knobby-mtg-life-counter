@@ -213,7 +213,6 @@ void knob_process_pending(void)
         } else if (cur == screen_dice) {
             lv_scr_load(screen_tools_menu);
         } else if (cur == screen_damage_log) {
-            pause_damage_log_timer();
             lv_scr_load(screen_tools_menu);
         } else if (cur == screen_select) {
             back_to_main();

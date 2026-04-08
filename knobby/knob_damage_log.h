@@ -15,6 +15,5 @@ void damage_log_undo_selected(void);
 
 void build_damage_log_screen(void);
 void open_damage_log_screen(void);
-void pause_damage_log_timer(void);
 
 #endif // _KNOB_DAMAGE_LOG_H

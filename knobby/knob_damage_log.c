@@ -16,7 +16,6 @@ static int damage_log_head = 0;
 lv_obj_t *screen_damage_log = NULL;
 static lv_obj_t *damage_log_container = NULL;
 static lv_obj_t *delete_btn = NULL;
-static lv_timer_t *damage_log_refresh_timer = NULL;
 static int damage_log_selected = -1;  // index into visible list (0 = newest)
 
 // ---------- log operations ----------
@@ -156,23 +155,6 @@ static void update_selection_highlight(void)
     }
 }
 
-static void damage_log_update_timestamps(void)
-{
-    int i;
-    uint32_t child_count = lv_obj_get_child_cnt(damage_log_container);
-
-    if (damage_log_count == 0 || child_count == 0) return;
-
-    for (i = 0; i < (int)child_count && i < damage_log_count; i++) {
-        int idx = (damage_log_head - 1 - i + DAMAGE_LOG_MAX) % DAMAGE_LOG_MAX;
-        lv_obj_t *lbl = lv_obj_get_child(damage_log_container, i);
-        char buf[80];
-
-        format_log_line(&damage_log[idx], buf, sizeof(buf));
-        lv_label_set_text(lbl, buf);
-    }
-}
-
 static void refresh_damage_log_ui(void)
 {
     int i, idx;
@@ -216,14 +198,6 @@ static void refresh_damage_log_ui(void)
     update_selection_highlight();
 }
 
-static void damage_log_refresh_cb(lv_timer_t *timer)
-{
-    (void)timer;
-    if (lv_scr_act() == screen_damage_log) {
-        damage_log_update_timestamps();
-    }
-}
-
 // ---------- navigation ----------
 static void event_delete_pressed(lv_event_t *e)
 {
@@ -236,12 +210,6 @@ void open_damage_log_screen(void)
     damage_log_selected = (damage_log_count > 0) ? 0 : -1;
     refresh_damage_log_ui();
     load_screen_if_needed(screen_damage_log);
-    if (damage_log_refresh_timer != NULL) lv_timer_resume(damage_log_refresh_timer);
-}
-
-void pause_damage_log_timer(void)
-{
-    if (damage_log_refresh_timer != NULL) lv_timer_pause(damage_log_refresh_timer);
 }
 
 static void event_open_damage_log(lv_event_t *e)
@@ -294,8 +262,4 @@ void build_damage_log_screen(void)
     lv_obj_set_style_text_font(btn_label, &lv_font_montserrat_14, 0);
     lv_obj_center(btn_label);
 
-    damage_log_refresh_timer = lv_timer_create(damage_log_refresh_cb, 1000, NULL);
-    if (damage_log_refresh_timer != NULL) {
-        lv_timer_pause(damage_log_refresh_timer);
-    }
 }
