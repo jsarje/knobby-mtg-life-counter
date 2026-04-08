@@ -29,7 +29,7 @@ jobs:
 
       - name: Install cores and libraries
         run: |
-          export PATH="$HOME/.arduino15/bin:$PATH"
+          echo "${GITHUB_WORKSPACE}/bin" >> $GITHUB_PATH
           arduino-cli core update-index --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
           arduino-cli core install esp32:esp32 --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
           arduino-cli lib install lvgl@8.3.11
@@ -39,5 +39,5 @@ jobs:
 
       - name: Compile with arduino-cli
         run: |
-          export PATH="$HOME/.arduino15/bin:$PATH"
+          echo "${GITHUB_WORKSPACE}/bin" >> $GITHUB_PATH
           arduino-cli compile --fqbn "esp32:esp32:esp32s3:FlashSize=16M,PSRAM=opi,USBMode=hwcdc,CDCOnBoot=cdc,FlashMode=qio" knobby
