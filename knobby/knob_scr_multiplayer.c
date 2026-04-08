@@ -3,13 +3,13 @@
 #include "knob_life.h"
 #include "knob_nvs.h"
 #include "knob_damage_log.h"
+#include "knob_rename.h"
 
 // ---------- screens ----------
 lv_obj_t *screen_4p = NULL;
 lv_obj_t *screen_2p = NULL;
 lv_obj_t *screen_3p = NULL;
 lv_obj_t *screen_player_menu = NULL;
-lv_obj_t *screen_player_name = NULL;
 lv_obj_t *screen_player_all_damage = NULL;
 
 // ---------- widgets ----------
@@ -17,9 +17,6 @@ static lv_obj_t *multiplayer_quadrants[MULTIPLAYER_COUNT];
 static lv_obj_t *label_multiplayer_life[MULTIPLAYER_COUNT];
 static lv_obj_t *label_multiplayer_name[MULTIPLAYER_COUNT];
 static lv_obj_t *label_multiplayer_menu_title = NULL;
-static lv_obj_t *label_multiplayer_name_title = NULL;
-static lv_obj_t *textarea_multiplayer_name = NULL;
-static lv_obj_t *keyboard_multiplayer_name = NULL;
 static lv_obj_t *label_multiplayer_all_damage_title = NULL;
 static lv_obj_t *label_multiplayer_all_damage_value = NULL;
 static lv_obj_t *label_multiplayer_all_damage_hint = NULL;
@@ -35,7 +32,6 @@ static lv_timer_t *select_timeout_timer = NULL;
 // ---------- 3-player widgets (reuses 4p layout, slot 3 empty) ----------
 
 // ---------- forward declarations ----------
-static void open_multiplayer_name_screen(void);
 static void open_multiplayer_all_damage_screen(void);
 
 // ---------- rotation helper ----------
@@ -204,20 +200,6 @@ void refresh_multiplayer_menu_ui(void)
     lv_label_set_text(label_multiplayer_menu_title, buf);
 }
 
-void refresh_multiplayer_name_ui(void)
-{
-    char buf[40];
-
-    if (label_multiplayer_name_title != NULL) {
-        snprintf(buf, sizeof(buf), "Rename %s", multiplayer_names[multiplayer_menu_player]);
-        lv_label_set_text(label_multiplayer_name_title, buf);
-    }
-
-    if (textarea_multiplayer_name != NULL) {
-        lv_textarea_set_text(textarea_multiplayer_name, multiplayer_names[multiplayer_menu_player]);
-    }
-}
-
 void refresh_multiplayer_all_damage_ui(void)
 {
     char buf[32];
@@ -246,12 +228,6 @@ void open_multiplayer_menu_screen(int player_index)
     multiplayer_menu_player = player_index;
     refresh_multiplayer_menu_ui();
     load_screen_if_needed(screen_player_menu);
-}
-
-static void open_multiplayer_name_screen(void)
-{
-    refresh_multiplayer_name_ui();
-    load_screen_if_needed(screen_player_name);
 }
 
 static void open_multiplayer_all_damage_screen(void)
@@ -342,7 +318,7 @@ static void event_multiplayer_open_menu(lv_event_t *e)
 static void event_multiplayer_menu_rename(lv_event_t *e)
 {
     (void)e;
-    open_multiplayer_name_screen();
+    open_rename_screen();
 }
 
 static void event_multiplayer_menu_cmd_damage(lv_event_t *e)
@@ -356,32 +332,6 @@ static void event_multiplayer_menu_all_damage(lv_event_t *e)
 {
     (void)e;
     open_multiplayer_all_damage_screen();
-}
-
-static void event_multiplayer_name_save(lv_event_t *e)
-{
-    const char *txt;
-    size_t len;
-
-    (void)e;
-    if (textarea_multiplayer_name == NULL) return;
-
-    txt = lv_textarea_get_text(textarea_multiplayer_name);
-    len = strlen(txt);
-    if (len == 0) {
-        snprintf(multiplayer_names[multiplayer_menu_player], sizeof(multiplayer_names[multiplayer_menu_player]),
-                 "P%d", multiplayer_menu_player + 1);
-    } else {
-        snprintf(multiplayer_names[multiplayer_menu_player],
-                 sizeof(multiplayer_names[multiplayer_menu_player]), "%s", txt);
-    }
-
-    refresh_multiplayer_ui();
-    refresh_multiplayer_menu_ui();
-    refresh_multiplayer_name_ui();
-    refresh_select_ui();
-    refresh_damage_ui();
-    open_multiplayer_menu_screen(multiplayer_menu_player);
 }
 
 static void event_multiplayer_all_damage_apply(lv_event_t *e)
@@ -464,34 +414,6 @@ void build_multiplayer_menu_screen(void)
 
     btn = make_button(screen_player_menu, "all.dmg", 180, 46, event_multiplayer_menu_all_damage);
     lv_obj_align(btn, LV_ALIGN_CENTER, 0, 84);
-}
-
-void build_multiplayer_name_screen(void)
-{
-    screen_player_name = lv_obj_create(NULL);
-    lv_obj_set_size(screen_player_name, 360, 360);
-    lv_obj_set_style_bg_color(screen_player_name, lv_color_black(), 0);
-    lv_obj_set_style_border_width(screen_player_name, 0, 0);
-    lv_obj_set_scrollbar_mode(screen_player_name, LV_SCROLLBAR_MODE_OFF);
-
-    label_multiplayer_name_title = lv_label_create(screen_player_name);
-    lv_obj_set_style_text_color(label_multiplayer_name_title, lv_color_white(), 0);
-    lv_obj_set_style_text_font(label_multiplayer_name_title, &lv_font_montserrat_22, 0);
-    lv_obj_align(label_multiplayer_name_title, LV_ALIGN_TOP_MID, 0, 18);
-
-    textarea_multiplayer_name = lv_textarea_create(screen_player_name);
-    lv_obj_set_size(textarea_multiplayer_name, 240, 44);
-    lv_obj_align(textarea_multiplayer_name, LV_ALIGN_TOP_MID, 0, 56);
-    lv_textarea_set_max_length(textarea_multiplayer_name, 15);
-    lv_textarea_set_one_line(textarea_multiplayer_name, true);
-
-    keyboard_multiplayer_name = lv_keyboard_create(screen_player_name);
-    lv_obj_set_size(keyboard_multiplayer_name, 360, 170);
-    lv_obj_align(keyboard_multiplayer_name, LV_ALIGN_BOTTOM_MID, 0, 0);
-    lv_keyboard_set_textarea(keyboard_multiplayer_name, textarea_multiplayer_name);
-
-    lv_obj_t *btn = make_button(screen_player_name, "save", 88, 38, event_multiplayer_name_save);
-    lv_obj_align(btn, LV_ALIGN_TOP_MID, 0, 116);
 }
 
 void build_multiplayer_all_damage_screen(void)

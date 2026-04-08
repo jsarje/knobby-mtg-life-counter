@@ -25,4 +25,9 @@ void nvs_set_players_to_track(int value);
 int nvs_get_life_total(void);
 void nvs_set_life_total(int value);
 
+#define NAME_LIST_COUNT 10
+#define NAME_LIST_LEN   16
+void nvs_get_name_list(char (*out)[NAME_LIST_LEN]);
+void nvs_set_name_list(const char (*list)[NAME_LIST_LEN]);
+
 #endif // _KNOB_NVS_H

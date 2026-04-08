@@ -1,6 +1,7 @@
 #include "knob_nvs.h"
 #include "nvs_flash.h"
 #include "nvs.h"
+#include <string.h>
 
 // ---------- cached state ----------
 static bool settings_dirty = false;
@@ -12,6 +13,7 @@ static bool cached_rotation = false;
 static int cached_num_players = 4;
 static int cached_players_to_track = 1;
 static int cached_life_total = DEFAULT_LIFE_TOTAL;
+static char cached_name_list[NAME_LIST_COUNT][NAME_LIST_LEN];
 
 // ---------- init ----------
 void knob_nvs_init(void)
@@ -46,6 +48,11 @@ void knob_nvs_init(void)
         cached_num_players = (np_val < 1) ? 1 : (np_val > MAX_PLAYERS) ? MAX_PLAYERS : np_val;
         cached_players_to_track = (pt_val < 1) ? 1 : (pt_val > 4) ? 4 : pt_val;
         cached_life_total = (lt_val < 0) ? 0 : (lt_val > LIFE_MAX) ? LIFE_MAX : lt_val;
+
+        size_t nl_size = sizeof(cached_name_list);
+        nvs_get_blob(handle, "name_list", cached_name_list, &nl_size);
+        for (int i = 0; i < NAME_LIST_COUNT; i++)
+            cached_name_list[i][NAME_LIST_LEN - 1] = '\0';
 
         nvs_close(handle);
     }
@@ -142,6 +149,18 @@ void nvs_set_life_total(int value)
     settings_dirty = true;
 }
 
+// ---------- name list ----------
+void nvs_get_name_list(char (*out)[NAME_LIST_LEN])
+{
+    memcpy(out, cached_name_list, sizeof(cached_name_list));
+}
+
+void nvs_set_name_list(const char (*list)[NAME_LIST_LEN])
+{
+    memcpy(cached_name_list, list, sizeof(cached_name_list));
+    settings_dirty = true;
+}
+
 // ---------- persist ----------
 void settings_save(void)
 {
@@ -156,6 +175,7 @@ void settings_save(void)
         nvs_set_i8(handle, "num_players", (int8_t)cached_num_players);
         nvs_set_i8(handle, "track", (int8_t)cached_players_to_track);
         nvs_set_i16(handle, "life_total", (int16_t)cached_life_total);
+        nvs_set_blob(handle, "name_list", cached_name_list, sizeof(cached_name_list));
         nvs_commit(handle);
         nvs_close(handle);
         settings_dirty = false;

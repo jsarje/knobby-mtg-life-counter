@@ -10,6 +10,7 @@
 #include "knob_scr_menus.h"
 #include "knob_game_mode.h"
 #include "knob_damage_log.h"
+#include "knob_rename.h"
 
 // ---------- swipe state ----------
 static lv_obj_t *previous_screen = NULL;
@@ -50,7 +51,7 @@ void reset_all_values(void)
     refresh_settings_ui();
     refresh_multiplayer_ui();
     refresh_multiplayer_menu_ui();
-    refresh_multiplayer_name_ui();
+    refresh_rename_ui();
     refresh_multiplayer_all_damage_ui();
 }
 
@@ -74,7 +75,7 @@ void knob_gui(void)
     build_multiplayer_2p_screen();
     build_multiplayer_3p_screen();
     build_multiplayer_menu_screen();
-    build_multiplayer_name_screen();
+    build_rename_screen();
     build_multiplayer_all_damage_screen();
     build_select_screen();
     build_damage_screen();
@@ -88,7 +89,7 @@ void knob_gui(void)
     refresh_main_ui();
     refresh_multiplayer_ui();
     refresh_multiplayer_menu_ui();
-    refresh_multiplayer_name_ui();
+    refresh_rename_ui();
     refresh_select_ui();
     refresh_damage_ui();
     refresh_multiplayer_all_damage_ui();
@@ -146,6 +147,11 @@ static void handle_knob_event(knob_event_t k)
     {
         if (k == KNOB_LEFT)      damage_log_select_prev();
         else if (k == KNOB_RIGHT) damage_log_select_next();
+    }
+    else if (lv_scr_act() == screen_player_name)
+    {
+        if (k == KNOB_LEFT)      mru_select_prev();
+        else if (k == KNOB_RIGHT) mru_select_next();
     }
 }
 
@@ -222,7 +228,8 @@ void knob_process_pending(void)
         } else if (cur == screen_player_menu) {
             open_multiplayer_screen();
         } else if (cur == screen_player_name) {
-            open_multiplayer_menu_screen(multiplayer_menu_player);
+            if (!name_screen_handle_back())
+                open_multiplayer_menu_screen(multiplayer_menu_player);
         } else if (cur == screen_player_all_damage) {
             open_multiplayer_menu_screen(multiplayer_menu_player);
         }
