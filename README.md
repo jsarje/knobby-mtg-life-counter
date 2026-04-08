@@ -15,6 +15,10 @@ Features/intended use:
 - Brightness and battery guesstimate (WIP)
 - D20 dice roll
 
+## 🚀 Getting Started
+
+TODO - cover menu interaction, etc, etc
+
 ## ⚙️ Hardware
 
 This is the hardware I’ve used: JC3636K518 with battery, you can find it on AliExpress.
