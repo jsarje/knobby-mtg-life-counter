@@ -12,7 +12,6 @@ Repo quick pointers
 - Read the high-level project info first: [README.md](README.md)
 - Main firmware entry: [knobby/knobby.ino](knobby/knobby.ino)
 - C sources and headers: [knobby/](knobby/)
-- HAL/device glue: [knobby/hal/](knobby/hal/)
 
 General rules for all agents
 - Always open and reference the files linked in “Repo quick pointers” before proposing changes.
