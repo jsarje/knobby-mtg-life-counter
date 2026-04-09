@@ -16,6 +16,8 @@
 static lv_obj_t *previous_screen = NULL;
 static volatile bool swipe_up_pending = false;
 static volatile bool swipe_down_pending = false;
+static volatile bool swipe_left_pending = false;
+static volatile bool swipe_right_pending = false;
 
 // ---------- knob event queue ----------
 static int last_knob_cont = 0;
@@ -33,6 +35,72 @@ void knob_notify_swipe_up(void)
 void knob_notify_swipe_down(void)
 {
     swipe_down_pending = true;
+}
+
+void knob_notify_swipe_left(void)
+{
+    swipe_left_pending = true;
+}
+
+void knob_notify_swipe_right(void)
+{
+    swipe_right_pending = true;
+}
+
+static bool is_player_screen(lv_obj_t *screen)
+{
+    return screen == screen_1p ||
+           screen == screen_2p ||
+           screen == screen_3p ||
+           screen == screen_4p;
+}
+
+static void open_menu_for_screen(lv_obj_t *screen)
+{
+    if (is_player_screen(screen)) {
+        previous_screen = screen;
+        open_quad_menu();
+    }
+}
+
+static void handle_back_navigation(lv_obj_t *screen)
+{
+    if (screen == screen_quad_menu && previous_screen != NULL) {
+        refresh_multiplayer_ui();
+        lv_scr_load(previous_screen);
+    } else if (screen == screen_tools_menu) {
+        lv_scr_load(screen_quad_menu);
+    } else if (screen == screen_screen_settings_menu) {
+        settings_save();
+        lv_scr_load(screen_quad_menu);
+    } else if (screen == screen_settings_page2) {
+        lv_scr_load(screen_screen_settings_menu);
+    } else if (screen == screen_settings) {
+        lv_scr_load(screen_screen_settings_menu);
+    } else if (screen == screen_battery) {
+        lv_scr_load(screen_screen_settings_menu);
+    } else if (screen == screen_dice) {
+        lv_scr_load(screen_tools_menu);
+    } else if (screen == screen_damage_log) {
+        lv_scr_load(screen_tools_menu);
+    } else if (screen == screen_select) {
+        back_to_main();
+    } else if (screen == screen_damage) {
+        damage_cancel();
+        open_select_screen();
+    } else if (screen == screen_game_mode_menu) {
+        lv_scr_load(screen_quad_menu);
+    } else if (screen == screen_custom_life) {
+        refresh_game_mode_menu_ui();
+        lv_scr_load(screen_game_mode_menu);
+    } else if (screen == screen_player_menu) {
+        open_multiplayer_screen();
+    } else if (screen == screen_player_name) {
+        if (!name_screen_handle_back())
+            open_multiplayer_menu_screen(multiplayer_menu_player);
+    } else if (screen == screen_player_all_damage) {
+        open_multiplayer_menu_screen(multiplayer_menu_player);
+    }
 }
 
 // ---------- reset ----------
@@ -93,7 +161,6 @@ void knob_gui(void)
     refresh_select_ui();
     refresh_damage_ui();
     refresh_multiplayer_all_damage_ui();
-    refresh_select_ui();
     refresh_settings_ui();
 
     knob_timer_init();
@@ -128,6 +195,7 @@ static void handle_knob_event(knob_event_t k)
         refresh_settings_ui();
     }
     else if (lv_scr_act() == screen_4p ||
+             lv_scr_act() == screen_3p ||
              lv_scr_act() == screen_2p)
     {
         if (k == KNOB_LEFT)      change_multiplayer_life(-1);
@@ -183,55 +251,36 @@ void knob_process_pending(void)
 
     if (swipe_up_pending) {
         swipe_up_pending = false;
-        lv_obj_t *cur = lv_scr_act();
-        if (cur == screen_1p ||
-            cur == screen_2p ||
-            cur == screen_3p ||
-            cur == screen_4p) {
-            previous_screen = cur;
-            open_quad_menu();
-        }
+        open_menu_for_screen(lv_scr_act());
     }
 
     if (swipe_down_pending) {
+        lv_obj_t *cur;
+
         swipe_down_pending = false;
-        lv_obj_t *cur = lv_scr_act();
-        if (cur == screen_quad_menu && previous_screen != NULL) {
-            refresh_multiplayer_ui();
-            lv_scr_load(previous_screen);
-        } else if (cur == screen_tools_menu) {
-            lv_scr_load(screen_quad_menu);
-        } else if (cur == screen_screen_settings_menu) {
-            settings_save();
-            lv_scr_load(screen_quad_menu);
-        } else if (cur == screen_settings_page2) {
-            lv_scr_load(screen_screen_settings_menu);
-        } else if (cur == screen_settings) {
-            lv_scr_load(screen_screen_settings_menu);
-        } else if (cur == screen_battery) {
-            lv_scr_load(screen_screen_settings_menu);
-        } else if (cur == screen_dice) {
-            lv_scr_load(screen_tools_menu);
-        } else if (cur == screen_damage_log) {
-            lv_scr_load(screen_tools_menu);
-        } else if (cur == screen_select) {
-            back_to_main();
-        } else if (cur == screen_damage) {
-            damage_cancel();
-            open_select_screen();
-        } else if (cur == screen_game_mode_menu) {
-            lv_scr_load(screen_quad_menu);
-        } else if (cur == screen_custom_life) {
-            refresh_game_mode_menu_ui();
-            lv_scr_load(screen_game_mode_menu);
-        } else if (cur == screen_player_menu) {
-            open_multiplayer_screen();
-        } else if (cur == screen_player_name) {
-            if (!name_screen_handle_back())
-                open_multiplayer_menu_screen(multiplayer_menu_player);
-        } else if (cur == screen_player_all_damage) {
-            open_multiplayer_menu_screen(multiplayer_menu_player);
-        }
+        cur = lv_scr_act();
+
+        if (is_player_screen(cur))
+            open_menu_for_screen(cur);
+        else
+            handle_back_navigation(cur);
+    }
+
+    if (swipe_left_pending) {
+        lv_obj_t *cur;
+
+        swipe_left_pending = false;
+        cur = lv_scr_act();
+
+        if (is_player_screen(cur))
+            open_menu_for_screen(cur);
+        else
+            handle_back_navigation(cur);
+    }
+
+    if (swipe_right_pending) {
+        swipe_right_pending = false;
+        open_menu_for_screen(lv_scr_act());
     }
 
     while (knob_event_tail != knob_event_head && processed < 8U) {

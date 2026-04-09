@@ -15,8 +15,8 @@ int nvs_get_color_mode(void);
 void nvs_set_color_mode(int value);
 int nvs_get_deselect_timeout(void);
 void nvs_set_deselect_timeout(int value);
-bool nvs_get_rotation(void);
-void nvs_set_rotation(bool value);
+int nvs_get_orientation(void);
+void nvs_set_orientation(int value);
 
 int nvs_get_num_players(void);
 void nvs_set_num_players(int value);

@@ -29,7 +29,10 @@ static lv_obj_t *label_mp2_name[2];
 // ---------- selection auto-deselect ----------
 static lv_timer_t *select_timeout_timer = NULL;
 
-// ---------- 3-player widgets (reuses 4p layout, slot 3 empty) ----------
+// ---------- 3-player widgets ----------
+static lv_obj_t *mp3_panels[3];
+static lv_obj_t *label_mp3_life[3];
+static lv_obj_t *label_mp3_name[3];
 
 // ---------- forward declarations ----------
 static void open_multiplayer_all_damage_screen(void);
@@ -57,6 +60,34 @@ static void apply_label_rotation(lv_obj_t *life_lbl, lv_obj_t *name_lbl,
             lv_obj_set_style_transform_pivot_y(name_lbl,
                 lv_obj_get_height(name_lbl) / 2 + name_pivot_y, 0);
         }
+    }
+}
+
+static int16_t get_4p_orientation_angle(int mode, int panel_index)
+{
+    static const int16_t angled_rot[MULTIPLAYER_COUNT] = {450, 1350, 2250, 3150};
+
+    switch (mode) {
+        case ORIENTATION_MODE_CENTRIC:
+            return angled_rot[panel_index];
+        case ORIENTATION_MODE_TABLETOP:
+            return (panel_index == 1 || panel_index == 2) ? 1800 : 0;
+        default:
+            return 0;
+    }
+}
+
+static int16_t get_3p_orientation_angle(int mode, int panel_index)
+{
+    static const int16_t angled_rot[3] = {1350, 2250, 0};
+
+    switch (mode) {
+        case ORIENTATION_MODE_CENTRIC:
+            return angled_rot[panel_index];
+        case ORIENTATION_MODE_TABLETOP:
+            return (panel_index < 2) ? 1800 : 0;
+        default:
+            return 0;
     }
 }
 
@@ -123,22 +154,23 @@ static void refresh_mp_panel(lv_obj_t *panel, lv_obj_t *life_lbl, lv_obj_t *name
 
 static void refresh_multiplayer_4p_ui(void)
 {
-    static const int16_t rot[MULTIPLAYER_COUNT] = {450, 1350, 2250, 3150};
-    bool do_rot = nvs_get_rotation();
+    int orientation_mode = nvs_get_orientation();
     int i;
+    int16_t angle;
 
     for (i = 0; i < MULTIPLAYER_COUNT; i++) {
+        angle = get_4p_orientation_angle(orientation_mode, i);
         refresh_mp_panel(multiplayer_quadrants[i], label_multiplayer_life[i], label_multiplayer_name[i], i, i);
         if (label_multiplayer_life[i] != NULL) {
             lv_obj_clear_flag(label_multiplayer_life[i], LV_OBJ_FLAG_HIDDEN);
-            lv_obj_align(label_multiplayer_life[i], LV_ALIGN_CENTER, 0, do_rot ? -30 : -12);
+            lv_obj_align(label_multiplayer_life[i], LV_ALIGN_CENTER, 0, angle != 0 ? -30 : -12);
         }
         if (label_multiplayer_name[i] != NULL) {
             lv_obj_clear_flag(label_multiplayer_name[i], LV_OBJ_FLAG_HIDDEN);
             lv_obj_align(label_multiplayer_name[i], LV_ALIGN_CENTER, 0, 30);
         }
         apply_label_rotation(label_multiplayer_life[i], label_multiplayer_name[i],
-            do_rot ? rot[i] : 0, 30, -30);
+            angle, 30, -30);
     }
 }
 
@@ -147,39 +179,35 @@ static void refresh_multiplayer_2p_ui(void)
     /* Panel 0 = top = P2 (player 1), Panel 1 = bottom = P1 (player 0) */
     static const int panel_player[2] = {1, 0};
     static const int panel_color[2]  = {0, 1};
-    bool do_rot = nvs_get_rotation();
+    int orientation_mode = nvs_get_orientation();
     int i;
     for (i = 0; i < 2; i++) {
         refresh_mp_panel(mp2_panels[i], label_mp2_life[i], label_mp2_name[i],
                          panel_player[i], panel_color[i]);
         apply_label_rotation(label_mp2_life[i], label_mp2_name[i],
-            (i == 0 && do_rot) ? 1800 : 0, 10, -30);
+            (i == 0 && orientation_mode != ORIENTATION_MODE_ABSOLUTE) ? 1800 : 0, 10, -30);
     }
 }
 
 static void refresh_multiplayer_3p_ui(void)
 {
-    static const int16_t rot[MULTIPLAYER_COUNT] = {450, 1350, 2250, 3150};
-    bool do_rot = nvs_get_rotation();
+    /* Panel 0 = top-left = P2 (player 1), Panel 1 = top-right = P3 (player 2), Panel 2 = bottom = P1 (player 0) */
+    static const int panel_player[3] = {1, 2, 0};
+    int orientation_mode = nvs_get_orientation();
     int i;
+    int16_t angle;
 
     for (i = 0; i < 3; i++) {
-        refresh_mp_panel(multiplayer_quadrants[i], label_multiplayer_life[i], label_multiplayer_name[i], i, i);
-        if (label_multiplayer_life[i] != NULL)
-            lv_obj_align(label_multiplayer_life[i], LV_ALIGN_CENTER, 0, do_rot ? -30 : -12);
-        if (label_multiplayer_name[i] != NULL)
-            lv_obj_align(label_multiplayer_name[i], LV_ALIGN_CENTER, 0, 30);
-        apply_label_rotation(label_multiplayer_life[i], label_multiplayer_name[i],
-            do_rot ? rot[i] : 0, 30, -30);
+        angle = get_3p_orientation_angle(orientation_mode, i);
+        refresh_mp_panel(mp3_panels[i], label_mp3_life[i], label_mp3_name[i],
+                         panel_player[i], panel_player[i]);
+        if (label_mp3_life[i] != NULL)
+            lv_obj_align(label_mp3_life[i], LV_ALIGN_CENTER, 0, angle != 0 ? -30 : -12);
+        if (label_mp3_name[i] != NULL)
+            lv_obj_align(label_mp3_name[i], LV_ALIGN_CENTER, 0, 30);
+        apply_label_rotation(label_mp3_life[i], label_mp3_name[i],
+            angle, 30, -30);
     }
-
-    /* Hide bottom-right quadrant (index 3) */
-    if (multiplayer_quadrants[3] != NULL)
-        lv_obj_set_style_bg_opa(multiplayer_quadrants[3], LV_OPA_TRANSP, 0);
-    if (label_multiplayer_life[3] != NULL)
-        lv_obj_add_flag(label_multiplayer_life[3], LV_OBJ_FLAG_HIDDEN);
-    if (label_multiplayer_name[3] != NULL)
-        lv_obj_add_flag(label_multiplayer_name[3], LV_OBJ_FLAG_HIDDEN);
 }
 
 // ---------- refresh functions ----------
@@ -211,6 +239,7 @@ void open_multiplayer_screen(void)
     int track = nvs_get_players_to_track();
     refresh_multiplayer_ui();
     if (track == 2) load_screen_if_needed(screen_2p);
+    else if (track == 3) load_screen_if_needed(screen_3p);
     else load_screen_if_needed(screen_4p);
 }
 
@@ -470,9 +499,47 @@ void build_multiplayer_2p_screen(void)
     }
 }
 
-// ---------- 3-player screen (reuses 4p layout, bottom-left empty) ----------
+// ---------- 3-player screen (two top quadrants + one full-width bottom panel) ----------
 void build_multiplayer_3p_screen(void)
 {
-    /* 3p shares screen_4p with 4p; nothing to build */
-    screen_3p = screen_4p;
+    /* Panel 0 = top-left = P2, Panel 1 = top-right = P3, Panel 2 = bottom = P1 */
+    static const lv_coord_t panel_x[3] = {0,   180, 0};
+    static const lv_coord_t panel_y[3] = {0,   0,   180};
+    static const lv_coord_t panel_w[3] = {180, 180, 360};
+    static const lv_coord_t panel_h[3] = {180, 180, 180};
+    static const int panel_player[3]   = {1,   2,   0};
+    int i;
+
+    screen_3p = lv_obj_create(NULL);
+    lv_obj_set_size(screen_3p, 360, 360);
+    lv_obj_set_style_bg_color(screen_3p, lv_color_black(), 0);
+    lv_obj_set_style_border_width(screen_3p, 0, 0);
+    lv_obj_set_scrollbar_mode(screen_3p, LV_SCROLLBAR_MODE_OFF);
+
+    for (i = 0; i < 3; i++) {
+        int p = panel_player[i];
+        mp3_panels[i] = lv_btn_create(screen_3p);
+        lv_obj_remove_style_all(mp3_panels[i]);
+        lv_obj_set_style_bg_opa(mp3_panels[i], LV_OPA_COVER, 0);
+        lv_obj_set_size(mp3_panels[i], panel_w[i], panel_h[i]);
+        lv_obj_set_pos(mp3_panels[i], panel_x[i], panel_y[i]);
+        lv_obj_set_style_radius(mp3_panels[i], 0, 0);
+        lv_obj_set_style_border_width(mp3_panels[i], 1, 0);
+        lv_obj_set_style_border_color(mp3_panels[i], lv_color_black(), 0);
+        lv_obj_set_style_shadow_width(mp3_panels[i], 0, 0);
+        lv_obj_add_event_cb(mp3_panels[i], event_multiplayer_select, LV_EVENT_CLICKED, (void *)(intptr_t)p);
+        lv_obj_add_event_cb(mp3_panels[i], event_multiplayer_open_menu, LV_EVENT_LONG_PRESSED, (void *)(intptr_t)p);
+
+        label_mp3_name[i] = lv_label_create(mp3_panels[i]);
+        lv_label_set_text(label_mp3_name[i], multiplayer_names[p]);
+        lv_obj_set_style_text_color(label_mp3_name[i], lv_color_white(), 0);
+        lv_obj_set_style_text_font(label_mp3_name[i], &lv_font_montserrat_14, 0);
+        lv_obj_align(label_mp3_name[i], LV_ALIGN_CENTER, 0, 30);
+
+        label_mp3_life[i] = lv_label_create(mp3_panels[i]);
+        lv_label_set_text(label_mp3_life[i], "40");
+        lv_obj_set_style_text_color(label_mp3_life[i], lv_color_white(), 0);
+        lv_obj_set_style_text_font(label_mp3_life[i], &lv_font_montserrat_32, 0);
+        lv_obj_align(label_mp3_life[i], LV_ALIGN_CENTER, 0, -12);
+    }
 }
