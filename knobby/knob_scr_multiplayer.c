@@ -63,28 +63,28 @@ static void apply_label_rotation(lv_obj_t *life_lbl, lv_obj_t *name_lbl,
     }
 }
 
-static int16_t get_4p_rotation_angle(int mode, int panel_index)
+static int16_t get_4p_orientation_angle(int mode, int panel_index)
 {
     static const int16_t angled_rot[MULTIPLAYER_COUNT] = {450, 1350, 2250, 3150};
 
     switch (mode) {
-        case ROTATION_MODE_ANGLED:
+        case ORIENTATION_MODE_CENTRIC:
             return angled_rot[panel_index];
-        case ROTATION_MODE_SPLIT:
+        case ORIENTATION_MODE_TABLETOP:
             return (panel_index == 1 || panel_index == 2) ? 1800 : 0;
         default:
             return 0;
     }
 }
 
-static int16_t get_3p_rotation_angle(int mode, int panel_index)
+static int16_t get_3p_orientation_angle(int mode, int panel_index)
 {
     static const int16_t angled_rot[3] = {1350, 2250, 0};
 
     switch (mode) {
-        case ROTATION_MODE_ANGLED:
+        case ORIENTATION_MODE_CENTRIC:
             return angled_rot[panel_index];
-        case ROTATION_MODE_SPLIT:
+        case ORIENTATION_MODE_TABLETOP:
             return (panel_index < 2) ? 1800 : 0;
         default:
             return 0;
@@ -154,12 +154,12 @@ static void refresh_mp_panel(lv_obj_t *panel, lv_obj_t *life_lbl, lv_obj_t *name
 
 static void refresh_multiplayer_4p_ui(void)
 {
-    int rotation_mode = nvs_get_rotation();
+    int orientation_mode = nvs_get_orientation();
     int i;
     int16_t angle;
 
     for (i = 0; i < MULTIPLAYER_COUNT; i++) {
-        angle = get_4p_rotation_angle(rotation_mode, i);
+        angle = get_4p_orientation_angle(orientation_mode, i);
         refresh_mp_panel(multiplayer_quadrants[i], label_multiplayer_life[i], label_multiplayer_name[i], i, i);
         if (label_multiplayer_life[i] != NULL) {
             lv_obj_clear_flag(label_multiplayer_life[i], LV_OBJ_FLAG_HIDDEN);
@@ -179,13 +179,13 @@ static void refresh_multiplayer_2p_ui(void)
     /* Panel 0 = top = P2 (player 1), Panel 1 = bottom = P1 (player 0) */
     static const int panel_player[2] = {1, 0};
     static const int panel_color[2]  = {0, 1};
-    int rotation_mode = nvs_get_rotation();
+    int orientation_mode = nvs_get_orientation();
     int i;
     for (i = 0; i < 2; i++) {
         refresh_mp_panel(mp2_panels[i], label_mp2_life[i], label_mp2_name[i],
                          panel_player[i], panel_color[i]);
         apply_label_rotation(label_mp2_life[i], label_mp2_name[i],
-            (i == 0 && rotation_mode != ROTATION_MODE_OFF) ? 1800 : 0, 10, -30);
+            (i == 0 && orientation_mode != ORIENTATION_MODE_ABSOLUTE) ? 1800 : 0, 10, -30);
     }
 }
 
@@ -193,12 +193,12 @@ static void refresh_multiplayer_3p_ui(void)
 {
     /* Panel 0 = top-left = P2 (player 1), Panel 1 = top-right = P3 (player 2), Panel 2 = bottom = P1 (player 0) */
     static const int panel_player[3] = {1, 2, 0};
-    int rotation_mode = nvs_get_rotation();
+    int orientation_mode = nvs_get_orientation();
     int i;
     int16_t angle;
 
     for (i = 0; i < 3; i++) {
-        angle = get_3p_rotation_angle(rotation_mode, i);
+        angle = get_3p_orientation_angle(orientation_mode, i);
         refresh_mp_panel(mp3_panels[i], label_mp3_life[i], label_mp3_name[i],
                          panel_player[i], panel_player[i]);
         if (label_mp3_life[i] != NULL)
