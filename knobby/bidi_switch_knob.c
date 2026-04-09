@@ -20,7 +20,7 @@ static const char *TAG = "Knob";
 // ---------- tunable polling constants ----------
 // 3 ms gives reliable detent-level debounce for a 24-PPR encoder at up to ~600 RPM.
 // Raising to 4–5 ms is safe for normal use but may lose detents during fast spinning.
-#define TICKS_INTERVAL 5     /* ms between encoder GPIO samples */
+#define TICKS_INTERVAL 4     /* ms between encoder GPIO samples */
 #define DEBOUNCE_TICKS 2     /* consecutive same-level samples needed to confirm edge */
 
 #define KNOB_CHECK(a, str, ret_val)                               \
