@@ -88,10 +88,17 @@ void setup()
 
 void loop()
 {
+  static bool lvgl_suspended_for_dim = false;
+
   knob_process_pending();
-  uint32_t time_till_next = lv_timer_handler();
 
   if (knob_is_dimmed()) {
+    uint32_t time_till_next = LIGHT_SLEEP_MAX_MS;
+
+    // While dimmed, avoid running LVGL timers and redraw work continuously.
+    // Wake sources are GPIO (touch/rotary) plus a bounded timer safety net.
+    lvgl_suspended_for_dim = true;
+
     // Clamp the sleep duration: never sleep longer than LIGHT_SLEEP_MAX_MS, and always
     // sleep at least 1 ms so we don't busy-spin if lv_timer_handler returns 0.
     if (time_till_next == 0 || time_till_next > LIGHT_SLEEP_MAX_MS)
@@ -110,9 +117,19 @@ void loop()
     // so knob events are processed on the next loop iteration.
     // Timer wake = LVGL housekeeping only: stay dimmed, re-enter sleep next iteration.
     if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_GPIO) {
+      knob_notify_gpio_wakeup();
       activity_kick();
     }
   } else {
+    uint32_t time_till_next;
+
+    if (lvgl_suspended_for_dim) {
+      lvgl_suspended_for_dim = false;
+      lv_refr_now(NULL);
+    }
+
+    time_till_next = lv_timer_handler();
+
     // Disable knob pin wakeup when active so they don't interfere
     gpio_wakeup_disable((gpio_num_t)ROTARY_ENC_PIN_A);
     gpio_wakeup_disable((gpio_num_t)ROTARY_ENC_PIN_B);

@@ -134,6 +134,9 @@ bool activity_kick(void)
             iot_knob_resume();
             knob_polling_paused = false;
         }
+        if (auto_dim_timer != NULL) {
+            lv_timer_resume(auto_dim_timer);
+        }
         setCpuFrequencyMhz(CPU_FREQ_ACTIVE);
         dimmed = false;
         undim_tick = last_activity_tick;
@@ -162,6 +165,9 @@ static void auto_dim_timer_cb(lv_timer_t *timer)
         ledc_set_duty(BACKLIGHT_LEDC_MODE, BACKLIGHT_LEDC_CHANNEL, duty);
         ledc_update_duty(BACKLIGHT_LEDC_MODE, BACKLIGHT_LEDC_CHANNEL);
         setCpuFrequencyMhz(CPU_FREQ_IDLE);
+        if (auto_dim_timer != NULL) {
+            lv_timer_pause(auto_dim_timer);
+        }
         // Stop 3 ms encoder polling timer while the device is dimmed; GPIO wakeup
         // on the rotary pins still fires so the display can be woken by rotation.
         iot_knob_stop();

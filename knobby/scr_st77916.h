@@ -28,12 +28,15 @@ static ESP_PanelTouch *touch = NULL;
 static int32_t ctx_diff;
 static lv_indev_state_t encoder_state;
 int encoder_cont = 0;
+static volatile bool touch_irq_pending = false;
 #define USE_CUSTOM_INIT_CMD 0 // 是否用自定义的初始化代码
 
 #if TOUCH_PIN_NUM_INT >= 0
 
 IRAM_ATTR bool onTouchInterruptCallback(void *user_data)
 {
+  (void)user_data;
+  touch_irq_pending = true;
   return false;
 }
 
@@ -311,6 +314,11 @@ static bool tp_tracking = false;
 static bool tp_swiped = false;
 static lv_point_t tp_start = {0, 0};
 
+void knob_notify_gpio_wakeup(void)
+{
+  touch_irq_pending = true;
+}
+
 #define SWIPE_THRESHOLD 80
 #define SWIPE_MAX_LATERAL 120
 
@@ -335,7 +343,13 @@ static void touchpad_read(lv_indev_drv_t *indev_drv, lv_indev_data_t *data)
   ESP_PanelTouch *tp = (ESP_PanelTouch *)indev_drv->user_data;
   ESP_PanelTouchPoint point;
 
+  if (!touch_irq_pending && !tp_tracking) {
+    data->state = LV_INDEV_STATE_RELEASED;
+    return;
+  }
+
   int read_touch_result = tp->readPoints(&point, 1);
+  touch_irq_pending = false;
   if (read_touch_result > 0)
   {
     bool was_dimmed = activity_kick();

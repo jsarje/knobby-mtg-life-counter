@@ -18,6 +18,7 @@ bool activity_kick(void);
 bool knob_is_dimmed(void);
 void knob_notify_swipe_up(void);
 void knob_notify_swipe_down(void);
+void knob_notify_gpio_wakeup(void);
 float knob_read_battery_voltage(void);
 
 
