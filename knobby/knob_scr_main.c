@@ -381,8 +381,10 @@ void back_to_main(void)
     cmd_damage_target = -1;
     if (track > 1) {
         extern lv_obj_t *screen_2p;
+        extern lv_obj_t *screen_3p;
         refresh_multiplayer_ui();
         if (track == 2) load_screen_if_needed(screen_2p);
+        else if (track == 3) load_screen_if_needed(screen_3p);
         else load_screen_if_needed(screen_4p);
     } else {
         refresh_main_ui();

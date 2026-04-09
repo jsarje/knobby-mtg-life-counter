@@ -127,6 +127,7 @@ static void handle_knob_event(knob_event_t k)
         refresh_settings_ui();
     }
     else if (lv_scr_act() == screen_4p ||
+             lv_scr_act() == screen_3p ||
              lv_scr_act() == screen_2p)
     {
         if (k == KNOB_LEFT)      change_multiplayer_life(-1);
