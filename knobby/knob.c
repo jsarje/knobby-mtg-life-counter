@@ -93,7 +93,6 @@ void knob_gui(void)
     refresh_select_ui();
     refresh_damage_ui();
     refresh_multiplayer_all_damage_ui();
-    refresh_select_ui();
     refresh_settings_ui();
 
     knob_timer_init();

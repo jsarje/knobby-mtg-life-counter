@@ -1,5 +1,6 @@
 #include "knob_hw.h"
 #include "knob_nvs.h"
+#include "bidi_switch_knob.h"
 #include "driver/ledc.h"
 #include "esp32-hal-cpu.h"
 
@@ -12,11 +13,21 @@
 #define BACKLIGHT_LEDC_RES LEDC_TIMER_10_BIT
 #define BACKLIGHT_DUTY_MAX 1023
 
-#define AUTO_DIM_TIMEOUT_MS 30000
-#define AUTO_DIM_BRIGHTNESS 5
-#define UNDIM_GRACE_MS 150
-#define CPU_FREQ_ACTIVE 240
-#define CPU_FREQ_IDLE 80
+// ---------- tunable power / timing constants ----------
+// Increase AUTO_DIM_TIMEOUT_MS to reduce how often the device dims.
+#define AUTO_DIM_TIMEOUT_MS     30000   /* ms idle before display dims */
+// Reducing AUTO_DIM_BRIGHTNESS below 5 further cuts backlight draw while dimmed.
+#define AUTO_DIM_BRIGHTNESS     5       /* % brightness while dimmed */
+// UNDIM_GRACE_MS suppresses input for this long after wake to avoid accidental presses.
+#define UNDIM_GRACE_MS          150     /* ms */
+// 240 MHz is required for display stability; 160 MHz causes render errors on this hardware.
+#define CPU_FREQ_ACTIVE         240     /* MHz – do not reduce without display driver testing */
+// 80 MHz is used while dimmed; lower values (e.g. 40) may be safe but are untested here.
+#define CPU_FREQ_IDLE           80      /* MHz – used during light sleep / dimmed state */
+// Battery sample throttle: how often a fresh ADC measurement is allowed.
+#define BATTERY_SAMPLE_INTERVAL_MS  60000   /* ms between passive battery measurements */
+// Auto-dim check period: how often the inactivity timer fires.
+#define AUTO_DIM_CHECK_PERIOD_MS    1000    /* ms */
 
 // ---------- state ----------
 int brightness_percent = DEFAULT_BRIGHTNESS_PERCENT;
@@ -30,6 +41,8 @@ static bool battery_sample_valid = false;
 static uint32_t last_activity_tick = 0;
 static uint32_t undim_tick = 0;
 static lv_timer_t *auto_dim_timer = NULL;
+/* Set when iot_knob_stop() is called on dim; cleared on resume to avoid double-resume errors. */
+static bool knob_polling_paused = false;
 
 // ---------- battery curve ----------
 static const float battery_curve_voltages[] = {
@@ -69,7 +82,7 @@ static int battery_percent_from_voltage(float voltage)
 // ---------- battery ----------
 void update_battery_measurement(bool force)
 {
-    if (!force && battery_sample_valid && (lv_tick_elaps(battery_sample_tick) < 5000)) {
+    if (!force && battery_sample_valid && (lv_tick_elaps(battery_sample_tick) < BATTERY_SAMPLE_INTERVAL_MS)) {
         return;
     }
 
@@ -129,6 +142,12 @@ bool activity_kick(void)
     bool was_dimmed = dimmed;
     last_activity_tick = lv_tick_get();
     if (dimmed) {
+        // Resume encoder polling before restoring active state so the first loop
+        // iteration after undim can already process knob events.
+        if (knob_polling_paused) {
+            iot_knob_resume();
+            knob_polling_paused = false;
+        }
         setCpuFrequencyMhz(CPU_FREQ_ACTIVE);
         dimmed = false;
         undim_tick = last_activity_tick;
@@ -157,6 +176,10 @@ static void auto_dim_timer_cb(lv_timer_t *timer)
         ledc_set_duty(BACKLIGHT_LEDC_MODE, BACKLIGHT_LEDC_CHANNEL, duty);
         ledc_update_duty(BACKLIGHT_LEDC_MODE, BACKLIGHT_LEDC_CHANNEL);
         setCpuFrequencyMhz(CPU_FREQ_IDLE);
+        // Stop 3 ms encoder polling timer while the device is dimmed; GPIO wakeup
+        // on the rotary pins still fires so the display can be woken by rotation.
+        iot_knob_stop();
+        knob_polling_paused = true;
     }
 }
 
@@ -168,5 +191,5 @@ void knob_hw_init(void)
     brightness_percent = nvs_get_brightness();
     auto_dim_enabled = nvs_get_auto_dim();
     last_activity_tick = lv_tick_get();
-    auto_dim_timer = lv_timer_create(auto_dim_timer_cb, 1000, NULL);
+    auto_dim_timer = lv_timer_create(auto_dim_timer_cb, AUTO_DIM_CHECK_PERIOD_MS, NULL);
 }

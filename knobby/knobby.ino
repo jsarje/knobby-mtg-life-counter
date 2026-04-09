@@ -6,9 +6,6 @@
 #include "scr_st77916.h"
 #include <lvgl.h>
 #include "hal/lv_hal.h"
-#include "SD_MMC.h"
-#include "FS.h"
-#include <sdmmc_cmd.h>
 #include "knob.h"
 
 static const int BATTERY_ADC_PIN = 1;
@@ -80,8 +77,13 @@ void setup()
   // Configure light sleep wakeup sources
   gpio_wakeup_enable((gpio_num_t)TOUCH_PIN_NUM_INT, GPIO_INTR_LOW_LEVEL);
   esp_sleep_enable_gpio_wakeup();
-  esp_sleep_enable_timer_wakeup(1000000); // 1 second fallback for LVGL timers
+  // Timer wakeup duration is set dynamically in loop() from lv_timer_handler()'s
+  // next-deadline value so the CPU only wakes when LVGL actually needs to run.
 }
+
+// Maximum time the CPU may sleep before LVGL must get a tick, even if no timer fires.
+// 2 seconds is conservative; LVGL's auto-dim check runs at 1 s so this is a safety net.
+#define LIGHT_SLEEP_MAX_MS 2000U
 
 void loop()
 {
@@ -89,12 +91,26 @@ void loop()
   uint32_t time_till_next = lv_timer_handler();
 
   if (knob_is_dimmed()) {
+    // Clamp the sleep duration: never sleep longer than LIGHT_SLEEP_MAX_MS, and always
+    // sleep at least 1 ms so we don't busy-spin if lv_timer_handler returns 0.
+    if (time_till_next == 0 || time_till_next > LIGHT_SLEEP_MAX_MS)
+      time_till_next = LIGHT_SLEEP_MAX_MS;
+
+    // Arm the hardware timer to the next LVGL deadline before entering light sleep.
+    esp_sleep_enable_timer_wakeup((uint64_t)time_till_next * 1000ULL);
+
     // Set knob pin wakeup to opposite of current level so any rotation wakes us
     uint8_t level_a = gpio_get_level((gpio_num_t)ROTARY_ENC_PIN_A);
     uint8_t level_b = gpio_get_level((gpio_num_t)ROTARY_ENC_PIN_B);
     gpio_wakeup_enable((gpio_num_t)ROTARY_ENC_PIN_A, level_a ? GPIO_INTR_LOW_LEVEL : GPIO_INTR_HIGH_LEVEL);
     gpio_wakeup_enable((gpio_num_t)ROTARY_ENC_PIN_B, level_b ? GPIO_INTR_LOW_LEVEL : GPIO_INTR_HIGH_LEVEL);
     esp_light_sleep_start();
+    // GPIO wake = user input (touch or rotary): undim and resume the encoder timer
+    // so knob events are processed on the next loop iteration.
+    // Timer wake = LVGL housekeeping only: stay dimmed, re-enter sleep next iteration.
+    if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_GPIO) {
+      activity_kick();
+    }
   } else {
     // Disable knob pin wakeup when active so they don't interfere
     gpio_wakeup_disable((gpio_num_t)ROTARY_ENC_PIN_A);

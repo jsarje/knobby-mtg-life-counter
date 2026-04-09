@@ -136,7 +136,8 @@ void open_quad_menu(void)
 
 void open_settings_screen(void)
 {
-    update_battery_measurement(true);
+    // No forced battery read here – the brightness settings page does not display
+    // battery info. The battery screen entry point forces its own sample.
     refresh_settings_ui();
     load_screen_if_needed(screen_settings);
 }
