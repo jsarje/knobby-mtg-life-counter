@@ -17,7 +17,7 @@ General rules for all agents
 - Always open and reference the files linked in “Repo quick pointers” before proposing changes.
 - Prefer minimal, focused edits (fix root cause, don't patch around).
 - Respect the LICENSE and CONTRIBUTING guidelines.
-- When suggesting commands, use the exact `arduino-cli` commands from [README.md](README.md) for build/flash.
+- When suggesting commands, use the exact `arduino-cli` commands from [CONTRIBUTING.md](CONTRIBUTING.md) for build/flash.
 - Do not invent or assume hardware specifics beyond what's in README and source headers.
 
 Suggested system prompts / personas

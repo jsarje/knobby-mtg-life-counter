@@ -26,7 +26,7 @@ Go to https://knobby-mtg.github.io/knobby-mtg-life-counter/ to install the lates
 
 ## 🚀 Getting Started
 
-Swipe up from the bottom to open the menu, and down from the top to close a menu or go back.
+Swipe inward from any edge on a player screen to open the menu, and swipe down or in from the right edge to close a menu or go back.
 
 ## ⚙️ Hardware
 
