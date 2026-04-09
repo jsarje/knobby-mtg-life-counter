@@ -3,7 +3,7 @@
 This is a non-commercial hobby project. Contributors are not associated with any company.
 
 > [!Note]
-> Full disclosure: this was programmed with the help of  generative AI
+> Full disclosure: this was programmed with the help of generative AI
 
 ## ✨ Features
 
@@ -18,6 +18,9 @@ Features/intended use:
 ## 🛠️ Installation
 
 Go to https://knobby-mtg.github.io/knobby-mtg-life-counter/ to install the latest release with a compatible browser.
+
+> [!Warning]
+> Installation is at your own risk, we take no responsiblity for failed installations or devices.
 
 ## 🚀 Getting Started
 
