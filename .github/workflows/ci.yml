@@ -17,7 +17,7 @@ jobs:
         uses: arduino/setup-arduino-cli@v2
 
       - name: Cache arduino cores and libraries
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.arduino15/packages

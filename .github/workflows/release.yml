@@ -23,13 +23,13 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       
       - name: Setup Arduino CLI
         uses: arduino/setup-arduino-cli@v2
 
       - name: Cache arduino cores and libraries
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.arduino15/packages
@@ -59,19 +59,19 @@ jobs:
           sed -i "s/\"latest\"/\"${{ github.ref_name }}\"/g" web/manifest.json
 
       - name: Setup Pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@v6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           enablement: true
 
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v4
         with:
           path: web
 
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
 
       - name: Zip binaries for GitHub Release
         run: |
