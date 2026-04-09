@@ -13,21 +13,7 @@
 #define BACKLIGHT_LEDC_RES LEDC_TIMER_10_BIT
 #define BACKLIGHT_DUTY_MAX 1023
 
-// ---------- tunable power / timing constants ----------
-// Increase AUTO_DIM_TIMEOUT_MS to reduce how often the device dims.
-#define AUTO_DIM_TIMEOUT_MS     30000   /* ms idle before display dims */
-// Reducing AUTO_DIM_BRIGHTNESS below 5 further cuts backlight draw while dimmed.
-#define AUTO_DIM_BRIGHTNESS     5       /* % brightness while dimmed */
-// UNDIM_GRACE_MS suppresses input for this long after wake to avoid accidental presses.
-#define UNDIM_GRACE_MS          150     /* ms */
-// 240 MHz is required for display stability; 160 MHz causes render errors on this hardware.
-#define CPU_FREQ_ACTIVE         240     /* MHz – do not reduce without display driver testing */
-// 80 MHz is used while dimmed; lower values (e.g. 40) may be safe but are untested here.
-#define CPU_FREQ_IDLE           80      /* MHz – used during light sleep / dimmed state */
-// Battery sample throttle: how often a fresh ADC measurement is allowed.
-#define BATTERY_SAMPLE_INTERVAL_MS  60000   /* ms between passive battery measurements */
-// Auto-dim check period: how often the inactivity timer fires.
-#define AUTO_DIM_CHECK_PERIOD_MS    1000    /* ms */
+// Tunable power/timing constants are defined in knob_hw.h
 
 // ---------- state ----------
 int brightness_percent = DEFAULT_BRIGHTNESS_PERCENT;

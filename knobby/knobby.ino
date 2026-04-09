@@ -7,6 +7,7 @@
 #include <lvgl.h>
 #include "hal/lv_hal.h"
 #include "knob.h"
+#include "knob_hw.h"
 
 static const int BATTERY_ADC_PIN = 1;
 static const float BATTERY_DIVIDER_RATIO = 2.0f;
@@ -55,8 +56,8 @@ extern "C" float knob_read_battery_voltage(void)
 
 void setup()
 {
-  // 160 MHz verbraucht weniger Batterie, 240 MHz reduziert hier aber Darstellungsfehler und Hänger.
-  setCpuFrequencyMhz(240);
+  // Use the configured active CPU frequency for easier tuning.
+  setCpuFrequencyMhz(CPU_FREQ_ACTIVE);
 
   // Disable radios
   esp_wifi_stop();
