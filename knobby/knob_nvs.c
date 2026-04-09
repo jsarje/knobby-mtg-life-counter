@@ -9,7 +9,7 @@ static int cached_brightness = DEFAULT_BRIGHTNESS_PERCENT;
 static bool cached_auto_dim = false;
 static int cached_color_mode = 0;
 static int cached_deselect_timeout = 0; /* index: 0=never, 1=5s, 2=15s, 3=30s */
-static bool cached_rotation = false;
+static int cached_orientation = ORIENTATION_MODE_ABSOLUTE;
 static int cached_num_players = 4;
 static int cached_players_to_track = 1;
 static int cached_life_total = DEFAULT_LIFE_TOTAL;
@@ -43,7 +43,9 @@ void knob_nvs_init(void)
         cached_auto_dim = (dim_val != 0);
         cached_color_mode = lc_val;
         cached_deselect_timeout = (dt_val < 0) ? 0 : (dt_val > 3) ? 3 : dt_val;
-        cached_rotation = (rot_val != 0);
+        cached_orientation = (rot_val < 0) ? ORIENTATION_MODE_ABSOLUTE
+                : (rot_val >= ORIENTATION_MODE_COUNT) ? ORIENTATION_MODE_ABSOLUTE
+                                   : rot_val;
         cached_brightness = clamp_brightness(bri_val);
         cached_num_players = (np_val < 1) ? 1 : (np_val > MAX_PLAYERS) ? MAX_PLAYERS : np_val;
         cached_players_to_track = (pt_val < 1) ? 1 : (pt_val > 4) ? 4 : pt_val;
@@ -104,14 +106,16 @@ void nvs_set_deselect_timeout(int value)
     settings_dirty = true;
 }
 
-bool nvs_get_rotation(void)
+int nvs_get_orientation(void)
 {
-    return cached_rotation;
+    return cached_orientation;
 }
 
-void nvs_set_rotation(bool value)
+void nvs_set_orientation(int value)
 {
-    cached_rotation = value;
+    cached_orientation = (value < 0) ? ORIENTATION_MODE_ABSOLUTE
+                                      : (value >= ORIENTATION_MODE_COUNT) ? ORIENTATION_MODE_ABSOLUTE
+                                                                       : value;
     settings_dirty = true;
 }
 
@@ -171,7 +175,7 @@ void settings_save(void)
         nvs_set_i8(handle, "brightness", (int8_t)cached_brightness);
         nvs_set_i8(handle, "color_mode", (int8_t)cached_color_mode);
         nvs_set_i8(handle, "desel_time", (int8_t)cached_deselect_timeout);
-        nvs_set_i8(handle, "rotation", cached_rotation ? 1 : 0);
+        nvs_set_i8(handle, "rotation", (int8_t)cached_orientation);
         nvs_set_i8(handle, "num_players", (int8_t)cached_num_players);
         nvs_set_i8(handle, "track", (int8_t)cached_players_to_track);
         nvs_set_i16(handle, "life_total", (int16_t)cached_life_total);

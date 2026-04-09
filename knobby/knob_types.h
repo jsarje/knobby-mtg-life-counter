@@ -22,6 +22,12 @@
 #define COLOR_MODE_LIFE   1
 #define COLOR_MODE_COUNT  2
 
+// ---------- orientation modes ----------
+#define ORIENTATION_MODE_ABSOLUTE 0
+#define ORIENTATION_MODE_CENTRIC  1
+#define ORIENTATION_MODE_TABLETOP 2
+#define ORIENTATION_MODE_COUNT    3
+
 // ---------- deselect timeout options ----------
 #define DESELECT_NEVER 0
 #define DESELECT_5S    1

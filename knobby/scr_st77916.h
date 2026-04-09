@@ -321,17 +321,36 @@ void knob_notify_gpio_wakeup(void)
 
 #define SWIPE_THRESHOLD 80
 #define SWIPE_MAX_LATERAL 120
+#define SWIPE_LEFT_EDGE_ZONE 80
+#define SWIPE_RIGHT_EDGE_ZONE 80
 
 static bool check_swipe(int cur_x, int cur_y)
 {
-  int dy = tp_start.y - cur_y;
-  int dx = cur_x > tp_start.x ? cur_x - tp_start.x : tp_start.x - cur_x;
-  if (dy > SWIPE_THRESHOLD && dx < SWIPE_MAX_LATERAL) {
+  int dx = cur_x - tp_start.x;
+  int dy = cur_y - tp_start.y;
+  int abs_dx = dx >= 0 ? dx : -dx;
+  int abs_dy = dy >= 0 ? dy : -dy;
+
+  if (-dy > SWIPE_THRESHOLD && abs_dx < SWIPE_MAX_LATERAL) {
     knob_notify_swipe_up();
     lv_indev_reset(lv_indev_get_act(), NULL);
     return true;
-  } else if (dy < -SWIPE_THRESHOLD && dx < SWIPE_MAX_LATERAL) {
+  } else if (dy > SWIPE_THRESHOLD && abs_dx < SWIPE_MAX_LATERAL) {
     knob_notify_swipe_down();
+    lv_indev_reset(lv_indev_get_act(), NULL);
+    return true;
+  } else if (tp_start.x >= (SCREEN_RES_HOR - SWIPE_RIGHT_EDGE_ZONE) &&
+             -dx > SWIPE_THRESHOLD &&
+             abs_dy < SWIPE_MAX_LATERAL &&
+             -dx > abs_dy) {
+    knob_notify_swipe_left();
+    lv_indev_reset(lv_indev_get_act(), NULL);
+    return true;
+  } else if (tp_start.x <= SWIPE_LEFT_EDGE_ZONE &&
+             dx > SWIPE_THRESHOLD &&
+             abs_dy < SWIPE_MAX_LATERAL &&
+             dx > abs_dy) {
+    knob_notify_swipe_right();
     lv_indev_reset(lv_indev_get_act(), NULL);
     return true;
   }

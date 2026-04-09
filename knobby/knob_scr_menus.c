@@ -27,8 +27,8 @@ static lv_obj_t *btn_color_mode = NULL;
 static lv_obj_t *label_color_mode_quad = NULL;
 static lv_obj_t *btn_deselect = NULL;
 static lv_obj_t *label_deselect_quad = NULL;
-static lv_obj_t *btn_rotation = NULL;
-static lv_obj_t *label_rotation_quad = NULL;
+static lv_obj_t *btn_orientation = NULL;
+static lv_obj_t *label_orientation_quad = NULL;
 static lv_obj_t *arc_brightness = NULL;
 static lv_obj_t *label_settings_value = NULL;
 static lv_obj_t *label_settings_hint = NULL;
@@ -153,7 +153,14 @@ static void set_btn_color(lv_obj_t *btn, uint32_t color)
 }
 
 static uint32_t autodim_color(bool on) { return on ? TOGGLE_ON : TOGGLE_OFF; }
-static uint32_t rotation_color(bool on) { return on ? TOGGLE_ON : TOGGLE_OFF; }
+static uint32_t orientation_color(int mode)
+{
+    switch (mode) {
+        case ORIENTATION_MODE_CENTRIC: return TOGGLE_ON;
+        case ORIENTATION_MODE_TABLETOP:  return 0x0D47A1;
+        default:                   return TOGGLE_OFF;
+    }
+}
 
 static uint32_t color_mode_color(int mode)
 {
@@ -225,6 +232,15 @@ static const char *deselect_label(int index)
     }
 }
 
+static const char *orientation_mode_label(int mode)
+{
+    switch (mode) {
+        case ORIENTATION_MODE_CENTRIC: return "Orientation\nCentric";
+        case ORIENTATION_MODE_TABLETOP:  return "Orientation\nTabletop";
+        default:                   return "Orientation\nAbsolute";
+    }
+}
+
 static void event_screen_deselect(lv_event_t *e)
 {
     int val;
@@ -237,16 +253,16 @@ static void event_screen_deselect(lv_event_t *e)
     set_btn_color(btn_deselect, deselect_color(val));
 }
 
-static void event_screen_rotation(lv_event_t *e)
+static void event_screen_orientation(lv_event_t *e)
 {
-    bool val;
+    int val;
     (void)e;
-    val = !nvs_get_rotation();
-    nvs_set_rotation(val);
-    if (label_rotation_quad) {
-        lv_label_set_text(label_rotation_quad, val ? "Rotation\nEnabled" : "Rotation\nDisabled");
+    val = (nvs_get_orientation() + 1) % ORIENTATION_MODE_COUNT;
+    nvs_set_orientation(val);
+    if (label_orientation_quad) {
+        lv_label_set_text(label_orientation_quad, orientation_mode_label(val));
     }
-    set_btn_color(btn_rotation, rotation_color(val));
+    set_btn_color(btn_orientation, orientation_color(val));
 }
 
 static void event_screen_more(lv_event_t *e)
@@ -330,7 +346,7 @@ void build_quad_menus(void)
     quad_item_t page2_items[4] = {
         {color_mode_label(nvs_get_color_mode()), event_screen_color_mode, true, LV_EVENT_CLICKED},
         {deselect_label(nvs_get_deselect_timeout()), event_screen_deselect, true, LV_EVENT_CLICKED},
-        {nvs_get_rotation() ? "Rotation\nEnabled" : "Rotation\nDisabled", event_screen_rotation, true, LV_EVENT_CLICKED},
+        {orientation_mode_label(nvs_get_orientation()), event_screen_orientation, true, LV_EVENT_CLICKED},
         {"",              NULL, false, LV_EVENT_CLICKED},
     };
     build_quad_screen(&screen_settings_page2, page2_items);
@@ -343,9 +359,9 @@ void build_quad_menus(void)
     label_deselect_quad = lv_obj_get_child(btn_deselect, 0);
     set_btn_color(btn_deselect, deselect_color(nvs_get_deselect_timeout()));
 
-    btn_rotation = lv_obj_get_child(screen_settings_page2, 2);
-    label_rotation_quad = lv_obj_get_child(btn_rotation, 0);
-    set_btn_color(btn_rotation, rotation_color(nvs_get_rotation()));
+    btn_orientation = lv_obj_get_child(screen_settings_page2, 2);
+    label_orientation_quad = lv_obj_get_child(btn_orientation, 0);
+    set_btn_color(btn_orientation, orientation_color(nvs_get_orientation()));
 }
 
 void build_settings_screen(void)
