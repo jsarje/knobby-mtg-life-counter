@@ -153,7 +153,14 @@ static void set_btn_color(lv_obj_t *btn, uint32_t color)
 }
 
 static uint32_t autodim_color(bool on) { return on ? TOGGLE_ON : TOGGLE_OFF; }
-static uint32_t rotation_color(bool on) { return on ? TOGGLE_ON : TOGGLE_OFF; }
+static uint32_t rotation_color(int mode)
+{
+    switch (mode) {
+        case ROTATION_MODE_ANGLED: return TOGGLE_ON;
+        case ROTATION_MODE_SPLIT:  return 0x0D47A1;
+        default:                   return TOGGLE_OFF;
+    }
+}
 
 static uint32_t color_mode_color(int mode)
 {
@@ -225,6 +232,15 @@ static const char *deselect_label(int index)
     }
 }
 
+static const char *rotation_mode_label(int mode)
+{
+    switch (mode) {
+        case ROTATION_MODE_ANGLED: return "Rotation\nAngled";
+        case ROTATION_MODE_SPLIT:  return "Rotation\nSplit";
+        default:                   return "Rotation\nOff";
+    }
+}
+
 static void event_screen_deselect(lv_event_t *e)
 {
     int val;
@@ -239,12 +255,12 @@ static void event_screen_deselect(lv_event_t *e)
 
 static void event_screen_rotation(lv_event_t *e)
 {
-    bool val;
+    int val;
     (void)e;
-    val = !nvs_get_rotation();
+    val = (nvs_get_rotation() + 1) % ROTATION_MODE_COUNT;
     nvs_set_rotation(val);
     if (label_rotation_quad) {
-        lv_label_set_text(label_rotation_quad, val ? "Rotation\nEnabled" : "Rotation\nDisabled");
+        lv_label_set_text(label_rotation_quad, rotation_mode_label(val));
     }
     set_btn_color(btn_rotation, rotation_color(val));
 }
@@ -330,7 +346,7 @@ void build_quad_menus(void)
     quad_item_t page2_items[4] = {
         {color_mode_label(nvs_get_color_mode()), event_screen_color_mode, true, LV_EVENT_CLICKED},
         {deselect_label(nvs_get_deselect_timeout()), event_screen_deselect, true, LV_EVENT_CLICKED},
-        {nvs_get_rotation() ? "Rotation\nEnabled" : "Rotation\nDisabled", event_screen_rotation, true, LV_EVENT_CLICKED},
+        {rotation_mode_label(nvs_get_rotation()), event_screen_rotation, true, LV_EVENT_CLICKED},
         {"",              NULL, false, LV_EVENT_CLICKED},
     };
     build_quad_screen(&screen_settings_page2, page2_items);

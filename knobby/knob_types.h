@@ -22,6 +22,12 @@
 #define COLOR_MODE_LIFE   1
 #define COLOR_MODE_COUNT  2
 
+// ---------- text rotation modes ----------
+#define ROTATION_MODE_OFF     0
+#define ROTATION_MODE_ANGLED  1
+#define ROTATION_MODE_SPLIT   2
+#define ROTATION_MODE_COUNT   3
+
 // ---------- deselect timeout options ----------
 #define DESELECT_NEVER 0
 #define DESELECT_5S    1
