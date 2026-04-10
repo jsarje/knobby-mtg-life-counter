@@ -71,13 +71,13 @@ static void create_counter_row(lv_obj_t *parent, counter_type_t type,
     lv_obj_t *icon;
     lv_obj_t *glyph;
 
-    row = make_plain_box(parent, 84, 24);
+    row = make_plain_box(parent, 34, 34);
     lv_obj_add_flag(row, LV_OBJ_FLAG_HIDDEN);
 
     icon = lv_obj_create(row);
     lv_obj_remove_style_all(icon);
-    lv_obj_set_size(icon, 22, 22);
-    lv_obj_align(icon, LV_ALIGN_LEFT_MID, 0, 0);
+    lv_obj_set_size(icon, 16, 16);
+    lv_obj_align(icon, LV_ALIGN_TOP_MID, 0, 0);
     lv_obj_set_style_radius(icon, LV_RADIUS_CIRCLE, 0);
     lv_obj_set_style_bg_opa(icon, LV_OPA_COVER, 0);
     lv_obj_set_style_bg_color(icon,
@@ -93,7 +93,8 @@ static void create_counter_row(lv_obj_t *parent, counter_type_t type,
     lv_label_set_text(*value_out, "0");
     lv_obj_set_style_text_color(*value_out, lv_color_white(), 0);
     lv_obj_set_style_text_font(*value_out, &lv_font_montserrat_14, 0);
-    lv_obj_align(*value_out, LV_ALIGN_LEFT_MID, 30, 0);
+    lv_obj_align(*value_out, LV_ALIGN_BOTTOM_MID, 0, 0);
+    lv_obj_set_style_text_align(*value_out, LV_TEXT_ALIGN_CENTER, 0);
 
     *row_out = row;
 }
@@ -140,32 +141,37 @@ static void refresh_counter_rows(lv_obj_t **rows, lv_obj_t **value_labels,
                                  lv_coord_t base_y, int16_t angle)
 {
     int type;
-    int visible_index = 0;
+    int visible_count = 0;
+    int visible_types[COUNTER_TYPE_COUNT];
     char buf[8];
+    const lv_coord_t step = 40;
 
     for (type = 0; type < COUNTER_TYPE_COUNT; type++) {
-        int value;
-
         if (rows[type] == NULL || value_labels[type] == NULL) continue;
 
-        if (!counter_type_is_enabled((counter_type_t)type)) {
+        if (!counter_type_is_enabled((counter_type_t)type) ||
+            get_multiplayer_counter_value(player_index, (counter_type_t)type) <= 0) {
             lv_obj_add_flag(rows[type], LV_OBJ_FLAG_HIDDEN);
             continue;
         }
 
-        value = get_multiplayer_counter_value(player_index, (counter_type_t)type);
-        if (value <= 0) {
-            lv_obj_add_flag(rows[type], LV_OBJ_FLAG_HIDDEN);
-            continue;
-        }
+        visible_types[visible_count] = type;
+        visible_count++;
+    }
+
+    for (type = 0; type < visible_count; type++) {
+        int value;
+        int counter_type = visible_types[type];
+        lv_coord_t x_offset = (lv_coord_t)((type * step) - ((visible_count - 1) * step / 2));
+
+        value = get_multiplayer_counter_value(player_index, (counter_type_t)counter_type);
 
         snprintf(buf, sizeof(buf), "%d", value);
-        lv_label_set_text(value_labels[type], buf);
-        lv_obj_set_style_text_color(value_labels[type], text_color, 0);
-        lv_obj_clear_flag(rows[type], LV_OBJ_FLAG_HIDDEN);
-        lv_obj_align(rows[type], LV_ALIGN_CENTER, 0, base_y + (visible_index * 22));
-        apply_object_rotation(rows[type], angle, -(base_y + (visible_index * 22)));
-        visible_index++;
+        lv_label_set_text(value_labels[counter_type], buf);
+        lv_obj_set_style_text_color(value_labels[counter_type], text_color, 0);
+        lv_obj_clear_flag(rows[counter_type], LV_OBJ_FLAG_HIDDEN);
+        lv_obj_align(rows[counter_type], LV_ALIGN_CENTER, x_offset, base_y);
+        apply_object_rotation(rows[counter_type], angle, -base_y);
     }
 }
 
@@ -251,7 +257,7 @@ static void refresh_multiplayer_4p_ui(void)
         }
         apply_label_rotation(label_multiplayer_life[i], label_multiplayer_name[i],
             angle, 30, -30);
-        refresh_counter_rows(counter_row_4p[i], counter_value_4p[i], i, text_color, 56, angle);
+        refresh_counter_rows(counter_row_4p[i], counter_value_4p[i], i, text_color, -66, angle);
     }
 }
 
@@ -269,7 +275,7 @@ static void refresh_multiplayer_2p_ui(void)
         apply_label_rotation(label_mp2_life[i], label_mp2_name[i],
             (i == 0 && orientation_mode != ORIENTATION_MODE_ABSOLUTE) ? 1800 : 0, 10, -30);
         refresh_counter_rows(counter_row_2p[i], counter_value_2p[i], panel_player[i],
-            text_color, 56, (i == 0 && orientation_mode != ORIENTATION_MODE_ABSOLUTE) ? 1800 : 0);
+            text_color, -64, (i == 0 && orientation_mode != ORIENTATION_MODE_ABSOLUTE) ? 1800 : 0);
     }
 }
 
@@ -292,7 +298,7 @@ static void refresh_multiplayer_3p_ui(void)
             lv_obj_align(label_mp3_name[i], LV_ALIGN_CENTER, 0, 30);
         apply_label_rotation(label_mp3_life[i], label_mp3_name[i],
             angle, 30, -30);
-        refresh_counter_rows(counter_row_3p[i], counter_value_3p[i], panel_player[i], text_color, 56, angle);
+        refresh_counter_rows(counter_row_3p[i], counter_value_3p[i], panel_player[i], text_color, -66, angle);
     }
 }
 
