@@ -144,7 +144,7 @@ static void refresh_counter_rows(lv_obj_t **rows, lv_obj_t **value_labels,
     int visible_count = 0;
     int visible_types[COUNTER_TYPE_COUNT];
     char buf[8];
-    const lv_coord_t step = 40;
+    const lv_coord_t step = 30;
 
     for (type = 0; type < COUNTER_TYPE_COUNT; type++) {
         if (rows[type] == NULL || value_labels[type] == NULL) continue;
