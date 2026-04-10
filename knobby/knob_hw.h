@@ -16,10 +16,7 @@ extern int battery_percent;
 #define AUTO_DIM_BRIGHTNESS     5       /* % brightness while dimmed */
 // UNDIM_GRACE_MS suppresses input for this long after wake to avoid accidental presses.
 #define UNDIM_GRACE_MS          150     /* ms */
-// Default active CPU frequency; some displays may be sensitive to lower CPU clocks.
-#define CPU_FREQ_ACTIVE         160     /* MHz – reduced for power; test for display stability */
-// 80 MHz is used while dimmed; lower values (e.g. 40) may be safe but are untested here.
-#define CPU_FREQ_IDLE           80      /* MHz – used during light sleep / dimmed state */
+#define CPU_FREQ_ACTIVE         160     /* MHz – APB bus stays 80 MHz at 80/160/240 */
 // Battery sample throttle: how often a fresh ADC measurement is allowed.
 #define BATTERY_SAMPLE_INTERVAL_MS  60000   /* ms between passive battery measurements */
 // Auto-dim check period: how often the inactivity timer fires.

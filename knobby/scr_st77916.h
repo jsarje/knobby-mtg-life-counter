@@ -314,11 +314,6 @@ static bool tp_tracking = false;
 static bool tp_swiped = false;
 static lv_point_t tp_start = {0, 0};
 
-void knob_notify_gpio_wakeup(void)
-{
-  touch_irq_pending = true;
-}
-
 #define SWIPE_THRESHOLD 80
 #define SWIPE_MAX_LATERAL 120
 #define SWIPE_LEFT_EDGE_ZONE 80

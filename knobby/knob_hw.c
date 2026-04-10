@@ -1,8 +1,6 @@
 #include "knob_hw.h"
 #include "knob_nvs.h"
-#include "bidi_switch_knob.h"
 #include "driver/ledc.h"
-#include "esp32-hal-cpu.h"
 
 // ---------- private constants ----------
 #define BACKLIGHT_PIN 47
@@ -27,8 +25,6 @@ static bool battery_sample_valid = false;
 static uint32_t last_activity_tick = 0;
 static uint32_t undim_tick = 0;
 static lv_timer_t *auto_dim_timer = NULL;
-/* Set when iot_knob_stop() is called on dim; cleared on resume to avoid double-resume errors. */
-static bool knob_polling_paused = false;
 
 // ---------- battery curve ----------
 static const float battery_curve_voltages[] = {
@@ -128,16 +124,9 @@ bool activity_kick(void)
     bool was_dimmed = dimmed;
     last_activity_tick = lv_tick_get();
     if (dimmed) {
-        // Resume encoder polling before restoring active state so the first loop
-        // iteration after undim can already process knob events.
-        if (knob_polling_paused) {
-            iot_knob_resume();
-            knob_polling_paused = false;
-        }
         if (auto_dim_timer != NULL) {
             lv_timer_resume(auto_dim_timer);
         }
-        setCpuFrequencyMhz(CPU_FREQ_ACTIVE);
         dimmed = false;
         undim_tick = last_activity_tick;
         brightness_apply();
@@ -150,11 +139,6 @@ bool in_undim_grace(void)
     return undim_tick != 0 && lv_tick_elaps(undim_tick) < UNDIM_GRACE_MS;
 }
 
-bool knob_is_dimmed(void)
-{
-    return dimmed;
-}
-
 static void auto_dim_timer_cb(lv_timer_t *timer)
 {
     (void)timer;
@@ -165,14 +149,9 @@ static void auto_dim_timer_cb(lv_timer_t *timer)
         uint32_t duty = (uint32_t)((AUTO_DIM_BRIGHTNESS * BACKLIGHT_DUTY_MAX) / 100);
         ledc_set_duty(BACKLIGHT_LEDC_MODE, BACKLIGHT_LEDC_CHANNEL, duty);
         ledc_update_duty(BACKLIGHT_LEDC_MODE, BACKLIGHT_LEDC_CHANNEL);
-        setCpuFrequencyMhz(CPU_FREQ_IDLE);
         if (auto_dim_timer != NULL) {
             lv_timer_pause(auto_dim_timer);
         }
-        // Stop 3 ms encoder polling timer while the device is dimmed; GPIO wakeup
-        // on the rotary pins still fires so the display can be woken by rotation.
-        iot_knob_stop();
-        knob_polling_paused = true;
     }
 }
 
