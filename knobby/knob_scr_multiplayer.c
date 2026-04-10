@@ -504,7 +504,7 @@ static void event_multiplayer_counter_apply(lv_event_t *e)
     apply_multiplayer_counter_edit();
     refresh_multiplayer_counter_edit_ui();
     refresh_multiplayer_ui();
-    open_multiplayer_menu_screen(multiplayer_menu_player);
+    open_multiplayer_screen();
 }
 
 // ---------- screen builders ----------
