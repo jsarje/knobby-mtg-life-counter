@@ -42,7 +42,10 @@ static lv_timer_t *life_preview_timer = NULL;
 static lv_timer_t *multiplayer_life_preview_timer = NULL;
 
 static const counter_definition_t counter_definitions[COUNTER_TYPE_COUNT] = {
-    {"Commander\nTax", "Commander Tax", "T", 0xA84300, true},
+    {"Commander\nTax", "Commander Tax", "C", 0xA84300, true},
+    {"Partner\nTax", "Partner Tax", "P", 0x1565C0, true},
+    {"Poison", "Poison", "!", 0x2E7D32, true},
+    {"Experience", "Experience", "E", 0x6A1B9A, true},
 };
 
 // ---------- player colors ----------

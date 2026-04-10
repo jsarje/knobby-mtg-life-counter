@@ -71,7 +71,7 @@ static void create_counter_row(lv_obj_t *parent, counter_type_t type,
     lv_obj_t *icon;
     lv_obj_t *glyph;
 
-    row = make_plain_box(parent, 76, 24);
+    row = make_plain_box(parent, 84, 24);
     lv_obj_add_flag(row, LV_OBJ_FLAG_HIDDEN);
 
     icon = lv_obj_create(row);
@@ -163,8 +163,8 @@ static void refresh_counter_rows(lv_obj_t **rows, lv_obj_t **value_labels,
         lv_label_set_text(value_labels[type], buf);
         lv_obj_set_style_text_color(value_labels[type], text_color, 0);
         lv_obj_clear_flag(rows[type], LV_OBJ_FLAG_HIDDEN);
-        lv_obj_align(rows[type], LV_ALIGN_CENTER, 0, base_y + (visible_index * 24));
-        apply_object_rotation(rows[type], angle, -(base_y + (visible_index * 24)));
+        lv_obj_align(rows[type], LV_ALIGN_CENTER, 0, base_y + (visible_index * 22));
+        apply_object_rotation(rows[type], angle, -(base_y + (visible_index * 22)));
         visible_index++;
     }
 }
@@ -484,6 +484,24 @@ static void event_multiplayer_counter_commander_tax(lv_event_t *e)
     open_multiplayer_counter_edit_screen(COUNTER_TYPE_COMMANDER_TAX);
 }
 
+static void event_multiplayer_counter_partner_tax(lv_event_t *e)
+{
+    (void)e;
+    open_multiplayer_counter_edit_screen(COUNTER_TYPE_PARTNER_TAX);
+}
+
+static void event_multiplayer_counter_poison(lv_event_t *e)
+{
+    (void)e;
+    open_multiplayer_counter_edit_screen(COUNTER_TYPE_POISON);
+}
+
+static void event_multiplayer_counter_experience(lv_event_t *e)
+{
+    (void)e;
+    open_multiplayer_counter_edit_screen(COUNTER_TYPE_EXPERIENCE);
+}
+
 static void event_multiplayer_all_damage_apply(lv_event_t *e)
 {
     int i;
@@ -550,6 +568,15 @@ void build_multiplayer_screen(void)
         create_counter_row(multiplayer_quadrants[i], COUNTER_TYPE_COMMANDER_TAX,
             &counter_row_4p[i][COUNTER_TYPE_COMMANDER_TAX],
             &counter_value_4p[i][COUNTER_TYPE_COMMANDER_TAX]);
+        create_counter_row(multiplayer_quadrants[i], COUNTER_TYPE_PARTNER_TAX,
+            &counter_row_4p[i][COUNTER_TYPE_PARTNER_TAX],
+            &counter_value_4p[i][COUNTER_TYPE_PARTNER_TAX]);
+        create_counter_row(multiplayer_quadrants[i], COUNTER_TYPE_POISON,
+            &counter_row_4p[i][COUNTER_TYPE_POISON],
+            &counter_value_4p[i][COUNTER_TYPE_POISON]);
+        create_counter_row(multiplayer_quadrants[i], COUNTER_TYPE_EXPERIENCE,
+            &counter_row_4p[i][COUNTER_TYPE_EXPERIENCE],
+            &counter_value_4p[i][COUNTER_TYPE_EXPERIENCE]);
 
     }
 
@@ -575,9 +602,9 @@ void build_multiplayer_counter_menu_screen(void)
 {
     quad_item_t items[4] = {
         {"Commander\nTax", event_multiplayer_counter_commander_tax, true, LV_EVENT_CLICKED},
-        {"", NULL, false, LV_EVENT_CLICKED},
-        {"", NULL, false, LV_EVENT_CLICKED},
-        {"", NULL, false, LV_EVENT_CLICKED},
+        {"Partner\nTax", event_multiplayer_counter_partner_tax, true, LV_EVENT_CLICKED},
+        {"Poison", event_multiplayer_counter_poison, true, LV_EVENT_CLICKED},
+        {"Experience", event_multiplayer_counter_experience, true, LV_EVENT_CLICKED},
     };
 
     build_quad_screen(&screen_player_counters_menu, items);
@@ -687,6 +714,15 @@ void build_multiplayer_2p_screen(void)
         create_counter_row(mp2_panels[i], COUNTER_TYPE_COMMANDER_TAX,
             &counter_row_2p[i][COUNTER_TYPE_COMMANDER_TAX],
             &counter_value_2p[i][COUNTER_TYPE_COMMANDER_TAX]);
+        create_counter_row(mp2_panels[i], COUNTER_TYPE_PARTNER_TAX,
+            &counter_row_2p[i][COUNTER_TYPE_PARTNER_TAX],
+            &counter_value_2p[i][COUNTER_TYPE_PARTNER_TAX]);
+        create_counter_row(mp2_panels[i], COUNTER_TYPE_POISON,
+            &counter_row_2p[i][COUNTER_TYPE_POISON],
+            &counter_value_2p[i][COUNTER_TYPE_POISON]);
+        create_counter_row(mp2_panels[i], COUNTER_TYPE_EXPERIENCE,
+            &counter_row_2p[i][COUNTER_TYPE_EXPERIENCE],
+            &counter_value_2p[i][COUNTER_TYPE_EXPERIENCE]);
 
     }
 }
@@ -737,5 +773,14 @@ void build_multiplayer_3p_screen(void)
         create_counter_row(mp3_panels[i], COUNTER_TYPE_COMMANDER_TAX,
             &counter_row_3p[i][COUNTER_TYPE_COMMANDER_TAX],
             &counter_value_3p[i][COUNTER_TYPE_COMMANDER_TAX]);
+        create_counter_row(mp3_panels[i], COUNTER_TYPE_PARTNER_TAX,
+            &counter_row_3p[i][COUNTER_TYPE_PARTNER_TAX],
+            &counter_value_3p[i][COUNTER_TYPE_PARTNER_TAX]);
+        create_counter_row(mp3_panels[i], COUNTER_TYPE_POISON,
+            &counter_row_3p[i][COUNTER_TYPE_POISON],
+            &counter_value_3p[i][COUNTER_TYPE_POISON]);
+        create_counter_row(mp3_panels[i], COUNTER_TYPE_EXPERIENCE,
+            &counter_row_3p[i][COUNTER_TYPE_EXPERIENCE],
+            &counter_value_3p[i][COUNTER_TYPE_EXPERIENCE]);
     }
 }
