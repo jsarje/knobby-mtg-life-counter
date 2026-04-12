@@ -229,6 +229,7 @@ const esp_lcd_panel_vendor_init_cmd_t lcd_init_cmd[] = {
     {0x29, (uint8_t[]){0x00}, 1, 0}
 };
 
+
 #define TFT_SPI_FREQ_HZ (50 * 1000 * 1000)
 
 static void my_disp_flush(lv_disp_drv_t *disp, const lv_area_t *area, lv_color_t *color_p)
@@ -533,7 +534,12 @@ void scr_lvgl_init()
   lcd->begin();
 
   lcd->invertColor(true);
-  // setRotation(0);  //设置屏幕方向
+#if defined(BOARD_JC3636K718)
+  lcd->mirrorX(true);
+  lcd->mirrorY(true);
+  touch->mirrorX(true);
+  touch->mirrorY(true);
+#endif
   lcd->displayOn();
 
   screen_switch(true);

@@ -10,7 +10,7 @@
 #include "knob.h"
 #include "knob_hw.h"
 
-static const int BATTERY_ADC_PIN = 1;
+static const int BATTERY_ADC_PIN = BATTERY_ADC_PIN_NUM;
 static const float BATTERY_DIVIDER_RATIO = 2.0f;
 static const float BATTERY_CALIBRATION_SCALE = 1.0f;
 static const float BATTERY_CALIBRATION_OFFSET = 0.0f;
