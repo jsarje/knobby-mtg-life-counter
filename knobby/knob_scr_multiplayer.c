@@ -496,6 +496,12 @@ static void event_multiplayer_select(lv_event_t *e)
     }
 
     if (multiplayer_selected == player) {
+        /* Deselecting the same player: if there's an active preview for
+         * this player, commit it immediately so the altered life total is
+         * shown (same behavior as selecting another player). */
+        if (multiplayer_life_preview_active && multiplayer_preview_player == player) {
+            multiplayer_life_preview_commit_cb(NULL);
+        }
         multiplayer_selected = -1;
     } else {
         multiplayer_selected = player;
