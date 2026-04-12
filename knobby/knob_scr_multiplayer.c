@@ -5,6 +5,7 @@
 #include "knob_damage_log.h"
 #include "knob_rename.h"
 #include "knob_scr_menus.h"
+#include <math.h>
 
 // ---------- screens ----------
 lv_obj_t *screen_4p = NULL;
@@ -49,7 +50,7 @@ static lv_obj_t *counter_value_3p[3][COUNTER_TYPE_COUNT];
 static void open_multiplayer_all_damage_screen(void);
 static void open_multiplayer_counter_edit_screen(counter_type_t type);
 
-static void apply_object_rotation(lv_obj_t *obj, int16_t angle, int pivot_y)
+static void apply_object_rotation(lv_obj_t *obj, int16_t angle, int pivot_x, int pivot_y)
 {
     if (obj == NULL) return;
 
@@ -57,7 +58,7 @@ static void apply_object_rotation(lv_obj_t *obj, int16_t angle, int pivot_y)
     if (angle != 0) {
         lv_obj_update_layout(obj);
         lv_obj_set_style_transform_pivot_x(obj,
-            lv_obj_get_width(obj) / 2, 0);
+            lv_obj_get_width(obj) / 2 + pivot_x, 0);
         lv_obj_set_style_transform_pivot_y(obj,
             lv_obj_get_height(obj) / 2 + pivot_y, 0);
     }
@@ -103,8 +104,59 @@ static void create_counter_row(lv_obj_t *parent, counter_type_t type,
 static void apply_label_rotation(lv_obj_t *life_lbl, lv_obj_t *name_lbl,
                                   int16_t angle, int life_pivot_y, int name_pivot_y)
 {
-    apply_object_rotation(life_lbl, angle, life_pivot_y);
-    apply_object_rotation(name_lbl, angle, name_pivot_y);
+    apply_object_rotation(life_lbl, angle, 0, life_pivot_y);
+    apply_object_rotation(name_lbl, angle, 0, name_pivot_y);
+}
+
+static void rotate_world_offset_to_local(int16_t angle, lv_coord_t world_x,
+                                         lv_coord_t world_y, lv_coord_t *local_x,
+                                         lv_coord_t *local_y)
+{
+    const float radians = (float)angle * 0.001745329252f;
+    const float sin_angle = sinf(radians);
+    const float cos_angle = cosf(radians);
+
+    if (local_x == NULL || local_y == NULL) return;
+
+    *local_x = (lv_coord_t)lroundf(((float)world_x * cos_angle) + ((float)world_y * sin_angle));
+    *local_y = (lv_coord_t)lroundf((-(float)world_x * sin_angle) + ((float)world_y * cos_angle));
+}
+
+static void get_counter_equator_anchor(lv_obj_t *panel, int16_t angle,
+                                       lv_coord_t *anchor_x, lv_coord_t *anchor_y)
+{
+    lv_obj_t *parent;
+    lv_coord_t panel_y;
+    lv_coord_t panel_h;
+    lv_coord_t parent_h;
+    lv_coord_t panel_center_y;
+    lv_coord_t target_world_y;
+    lv_coord_t world_y;
+    const lv_coord_t equator_gap = 24;
+    const lv_coord_t edge_margin = 24;
+    lv_coord_t world_x;
+
+    if (anchor_x == NULL || anchor_y == NULL) return;
+
+    *anchor_x = 0;
+    *anchor_y = 0;
+    if (panel == NULL) return;
+
+    parent = lv_obj_get_parent(panel);
+    if (parent == NULL) return;
+
+    panel_y = lv_obj_get_y(panel);
+    panel_h = lv_obj_get_height(panel);
+    parent_h = lv_obj_get_height(parent);
+    panel_center_y = panel_y + (panel_h / 2);
+
+    target_world_y = (parent_h / 2) + ((panel_center_y < (parent_h / 2)) ? -equator_gap : equator_gap);
+    if (target_world_y < panel_y + edge_margin) target_world_y = panel_y + edge_margin;
+    if (target_world_y > panel_y + panel_h - edge_margin) target_world_y = panel_y + panel_h - edge_margin;
+
+    world_x = 0;
+    world_y = target_world_y - panel_center_y;
+    rotate_world_offset_to_local(angle, world_x, world_y, anchor_x, anchor_y);
 }
 
 static int16_t get_4p_orientation_angle(int mode, int panel_index)
@@ -136,15 +188,19 @@ static int16_t get_3p_orientation_angle(int mode, int panel_index)
 }
 
 // ---------- refresh helpers ----------
-static void refresh_counter_rows(lv_obj_t **rows, lv_obj_t **value_labels,
+static void refresh_counter_rows(lv_obj_t *panel, lv_obj_t **rows, lv_obj_t **value_labels,
                                  int player_index, lv_color_t text_color,
-                                 lv_coord_t base_y, int16_t angle)
+                                 int16_t angle)
 {
     int type;
     int visible_count = 0;
     int visible_types[COUNTER_TYPE_COUNT];
     char buf[8];
     const lv_coord_t step = 30;
+    lv_coord_t anchor_x = 0;
+    lv_coord_t anchor_y = 0;
+
+    get_counter_equator_anchor(panel, angle, &anchor_x, &anchor_y);
 
     for (type = 0; type < COUNTER_TYPE_COUNT; type++) {
         if (rows[type] == NULL || value_labels[type] == NULL) continue;
@@ -163,6 +219,8 @@ static void refresh_counter_rows(lv_obj_t **rows, lv_obj_t **value_labels,
         int value;
         int counter_type = visible_types[type];
         lv_coord_t x_offset = (lv_coord_t)((type * step) - ((visible_count - 1) * step / 2));
+        lv_coord_t local_x = anchor_x + x_offset;
+        lv_coord_t local_y = anchor_y;
 
         value = get_multiplayer_counter_value(player_index, (counter_type_t)counter_type);
 
@@ -170,8 +228,8 @@ static void refresh_counter_rows(lv_obj_t **rows, lv_obj_t **value_labels,
         lv_label_set_text(value_labels[counter_type], buf);
         lv_obj_set_style_text_color(value_labels[counter_type], text_color, 0);
         lv_obj_clear_flag(rows[counter_type], LV_OBJ_FLAG_HIDDEN);
-        lv_obj_align(rows[counter_type], LV_ALIGN_CENTER, x_offset, base_y);
-        apply_object_rotation(rows[counter_type], angle, -base_y);
+        lv_obj_align(rows[counter_type], LV_ALIGN_CENTER, local_x, local_y);
+        apply_object_rotation(rows[counter_type], angle, -local_x, -local_y);
     }
 }
 
@@ -257,7 +315,7 @@ static void refresh_multiplayer_4p_ui(void)
         }
         apply_label_rotation(label_multiplayer_life[i], label_multiplayer_name[i],
             angle, 30, -30);
-        refresh_counter_rows(counter_row_4p[i], counter_value_4p[i], i, text_color, -66, angle);
+        refresh_counter_rows(multiplayer_quadrants[i], counter_row_4p[i], counter_value_4p[i], i, text_color, angle);
     }
 }
 
@@ -274,8 +332,8 @@ static void refresh_multiplayer_2p_ui(void)
                          panel_player[i], panel_color[i]);
         apply_label_rotation(label_mp2_life[i], label_mp2_name[i],
             (i == 0 && orientation_mode != ORIENTATION_MODE_ABSOLUTE) ? 1800 : 0, 10, -30);
-        refresh_counter_rows(counter_row_2p[i], counter_value_2p[i], panel_player[i],
-            text_color, -64, (i == 0 && orientation_mode != ORIENTATION_MODE_ABSOLUTE) ? 1800 : 0);
+        refresh_counter_rows(mp2_panels[i], counter_row_2p[i], counter_value_2p[i], panel_player[i],
+            text_color, (i == 0 && orientation_mode != ORIENTATION_MODE_ABSOLUTE) ? 1800 : 0);
     }
 }
 
@@ -298,7 +356,7 @@ static void refresh_multiplayer_3p_ui(void)
             lv_obj_align(label_mp3_name[i], LV_ALIGN_CENTER, 0, 30);
         apply_label_rotation(label_mp3_life[i], label_mp3_name[i],
             angle, 30, -30);
-        refresh_counter_rows(counter_row_3p[i], counter_value_3p[i], panel_player[i], text_color, -66, angle);
+        refresh_counter_rows(mp3_panels[i], counter_row_3p[i], counter_value_3p[i], panel_player[i], text_color, angle);
     }
 }
 
