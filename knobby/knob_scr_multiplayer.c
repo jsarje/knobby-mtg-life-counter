@@ -169,9 +169,20 @@ static int16_t get_3p_orientation_angle(int mode, int panel_index)
     }
 }
 
-static int16_t get_counter_row_angle(int orientation_mode, int16_t panel_angle)
+static int16_t get_counter_row_angle(int orientation_mode, lv_obj_t *panel, int16_t panel_angle)
 {
     if (orientation_mode == ORIENTATION_MODE_CENTRIC) {
+        lv_obj_t *parent;
+
+        if (panel == NULL) return 0;
+
+        parent = lv_obj_get_parent(panel);
+        if (parent == NULL) return 0;
+
+        if ((lv_obj_get_y(panel) + (lv_obj_get_height(panel) / 2)) < (lv_obj_get_height(parent) / 2)) {
+            return 1800;
+        }
+
         return 0;
     }
 
@@ -297,7 +308,7 @@ static void refresh_multiplayer_4p_ui(void)
 
     for (i = 0; i < MULTIPLAYER_COUNT; i++) {
         angle = get_4p_orientation_angle(orientation_mode, i);
-        counter_angle = get_counter_row_angle(orientation_mode, angle);
+        counter_angle = get_counter_row_angle(orientation_mode, multiplayer_quadrants[i], angle);
         text_color = refresh_mp_panel(multiplayer_quadrants[i], label_multiplayer_life[i], label_multiplayer_name[i], i, i);
         if (label_multiplayer_life[i] != NULL) {
             lv_obj_clear_flag(label_multiplayer_life[i], LV_OBJ_FLAG_HIDDEN);
@@ -329,7 +340,7 @@ static void refresh_multiplayer_2p_ui(void)
         apply_label_rotation(label_mp2_life[i], label_mp2_name[i],
             angle, 10, -30);
         refresh_counter_rows(mp2_panels[i], counter_row_2p[i], counter_value_2p[i], panel_player[i],
-            text_color, angle, get_counter_row_angle(orientation_mode, angle));
+            text_color, angle, get_counter_row_angle(orientation_mode, mp2_panels[i], angle));
     }
 }
 
@@ -345,7 +356,7 @@ static void refresh_multiplayer_3p_ui(void)
 
     for (i = 0; i < 3; i++) {
         angle = get_3p_orientation_angle(orientation_mode, i);
-        counter_angle = get_counter_row_angle(orientation_mode, angle);
+        counter_angle = get_counter_row_angle(orientation_mode, mp3_panels[i], angle);
         text_color = refresh_mp_panel(mp3_panels[i], label_mp3_life[i], label_mp3_name[i],
                          panel_player[i], panel_player[i]);
         if (label_mp3_life[i] != NULL)
