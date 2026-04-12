@@ -5,7 +5,6 @@
 #include "knob_damage_log.h"
 #include "knob_rename.h"
 #include "knob_scr_menus.h"
-#include <math.h>
 
 // ---------- screens ----------
 lv_obj_t *screen_4p = NULL;
@@ -108,21 +107,7 @@ static void apply_label_rotation(lv_obj_t *life_lbl, lv_obj_t *name_lbl,
     apply_object_rotation(name_lbl, angle, 0, name_pivot_y);
 }
 
-static void rotate_world_offset_to_local(int16_t angle, lv_coord_t world_x,
-                                         lv_coord_t world_y, lv_coord_t *local_x,
-                                         lv_coord_t *local_y)
-{
-    const float radians = (float)angle * 0.001745329252f;
-    const float sin_angle = sinf(radians);
-    const float cos_angle = cosf(radians);
-
-    if (local_x == NULL || local_y == NULL) return;
-
-    *local_x = (lv_coord_t)lroundf(((float)world_x * cos_angle) + ((float)world_y * sin_angle));
-    *local_y = (lv_coord_t)lroundf((-(float)world_x * sin_angle) + ((float)world_y * cos_angle));
-}
-
-static void get_counter_equator_anchor(lv_obj_t *panel, int16_t angle,
+static void get_counter_equator_anchor(lv_obj_t *panel,
                                        lv_coord_t *anchor_x, lv_coord_t *anchor_y)
 {
     lv_obj_t *parent;
@@ -131,10 +116,8 @@ static void get_counter_equator_anchor(lv_obj_t *panel, int16_t angle,
     lv_coord_t parent_h;
     lv_coord_t panel_center_y;
     lv_coord_t target_world_y;
-    lv_coord_t world_y;
     const lv_coord_t equator_gap = 24;
     const lv_coord_t edge_margin = 24;
-    lv_coord_t world_x;
 
     if (anchor_x == NULL || anchor_y == NULL) return;
 
@@ -154,9 +137,8 @@ static void get_counter_equator_anchor(lv_obj_t *panel, int16_t angle,
     if (target_world_y < panel_y + edge_margin) target_world_y = panel_y + edge_margin;
     if (target_world_y > panel_y + panel_h - edge_margin) target_world_y = panel_y + panel_h - edge_margin;
 
-    world_x = 0;
-    world_y = target_world_y - panel_center_y;
-    rotate_world_offset_to_local(angle, world_x, world_y, anchor_x, anchor_y);
+    *anchor_x = 0;
+    *anchor_y = target_world_y - panel_center_y;
 }
 
 static int16_t get_4p_orientation_angle(int mode, int panel_index)
@@ -187,10 +169,19 @@ static int16_t get_3p_orientation_angle(int mode, int panel_index)
     }
 }
 
+static int16_t get_counter_row_angle(int orientation_mode, int16_t panel_angle)
+{
+    if (orientation_mode == ORIENTATION_MODE_CENTRIC) {
+        return 0;
+    }
+
+    return panel_angle;
+}
+
 // ---------- refresh helpers ----------
 static void refresh_counter_rows(lv_obj_t *panel, lv_obj_t **rows, lv_obj_t **value_labels,
                                  int player_index, lv_color_t text_color,
-                                 int16_t angle)
+                                 int16_t panel_angle, int16_t row_angle)
 {
     int type;
     int visible_count = 0;
@@ -200,7 +191,8 @@ static void refresh_counter_rows(lv_obj_t *panel, lv_obj_t **rows, lv_obj_t **va
     lv_coord_t anchor_x = 0;
     lv_coord_t anchor_y = 0;
 
-    get_counter_equator_anchor(panel, angle, &anchor_x, &anchor_y);
+    (void)panel_angle;
+    get_counter_equator_anchor(panel, &anchor_x, &anchor_y);
 
     for (type = 0; type < COUNTER_TYPE_COUNT; type++) {
         if (rows[type] == NULL || value_labels[type] == NULL) continue;
@@ -229,7 +221,7 @@ static void refresh_counter_rows(lv_obj_t *panel, lv_obj_t **rows, lv_obj_t **va
         lv_obj_set_style_text_color(value_labels[counter_type], text_color, 0);
         lv_obj_clear_flag(rows[counter_type], LV_OBJ_FLAG_HIDDEN);
         lv_obj_align(rows[counter_type], LV_ALIGN_CENTER, local_x, local_y);
-        apply_object_rotation(rows[counter_type], angle, -local_x, -local_y);
+        apply_object_rotation(rows[counter_type], row_angle, 0, 0);
     }
 }
 
@@ -300,10 +292,12 @@ static void refresh_multiplayer_4p_ui(void)
     int orientation_mode = nvs_get_orientation();
     int i;
     int16_t angle;
+    int16_t counter_angle;
     lv_color_t text_color;
 
     for (i = 0; i < MULTIPLAYER_COUNT; i++) {
         angle = get_4p_orientation_angle(orientation_mode, i);
+        counter_angle = get_counter_row_angle(orientation_mode, angle);
         text_color = refresh_mp_panel(multiplayer_quadrants[i], label_multiplayer_life[i], label_multiplayer_name[i], i, i);
         if (label_multiplayer_life[i] != NULL) {
             lv_obj_clear_flag(label_multiplayer_life[i], LV_OBJ_FLAG_HIDDEN);
@@ -315,7 +309,7 @@ static void refresh_multiplayer_4p_ui(void)
         }
         apply_label_rotation(label_multiplayer_life[i], label_multiplayer_name[i],
             angle, 30, -30);
-        refresh_counter_rows(multiplayer_quadrants[i], counter_row_4p[i], counter_value_4p[i], i, text_color, angle);
+        refresh_counter_rows(multiplayer_quadrants[i], counter_row_4p[i], counter_value_4p[i], i, text_color, angle, counter_angle);
     }
 }
 
@@ -326,14 +320,16 @@ static void refresh_multiplayer_2p_ui(void)
     static const int panel_color[2]  = {0, 1};
     int orientation_mode = nvs_get_orientation();
     int i;
+    int16_t angle;
     lv_color_t text_color;
     for (i = 0; i < 2; i++) {
+        angle = (i == 0 && orientation_mode != ORIENTATION_MODE_ABSOLUTE) ? 1800 : 0;
         text_color = refresh_mp_panel(mp2_panels[i], label_mp2_life[i], label_mp2_name[i],
                          panel_player[i], panel_color[i]);
         apply_label_rotation(label_mp2_life[i], label_mp2_name[i],
-            (i == 0 && orientation_mode != ORIENTATION_MODE_ABSOLUTE) ? 1800 : 0, 10, -30);
+            angle, 10, -30);
         refresh_counter_rows(mp2_panels[i], counter_row_2p[i], counter_value_2p[i], panel_player[i],
-            text_color, (i == 0 && orientation_mode != ORIENTATION_MODE_ABSOLUTE) ? 1800 : 0);
+            text_color, angle, get_counter_row_angle(orientation_mode, angle));
     }
 }
 
@@ -344,10 +340,12 @@ static void refresh_multiplayer_3p_ui(void)
     int orientation_mode = nvs_get_orientation();
     int i;
     int16_t angle;
+    int16_t counter_angle;
     lv_color_t text_color;
 
     for (i = 0; i < 3; i++) {
         angle = get_3p_orientation_angle(orientation_mode, i);
+        counter_angle = get_counter_row_angle(orientation_mode, angle);
         text_color = refresh_mp_panel(mp3_panels[i], label_mp3_life[i], label_mp3_name[i],
                          panel_player[i], panel_player[i]);
         if (label_mp3_life[i] != NULL)
@@ -356,7 +354,7 @@ static void refresh_multiplayer_3p_ui(void)
             lv_obj_align(label_mp3_name[i], LV_ALIGN_CENTER, 0, 30);
         apply_label_rotation(label_mp3_life[i], label_mp3_name[i],
             angle, 30, -30);
-        refresh_counter_rows(mp3_panels[i], counter_row_3p[i], counter_value_3p[i], panel_player[i], text_color, angle);
+        refresh_counter_rows(mp3_panels[i], counter_row_3p[i], counter_value_3p[i], panel_player[i], text_color, angle, counter_angle);
     }
 }
 
