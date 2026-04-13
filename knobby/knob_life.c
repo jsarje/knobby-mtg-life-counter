@@ -39,6 +39,15 @@ int multiplayer_counter_values[MAX_PLAYERS][COUNTER_TYPE_COUNT] = {{0}};
 counter_type_t multiplayer_counter_edit_type = COUNTER_TYPE_COMMANDER_TAX;
 int multiplayer_counter_edit_value = 0;
 bool multiplayer_eliminated[MAX_PLAYERS] = {false};
+
+typedef struct {
+    bool valid;
+    uint8_t event_type;
+    int source;
+    int delta;
+} elimination_action_t;
+
+static elimination_action_t multiplayer_elimination_action[MAX_PLAYERS] = {{0}};
 static lv_timer_t *life_preview_timer = NULL;
 static lv_timer_t *multiplayer_life_preview_timer = NULL;
 
@@ -49,25 +58,70 @@ static const counter_definition_t counter_definitions[COUNTER_TYPE_COUNT] = {
     {"Experience", "Experience", "E", 0x6A1B9A, true},
 };
 
+static void clear_player_elimination_action(int player)
+{
+    if (player < 0 || player >= MAX_PLAYERS) return;
+    multiplayer_elimination_action[player].valid = false;
+}
+
+static void set_player_elimination_action(int player, uint8_t event_type, int source, int delta)
+{
+    if (player < 0 || player >= MAX_PLAYERS) return;
+    multiplayer_elimination_action[player].valid = true;
+    multiplayer_elimination_action[player].event_type = event_type;
+    multiplayer_elimination_action[player].source = source;
+    multiplayer_elimination_action[player].delta = delta;
+}
+
+bool multiplayer_elimination_action_available(int player)
+{
+    if (player < 0 || player >= MAX_PLAYERS) return false;
+    return multiplayer_elimination_action[player].valid;
+}
+
+void undo_multiplayer_elimination_action(int player)
+{
+    if (!multiplayer_elimination_action_available(player)) return;
+
+    elimination_action_t action = multiplayer_elimination_action[player];
+    clear_player_elimination_action(player);
+
+    if (action.event_type == LOG_EVT_LIFE) {
+        undo_life_change(player, action.delta);
+    } else if (action.event_type == LOG_EVT_CMD_DAMAGE) {
+        undo_life_change(player, action.delta);
+        undo_cmd_damage(action.source, player, action.delta);
+    } else if (action.event_type == LOG_EVT_COUNTER) {
+        undo_counter_change(player, action.source, action.delta);
+    }
+}
+
 void check_player_elimination(int player)
 {
     if (player < 0 || player >= MAX_PLAYERS) return;
     bool was_eliminated = multiplayer_eliminated[player];
-    multiplayer_eliminated[player] = false;
+    bool now_eliminated = false;
+
     if (multiplayer_life[player] <= 0) {
-        multiplayer_eliminated[player] = true;
+        now_eliminated = true;
     } else {
         for (int i = 0; i < MAX_PLAYERS; i++) {
             if (i != player && multiplayer_cmd_damage_totals[i][player] >= 20) {
-                multiplayer_eliminated[player] = true;
+                now_eliminated = true;
                 break;
             }
         }
-        if (!multiplayer_eliminated[player] && multiplayer_counter_values[player][COUNTER_TYPE_POISON] >= 10) {
-            multiplayer_eliminated[player] = true;
+        if (!now_eliminated && multiplayer_counter_values[player][COUNTER_TYPE_POISON] >= 10) {
+            now_eliminated = true;
         }
     }
-    if (was_eliminated != multiplayer_eliminated[player]) {
+
+    multiplayer_eliminated[player] = now_eliminated;
+    if (!now_eliminated) {
+        clear_player_elimination_action(player);
+    }
+
+    if (was_eliminated != now_eliminated) {
         refresh_multiplayer_ui();
     }
 }
@@ -210,6 +264,10 @@ int apply_multiplayer_counter_edit(void)
 
     if (change_delta != 0) {
         damage_log_add(player, change_delta, LOG_EVT_COUNTER, multiplayer_counter_edit_type);
+        if (multiplayer_counter_edit_type == COUNTER_TYPE_POISON &&
+            old_value < 10 && multiplayer_counter_edit_value >= 10) {
+            set_player_elimination_action(player, LOG_EVT_COUNTER, multiplayer_counter_edit_type, change_delta);
+        }
         if (multiplayer_counter_edit_type == COUNTER_TYPE_POISON) {
             check_player_elimination(player);
         }
@@ -254,6 +312,9 @@ void multiplayer_life_preview_commit_cb(lv_timer_t *timer)
     multiplayer_life[multiplayer_preview_player] = clamp_life(
         multiplayer_life[multiplayer_preview_player] + multiplayer_pending_life_delta
     );
+    if (multiplayer_life[multiplayer_preview_player] <= 0) {
+        set_player_elimination_action(multiplayer_preview_player, LOG_EVT_LIFE, -1, multiplayer_pending_life_delta);
+    }
     check_player_elimination(multiplayer_preview_player);
     multiplayer_pending_life_delta = 0;
     multiplayer_preview_player = -1;
@@ -318,6 +379,9 @@ void damage_apply(void)
         multiplayer_cmd_damage_totals[source][cmd_damage_target] = enemies[selected_enemy].damage;
         damage_log_add(cmd_damage_target, -delta, LOG_EVT_CMD_DAMAGE, source);
         multiplayer_life[cmd_damage_target] = clamp_life(multiplayer_life[cmd_damage_target] - delta);
+        if (multiplayer_cmd_damage_totals[source][cmd_damage_target] >= 20 || multiplayer_life[cmd_damage_target] <= 0) {
+            set_player_elimination_action(cmd_damage_target, LOG_EVT_CMD_DAMAGE, source, -delta);
+        }
         check_player_elimination(cmd_damage_target);
     } else {
         change_life(-delta);

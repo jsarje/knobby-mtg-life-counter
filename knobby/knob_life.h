@@ -64,6 +64,9 @@ int get_multiplayer_counter_value(int player, counter_type_t type);
 const counter_definition_t *get_counter_definition(counter_type_t type);
 bool counter_type_is_enabled(counter_type_t type);
 
+bool multiplayer_elimination_action_available(int player);
+void undo_multiplayer_elimination_action(int player);
+
 // ---------- player colors ----------
 lv_color_t get_player_color_vib(int index, int vibrancy);
 lv_color_t get_player_base_color(int index);

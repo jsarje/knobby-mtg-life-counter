@@ -11,12 +11,14 @@ extern lv_obj_t *screen_player_menu;
 extern lv_obj_t *screen_player_all_damage;
 extern lv_obj_t *screen_player_counters_menu;
 extern lv_obj_t *screen_player_counter_edit;
+extern lv_obj_t *screen_eliminated_player_menu;
 
 // ---------- functions ----------
 void build_multiplayer_screen(void);
 void build_multiplayer_2p_screen(void);
 void build_multiplayer_3p_screen(void);
 void build_multiplayer_menu_screen(void);
+void build_eliminated_player_menu_screen(void);
 void build_multiplayer_all_damage_screen(void);
 void build_multiplayer_counter_menu_screen(void);
 void build_multiplayer_counter_edit_screen(void);
