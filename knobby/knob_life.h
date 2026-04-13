@@ -40,6 +40,7 @@ extern int dice_result;
 extern int multiplayer_counter_values[MAX_PLAYERS][COUNTER_TYPE_COUNT];
 extern counter_type_t multiplayer_counter_edit_type;
 extern int multiplayer_counter_edit_value;
+extern bool multiplayer_eliminated[MAX_PLAYERS];
 
 // ---------- functions ----------
 void knob_life_init(void);
