@@ -38,6 +38,7 @@ bool multiplayer_life_preview_active = false;
 int multiplayer_counter_values[MAX_PLAYERS][COUNTER_TYPE_COUNT] = {{0}};
 counter_type_t multiplayer_counter_edit_type = COUNTER_TYPE_COMMANDER_TAX;
 int multiplayer_counter_edit_value = 0;
+bool multiplayer_eliminated[MAX_PLAYERS] = {false};
 static lv_timer_t *life_preview_timer = NULL;
 static lv_timer_t *multiplayer_life_preview_timer = NULL;
 
@@ -52,6 +53,29 @@ static const counter_definition_t counter_definitions[COUNTER_TYPE_COUNT] = {
     {"Poison", "Poison", "!", MANA_ICON_SKULL, 0x2E7D32, true},
     {"Experience", "Experience", "E", MANA_ICON_LEVEL, 0x6A1B9A, true},
 };
+
+void check_player_elimination(int player)
+{
+    if (player < 0 || player >= MAX_PLAYERS) return;
+    bool was_eliminated = multiplayer_eliminated[player];
+    multiplayer_eliminated[player] = false;
+    if (multiplayer_life[player] <= 0) {
+        multiplayer_eliminated[player] = true;
+    } else {
+        for (int i = 0; i < MAX_PLAYERS; i++) {
+            if (i != player && multiplayer_cmd_damage_totals[i][player] >= 20) {
+                multiplayer_eliminated[player] = true;
+                break;
+            }
+        }
+        if (!multiplayer_eliminated[player] && multiplayer_counter_values[player][COUNTER_TYPE_POISON] >= 10) {
+            multiplayer_eliminated[player] = true;
+        }
+    }
+    if (was_eliminated != multiplayer_eliminated[player]) {
+        refresh_multiplayer_ui();
+    }
+}
 
 // ---------- player colors ----------
 static const uint32_t player_color_table[MAX_PLAYERS][LIFE_VIB_COUNT] = {
@@ -191,6 +215,9 @@ int apply_multiplayer_counter_edit(void)
 
     if (change_delta != 0) {
         damage_log_add(player, change_delta, LOG_EVT_COUNTER, multiplayer_counter_edit_type);
+        if (multiplayer_counter_edit_type == COUNTER_TYPE_POISON) {
+            check_player_elimination(player);
+        }
     }
 
     return change_delta;
@@ -232,6 +259,7 @@ void multiplayer_life_preview_commit_cb(lv_timer_t *timer)
     multiplayer_life[multiplayer_preview_player] = clamp_life(
         multiplayer_life[multiplayer_preview_player] + multiplayer_pending_life_delta
     );
+    check_player_elimination(multiplayer_preview_player);
     multiplayer_pending_life_delta = 0;
     multiplayer_preview_player = -1;
     multiplayer_life_preview_active = false;
@@ -295,6 +323,7 @@ void damage_apply(void)
         multiplayer_cmd_damage_totals[source][cmd_damage_target] = enemies[selected_enemy].damage;
         damage_log_add(cmd_damage_target, -delta, LOG_EVT_CMD_DAMAGE, source);
         multiplayer_life[cmd_damage_target] = clamp_life(multiplayer_life[cmd_damage_target] - delta);
+        check_player_elimination(cmd_damage_target);
     } else {
         change_life(-delta);
     }
@@ -374,6 +403,7 @@ void undo_life_change(int player, int delta)
         refresh_select_ui();
     } else if (player < MAX_PLAYERS) {
         multiplayer_life[player] = clamp_life(multiplayer_life[player] - delta);
+        check_player_elimination(player);
         refresh_multiplayer_ui();
     }
 }
@@ -385,6 +415,7 @@ void undo_cmd_damage(int source, int target, int delta)
     multiplayer_cmd_damage_totals[source][target] += delta;
     if (multiplayer_cmd_damage_totals[source][target] < 0)
         multiplayer_cmd_damage_totals[source][target] = 0;
+    check_player_elimination(target);
 }
 
 void undo_counter_change(int player, int counter_type, int delta)
@@ -395,6 +426,9 @@ void undo_counter_change(int player, int counter_type, int delta)
     multiplayer_counter_values[player][counter_type] = clamp_counter(
         multiplayer_counter_values[player][counter_type] - delta
     );
+    if (counter_type == COUNTER_TYPE_POISON) {
+        check_player_elimination(player);
+    }
     refresh_multiplayer_ui();
 }
 
@@ -431,6 +465,7 @@ void knob_life_reset(void)
     cmd_damage_target = -1;
     memset(multiplayer_cmd_damage_totals, 0, sizeof(multiplayer_cmd_damage_totals));
     memset(multiplayer_counter_values, 0, sizeof(multiplayer_counter_values));
+    memset(multiplayer_eliminated, 0, sizeof(multiplayer_eliminated));
     multiplayer_all_damage_value = 0;
     multiplayer_counter_edit_type = COUNTER_TYPE_COMMANDER_TAX;
     multiplayer_counter_edit_value = 0;

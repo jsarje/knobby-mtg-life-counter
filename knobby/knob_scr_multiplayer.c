@@ -281,6 +281,14 @@ static lv_color_t refresh_mp_panel(lv_obj_t *panel, lv_obj_t *life_lbl, lv_obj_t
         lv_obj_set_style_bg_opa(panel, LV_OPA_COVER, 0);
     }
 
+    if (multiplayer_eliminated[i]) {
+        bg_color = lv_color_hex(0x404040);
+        text_color = lv_color_hex(0x808080);
+        if (panel != NULL) {
+            lv_obj_set_style_bg_color(panel, bg_color, 0);
+        }
+    }
+
     if (life_lbl != NULL) {
         if (preview_here) {
             snprintf(buf, sizeof(buf), "%+d", multiplayer_pending_life_delta);
@@ -555,6 +563,7 @@ static void event_multiplayer_select(lv_event_t *e)
     int player = quad_to_player(quad);
 
     if (player < 0) return;
+    if (multiplayer_eliminated[player]) return;
 
     if (multiplayer_life_preview_active && multiplayer_preview_player != player) {
         multiplayer_life_preview_commit_cb(NULL);
@@ -581,6 +590,10 @@ static void event_multiplayer_open_menu(lv_event_t *e)
     int player = quad_to_player(quad);
 
     if (player < 0) return;
+    if (multiplayer_eliminated[player]) {
+        open_damage_log_screen();
+        return;
+    }
 
     if (multiplayer_life_preview_active && multiplayer_preview_player != player) {
         multiplayer_life_preview_commit_cb(NULL);
