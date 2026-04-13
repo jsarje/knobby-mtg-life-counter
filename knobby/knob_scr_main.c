@@ -343,10 +343,24 @@ void refresh_select_ui(void)
             lv_label_set_text(label_enemy_name[i], multiplayer_names[player_index]);
             snprintf(buf, sizeof(buf), "%d", enemies[i].damage);
             lv_label_set_text(label_enemy_damage[i], buf);
-            lv_obj_set_style_text_color(label_enemy_name[i], text_color, 0);
-            lv_obj_set_style_text_color(label_enemy_damage[i], text_color, 0);
-            lv_obj_set_style_bg_color(select_rows[i], get_player_base_color(player_index), 0);
-            lv_obj_set_style_bg_opa(select_rows[i], LV_OPA_COVER, 0);
+
+            if (multiplayer_eliminated[player_index]) {
+                lv_color_t disabled_bg = lv_color_hex(0x404040);
+                lv_color_t disabled_text = lv_color_hex(0x808080);
+                lv_obj_set_style_text_color(label_enemy_name[i], disabled_text, 0);
+                lv_obj_set_style_text_color(label_enemy_damage[i], disabled_text, 0);
+                lv_obj_set_style_bg_color(select_rows[i], disabled_bg, 0);
+                lv_obj_set_style_bg_opa(select_rows[i], LV_OPA_COVER, 0);
+                lv_obj_clear_flag(select_rows[i], LV_OBJ_FLAG_CLICKABLE);
+            } else {
+                lv_obj_set_style_text_color(label_enemy_name[i], text_color, 0);
+                lv_obj_set_style_text_color(label_enemy_damage[i], text_color, 0);
+                lv_obj_set_style_bg_color(select_rows[i], get_player_base_color(player_index), 0);
+                lv_obj_set_style_bg_opa(select_rows[i], LV_OPA_COVER, 0);
+                lv_obj_clear_flag(select_rows[i], LV_OBJ_FLAG_HIDDEN);
+                lv_obj_clear_flag(select_rows[i], LV_OBJ_FLAG_CLICKABLE);
+                lv_obj_add_flag(select_rows[i], LV_OBJ_FLAG_CLICKABLE);
+            }
         } else {
             lv_obj_add_flag(select_rows[i], LV_OBJ_FLAG_HIDDEN);
         }
@@ -417,6 +431,10 @@ static void event_open_select(lv_event_t *e)
 static void event_select_enemy(lv_event_t *e)
 {
     int index = (int)(intptr_t)lv_event_get_user_data(e);
+    int player_index = get_cmd_target_player_index(index);
+    if (player_index >= 0 && player_index < MAX_PLAYERS && multiplayer_eliminated[player_index]) {
+        return;
+    }
     open_damage_screen(index);
 }
 
