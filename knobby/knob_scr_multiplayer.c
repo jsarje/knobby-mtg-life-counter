@@ -14,6 +14,7 @@ lv_obj_t *screen_player_menu = NULL;
 lv_obj_t *screen_player_all_damage = NULL;
 lv_obj_t *screen_player_counters_menu = NULL;
 lv_obj_t *screen_player_counter_edit = NULL;
+lv_obj_t *screen_eliminated_player_menu = NULL;
 
 // ---------- widgets ----------
 static lv_obj_t *multiplayer_quadrants[MULTIPLAYER_COUNT];
@@ -591,7 +592,8 @@ static void event_multiplayer_open_menu(lv_event_t *e)
 
     if (player < 0) return;
     if (multiplayer_eliminated[player]) {
-        open_damage_log_screen();
+        multiplayer_menu_player = player;
+        load_screen_if_needed(screen_eliminated_player_menu);
         return;
     }
 
@@ -633,6 +635,13 @@ static void event_multiplayer_menu_counters(lv_event_t *e)
 {
     (void)e;
     open_multiplayer_counter_menu_screen();
+}
+
+static void event_eliminated_player_menu_undo(lv_event_t *e)
+{
+    (void)e;
+    undo_multiplayer_elimination_action(multiplayer_menu_player);
+    open_multiplayer_screen();
 }
 
 static void event_multiplayer_counter_commander_tax(lv_event_t *e)
@@ -753,6 +762,31 @@ void build_multiplayer_menu_screen(void)
     /* Long-press Rename to rename all players sequentially */
     lv_obj_t *rename_btn = lv_obj_get_child(screen_player_menu, 0);
     lv_obj_add_event_cb(rename_btn, event_multiplayer_menu_rename_all, LV_EVENT_LONG_PRESSED, NULL);
+}
+
+void build_eliminated_player_menu_screen(void)
+{
+    screen_eliminated_player_menu = lv_obj_create(NULL);
+    lv_obj_set_size(screen_eliminated_player_menu, 360, 360);
+    lv_obj_set_style_bg_color(screen_eliminated_player_menu, lv_color_black(), 0);
+    lv_obj_set_style_border_width(screen_eliminated_player_menu, 0, 0);
+    lv_obj_set_scrollbar_mode(screen_eliminated_player_menu, LV_SCROLLBAR_MODE_OFF);
+
+    lv_obj_t *title = lv_label_create(screen_eliminated_player_menu);
+    lv_label_set_text(title, "Undo elimination");
+    lv_obj_set_style_text_color(title, lv_color_white(), 0);
+    lv_obj_set_style_text_font(title, &lv_font_montserrat_22, 0);
+    lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 40);
+
+    lv_obj_t *hint = lv_label_create(screen_eliminated_player_menu);
+    lv_label_set_text(hint, "Restore the action that eliminated this player");
+    lv_obj_set_style_text_color(hint, lv_color_hex(0x7A7A7A), 0);
+    lv_obj_set_style_text_font(hint, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_align(hint, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_align(hint, LV_ALIGN_CENTER, 0, 0);
+
+    lv_obj_t *btn = make_button(screen_eliminated_player_menu, "Undo", 120, 46, event_eliminated_player_menu_undo);
+    lv_obj_align(btn, LV_ALIGN_BOTTOM_MID, 0, -46);
 }
 
 void build_multiplayer_counter_menu_screen(void)

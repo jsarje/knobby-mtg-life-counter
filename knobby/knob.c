@@ -148,6 +148,7 @@ void knob_gui(void)
     build_multiplayer_2p_screen();
     build_multiplayer_3p_screen();
     build_multiplayer_menu_screen();
+    build_eliminated_player_menu_screen();
     build_rename_screen();
     build_multiplayer_all_damage_screen();
     build_multiplayer_counter_menu_screen();
