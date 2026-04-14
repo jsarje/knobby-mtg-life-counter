@@ -1,5 +1,5 @@
-#include "knob_hw.h"
-#include "knob_nvs.h"
+#include "hw.h"
+#include "storage.h"
 #include "driver/ledc.h"
 
 // ---------- private constants ----------

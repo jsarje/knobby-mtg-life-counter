@@ -1,7 +1,7 @@
-#ifndef _KNOB_TIMER_H
-#define _KNOB_TIMER_H
+#ifndef _TIMER_H
+#define _TIMER_H
 
-#include "knob_types.h"
+#include "types.h"
 
 // ---------- state ----------
 extern bool turn_timer_enabled;
@@ -21,4 +21,4 @@ uint32_t get_turn_elapsed_ms(void);
 void event_tool_timer(lv_event_t *e);
 void event_turn_tap(lv_event_t *e);
 
-#endif // _KNOB_TIMER_H
+#endif // _TIMER_H

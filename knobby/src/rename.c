@@ -1,8 +1,8 @@
-#include "knob_rename.h"
-#include "knob_scr_multiplayer.h"
-#include "knob_scr_main.h"
-#include "knob_life.h"
-#include "knob_nvs.h"
+#include "rename.h"
+#include "ui_mp.h"
+#include "ui_1p.h"
+#include "game.h"
+#include "storage.h"
 #include <string.h>
 
 // ---------- screens ----------
@@ -85,7 +85,7 @@ static void rename_all_advance(void)
     rename_all_done++;
     if (rename_all_done < rename_all_count) {
         int next = (rename_all_start + rename_all_done) % rename_all_count;
-        multiplayer_menu_player = next;
+        menu_player = next;
         open_rename_screen();
     } else {
         rename_all_active = false;
@@ -98,8 +98,8 @@ static void rename_all_advance(void)
 // ---------- apply + return ----------
 static void apply_name_and_return(const char *name)
 {
-    snprintf(multiplayer_names[multiplayer_menu_player],
-             sizeof(multiplayer_names[multiplayer_menu_player]), "%s", name);
+    snprintf(player_names[menu_player],
+             sizeof(player_names[menu_player]), "%s", name);
     if (!is_default_name(name))
         mru_use_name(name);
     refresh_multiplayer_ui();
@@ -110,7 +110,7 @@ static void apply_name_and_return(const char *name)
         refresh_rename_ui();
         refresh_select_ui();
         refresh_damage_ui();
-        open_multiplayer_menu_screen(multiplayer_menu_player);
+        open_multiplayer_menu_screen(menu_player);
     }
 }
 
@@ -125,9 +125,9 @@ static void event_name_save(lv_event_t *e)
     txt = lv_textarea_get_text(textarea_name);
     if (strlen(txt) == 0) {
         /* Empty: reset to default, don't add to MRU */
-        snprintf(multiplayer_names[multiplayer_menu_player],
-                 sizeof(multiplayer_names[multiplayer_menu_player]),
-                 "P%d", multiplayer_menu_player + 1);
+        snprintf(player_names[menu_player],
+                 sizeof(player_names[menu_player]),
+                 "P%d", menu_player + 1);
         refresh_multiplayer_ui();
         if (rename_all_active) {
             rename_all_advance();
@@ -135,7 +135,7 @@ static void event_name_save(lv_event_t *e)
             refresh_rename_ui();
             refresh_select_ui();
             refresh_damage_ui();
-            open_multiplayer_menu_screen(multiplayer_menu_player);
+            open_multiplayer_menu_screen(menu_player);
         }
     } else {
         apply_name_and_return(txt);
@@ -170,7 +170,7 @@ static void event_mru_select(lv_event_t *e)
     (void)e;
     if (mru_selected == 0) {
         /* Current name row — re-apply as-is */
-        apply_name_and_return(multiplayer_names[multiplayer_menu_player]);
+        apply_name_and_return(player_names[menu_player]);
     } else if (mru_selected <= mru_count) {
         apply_name_and_return(mru_names[mru_selected - 1]);
     } else {
@@ -184,7 +184,7 @@ static void event_mru_row_click(lv_event_t *e)
     int idx = (int)(intptr_t)lv_event_get_user_data(e);
     if (idx == 0) {
         /* Current name row */
-        apply_name_and_return(multiplayer_names[multiplayer_menu_player]);
+        apply_name_and_return(player_names[menu_player]);
     } else if (idx <= mru_count) {
         apply_name_and_return(mru_names[idx - 1]);
     } else {
@@ -220,7 +220,7 @@ static void refresh_mru_list_ui(void)
     /* row 0 = current name, rows 1..mru_count = MRU, last = "Type new..." */
     total = 1 + mru_count + 1;
 
-    add_list_row(0, multiplayer_names[multiplayer_menu_player], lv_color_hex(0x80CBC4));
+    add_list_row(0, player_names[menu_player], lv_color_hex(0x80CBC4));
     for (i = 0; i < mru_count; i++)
         add_list_row(1 + i, mru_names[i], lv_color_white());
     add_list_row(total - 1, "Type new...", lv_color_hex(0x7A7A7A));
@@ -327,7 +327,7 @@ void refresh_rename_ui(void)
         if (name_keyboard_mode)
             lv_label_set_text(label_name_title, "New name");
         else {
-            snprintf(buf, sizeof(buf), "Rename %s", multiplayer_names[multiplayer_menu_player]);
+            snprintf(buf, sizeof(buf), "Rename %s", player_names[menu_player]);
             lv_label_set_text(label_name_title, buf);
         }
     }
@@ -351,7 +351,7 @@ void open_rename_screen(void)
 void open_rename_all_screen(void)
 {
     rename_all_active = true;
-    rename_all_start = multiplayer_menu_player;
+    rename_all_start = menu_player;
     rename_all_count = nvs_get_num_players();
     rename_all_done = 0;
     open_rename_screen();

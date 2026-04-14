@@ -1,7 +1,7 @@
-#ifndef _KNOB_HW_H
-#define _KNOB_HW_H
+#ifndef _HW_H
+#define _HW_H
 
-#include "knob_types.h"
+#include "types.h"
 
 // ---------- state ----------
 extern int brightness_percent;
@@ -30,4 +30,4 @@ int read_battery_percent(void);
 void change_brightness(int delta);
 bool in_undim_grace(void);
 
-#endif // _KNOB_HW_H
+#endif // _HW_H

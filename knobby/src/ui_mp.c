@@ -1,10 +1,10 @@
-#include "knob_scr_multiplayer.h"
-#include "knob_scr_main.h"
-#include "knob_life.h"
-#include "knob_nvs.h"
-#include "knob_damage_log.h"
-#include "knob_rename.h"
-#include "knob_scr_menus.h"
+#include "ui_mp.h"
+#include "ui_1p.h"
+#include "game.h"
+#include "storage.h"
+#include "damage_log.h"
+#include "rename.h"
+#include "settings.h"
 
 // ---------- screens ----------
 lv_obj_t *screen_4p = NULL;
@@ -18,13 +18,13 @@ lv_obj_t *screen_eliminated_player_menu = NULL;
 
 // ---------- widgets ----------
 static lv_obj_t *multiplayer_quadrants[MULTIPLAYER_COUNT];
-static lv_obj_t *label_multiplayer_life[MULTIPLAYER_COUNT];
+static lv_obj_t *label_player_life[MULTIPLAYER_COUNT];
 static lv_obj_t *label_multiplayer_name[MULTIPLAYER_COUNT];
 static lv_obj_t *label_multiplayer_all_damage_title = NULL;
-static lv_obj_t *label_multiplayer_all_damage_value = NULL;
+static lv_obj_t *label_all_damage_value = NULL;
 static lv_obj_t *label_multiplayer_all_damage_hint = NULL;
 static lv_obj_t *label_multiplayer_counter_edit_title = NULL;
-static lv_obj_t *label_multiplayer_counter_edit_value = NULL;
+static lv_obj_t *label_counter_edit_value = NULL;
 static lv_obj_t *label_multiplayer_counter_edit_hint = NULL;
 static lv_obj_t *label_multiplayer_counter_edit_icon = NULL;
 static lv_obj_t *counter_row_4p[MULTIPLAYER_COUNT][COUNTER_TYPE_COUNT];
@@ -220,7 +220,7 @@ static void refresh_counter_rows(lv_obj_t *panel, lv_obj_t **rows, lv_obj_t **va
         if (rows[type] == NULL || value_labels[type] == NULL) continue;
 
         if (!counter_type_is_enabled((counter_type_t)type) ||
-            get_multiplayer_counter_value(player_index, (counter_type_t)type) <= 0) {
+            get_counter_value(player_index, (counter_type_t)type) <= 0) {
             lv_obj_add_flag(rows[type], LV_OBJ_FLAG_HIDDEN);
             continue;
         }
@@ -236,7 +236,7 @@ static void refresh_counter_rows(lv_obj_t *panel, lv_obj_t **rows, lv_obj_t **va
         lv_coord_t local_x = anchor_x + x_offset;
         lv_coord_t local_y = anchor_y;
 
-        value = get_multiplayer_counter_value(player_index, (counter_type_t)counter_type);
+        value = get_counter_value(player_index, (counter_type_t)counter_type);
 
         snprintf(buf, sizeof(buf), "%d", value);
         lv_label_set_text(value_labels[counter_type], buf);
@@ -257,21 +257,21 @@ static void refresh_counter_rows(lv_obj_t *panel, lv_obj_t **rows, lv_obj_t **va
 static lv_color_t refresh_mp_panel(lv_obj_t *panel, lv_obj_t *life_lbl, lv_obj_t *name_lbl, int i, int color_i)
 {
     char buf[8];
-    bool preview_here = multiplayer_life_preview_active && (multiplayer_preview_player == i);
-    bool selected = (i == multiplayer_selected);
+    bool preview_here = life_preview_active && (preview_player == i);
+    bool selected = (i == selected_player);
     lv_color_t bg_color;
     lv_color_t text_color;
 
     if (nvs_get_color_mode() == COLOR_MODE_LIFE) {
-        int tier = get_life_tier(multiplayer_life[i], nvs_get_life_total());
+        int tier = get_life_tier(player_life[i], nvs_get_life_total());
         int vib;
-        if (multiplayer_selected < 0) vib = LIFE_VIB_MID;
+        if (selected_player < 0) vib = LIFE_VIB_MID;
         else vib = selected ? LIFE_VIB_VIV : LIFE_VIB_DIM;
         bg_color = get_life_color_vib(tier, vib);
         text_color = color_is_light(bg_color) ? lv_color_black() : lv_color_white();
     } else {
         int vib;
-        if (multiplayer_selected < 0) vib = LIFE_VIB_MID;
+        if (selected_player < 0) vib = LIFE_VIB_MID;
         else vib = selected ? LIFE_VIB_VIV : LIFE_VIB_DIM;
         bg_color = get_player_color_vib(color_i, vib);
         text_color = color_is_light(bg_color) ? lv_color_black() : lv_color_white();
@@ -282,7 +282,7 @@ static lv_color_t refresh_mp_panel(lv_obj_t *panel, lv_obj_t *life_lbl, lv_obj_t
         lv_obj_set_style_bg_opa(panel, LV_OPA_COVER, 0);
     }
 
-    if (multiplayer_eliminated[i]) {
+    if (player_eliminated[i]) {
         bg_color = lv_color_hex(0x404040);
         text_color = lv_color_hex(0x808080);
         if (panel != NULL) {
@@ -292,14 +292,14 @@ static lv_color_t refresh_mp_panel(lv_obj_t *panel, lv_obj_t *life_lbl, lv_obj_t
 
     if (life_lbl != NULL) {
         if (preview_here) {
-            snprintf(buf, sizeof(buf), "%+d", multiplayer_pending_life_delta);
+            snprintf(buf, sizeof(buf), "%+d", pending_life_delta);
             lv_label_set_text(life_lbl, buf);
             {
                 lv_color_t preview_c;
                 if (nvs_get_color_mode() == COLOR_MODE_LIFE) {
                     preview_c = color_is_light(bg_color) ? lv_color_black() : lv_color_white();
                 } else {
-                    preview_c = get_player_preview_color(color_i, multiplayer_pending_life_delta);
+                    preview_c = get_player_preview_color(color_i, pending_life_delta);
                     if (color_is_light(bg_color) && color_is_light(preview_c))
                         preview_c = lv_color_black();
                     else if (!color_is_light(bg_color) && !color_is_light(preview_c))
@@ -308,7 +308,7 @@ static lv_color_t refresh_mp_panel(lv_obj_t *panel, lv_obj_t *life_lbl, lv_obj_t
                 lv_obj_set_style_text_color(life_lbl, preview_c, 0);
             }
         } else {
-            snprintf(buf, sizeof(buf), "%d", multiplayer_life[i]);
+            snprintf(buf, sizeof(buf), "%d", player_life[i]);
             lv_label_set_text(life_lbl, buf);
             lv_obj_set_style_text_color(life_lbl, text_color, 0);
         }
@@ -317,11 +317,11 @@ static lv_color_t refresh_mp_panel(lv_obj_t *panel, lv_obj_t *life_lbl, lv_obj_t
     if (name_lbl != NULL) {
         if (preview_here) {
             char total_buf[16];
-            int new_total = multiplayer_life[i] + multiplayer_pending_life_delta;
+            int new_total = player_life[i] + pending_life_delta;
             snprintf(total_buf, sizeof(total_buf), "= %d", new_total);
             lv_label_set_text(name_lbl, total_buf);
         } else {
-            lv_label_set_text(name_lbl, multiplayer_names[i]);
+            lv_label_set_text(name_lbl, player_names[i]);
         }
         lv_obj_set_style_text_color(name_lbl, text_color, 0);
     }
@@ -344,18 +344,18 @@ static void refresh_multiplayer_4p_ui(void)
         lv_coord_t nx = (orientation_mode != ORIENTATION_MODE_CENTRIC) ? center_nudge_x[i] : 0;
         angle = get_4p_orientation_angle(orientation_mode, i);
         counter_angle = get_counter_row_angle(orientation_mode, multiplayer_quadrants[i], angle);
-        text_color = refresh_mp_panel(multiplayer_quadrants[i], label_multiplayer_life[i], label_multiplayer_name[i], i, i);
-        if (label_multiplayer_life[i] != NULL) {
-            lv_obj_clear_flag(label_multiplayer_life[i], LV_OBJ_FLAG_HIDDEN);
+        text_color = refresh_mp_panel(multiplayer_quadrants[i], label_player_life[i], label_multiplayer_name[i], i, i);
+        if (label_player_life[i] != NULL) {
+            lv_obj_clear_flag(label_player_life[i], LV_OBJ_FLAG_HIDDEN);
             if (orientation_mode == ORIENTATION_MODE_CENTRIC) {
-                lv_obj_set_style_text_font(label_multiplayer_life[i], &lv_font_montserrat_bold_44, 0);
+                lv_obj_set_style_text_font(label_player_life[i], &lv_font_montserrat_bold_44, 0);
             } else {
-                lv_obj_set_style_text_font(label_multiplayer_life[i], &lv_font_montserrat_bold_56, 0);
+                lv_obj_set_style_text_font(label_player_life[i], &lv_font_montserrat_bold_56, 0);
             }
             if (orientation_mode == ORIENTATION_MODE_CENTRIC) {
-                lv_obj_align(label_multiplayer_life[i], LV_ALIGN_CENTER, nx, -10);
+                lv_obj_align(label_player_life[i], LV_ALIGN_CENTER, nx, -10);
             } else {
-                lv_obj_align(label_multiplayer_life[i], LV_ALIGN_CENTER, nx, -12);
+                lv_obj_align(label_player_life[i], LV_ALIGN_CENTER, nx, -12);
             }
         }
         if (label_multiplayer_name[i] != NULL) {
@@ -363,10 +363,10 @@ static void refresh_multiplayer_4p_ui(void)
             lv_obj_align(label_multiplayer_name[i], LV_ALIGN_CENTER, nx, 30);
         }
         if (orientation_mode == ORIENTATION_MODE_CENTRIC) {
-            apply_label_rotation(label_multiplayer_life[i], label_multiplayer_name[i],
+            apply_label_rotation(label_player_life[i], label_multiplayer_name[i],
                 angle, 10, -30);
         } else {
-            apply_label_rotation(label_multiplayer_life[i], label_multiplayer_name[i],
+            apply_label_rotation(label_player_life[i], label_multiplayer_name[i],
                 angle, 12, -30);
         }
         refresh_counter_rows(multiplayer_quadrants[i], counter_row_4p[i], counter_value_4p[i], i, text_color, angle, counter_angle);
@@ -451,9 +451,9 @@ void refresh_multiplayer_all_damage_ui(void)
         lv_label_set_text(label_multiplayer_all_damage_title, "All players");
     }
 
-    if (label_multiplayer_all_damage_value != NULL) {
-        snprintf(buf, sizeof(buf), "Damage: %d", multiplayer_all_damage_value);
-        lv_label_set_text(label_multiplayer_all_damage_value, buf);
+    if (label_all_damage_value != NULL) {
+        snprintf(buf, sizeof(buf), "Damage: %d", all_damage_value);
+        lv_label_set_text(label_all_damage_value, buf);
     }
 }
 
@@ -461,12 +461,12 @@ void refresh_multiplayer_counter_edit_ui(void)
 {
     char title_buf[48];
     char value_buf[16];
-    const counter_definition_t *definition = get_counter_definition(multiplayer_counter_edit_type);
+    const counter_definition_t *definition = get_counter_definition(counter_edit_type);
 
     if (definition == NULL) return;
 
     if (label_multiplayer_counter_edit_icon != NULL) {
-        const lv_font_t *icon_font = (multiplayer_counter_edit_type == COUNTER_TYPE_POISON)
+        const lv_font_t *icon_font = (counter_edit_type == COUNTER_TYPE_POISON)
                                       ? &mana_poison_icon_bold_16
                                       : &mana_counter_icons_16;
         lv_label_set_text(label_multiplayer_counter_edit_icon,
@@ -475,18 +475,14 @@ void refresh_multiplayer_counter_edit_ui(void)
     }
 
     if (label_multiplayer_counter_edit_title != NULL) {
-        if (counter_edit_is_singleplayer) {
-            snprintf(title_buf, sizeof(title_buf), "%s", definition->display_name);
-        } else {
-            snprintf(title_buf, sizeof(title_buf), "%s\n%s",
-                multiplayer_names[multiplayer_menu_player], definition->display_name);
-        }
+        snprintf(title_buf, sizeof(title_buf), "%s\n%s",
+            player_names[menu_player], definition->display_name);
         lv_label_set_text(label_multiplayer_counter_edit_title, title_buf);
     }
 
-    if (label_multiplayer_counter_edit_value != NULL) {
-        snprintf(value_buf, sizeof(value_buf), "%d", multiplayer_counter_edit_value);
-        lv_label_set_text(label_multiplayer_counter_edit_value, value_buf);
+    if (label_counter_edit_value != NULL) {
+        snprintf(value_buf, sizeof(value_buf), "%d", counter_edit_value);
+        lv_label_set_text(label_counter_edit_value, value_buf);
     }
 }
 
@@ -502,7 +498,7 @@ void open_multiplayer_screen(void)
 
 void open_multiplayer_menu_screen(int player_index)
 {
-    multiplayer_menu_player = player_index;
+    menu_player = player_index;
     load_screen_if_needed(screen_player_menu);
 }
 
@@ -513,18 +509,14 @@ void open_multiplayer_counter_menu_screen(void)
 
 static void open_multiplayer_all_damage_screen(void)
 {
-    multiplayer_all_damage_value = 0;
+    all_damage_value = 0;
     refresh_multiplayer_all_damage_ui();
     load_screen_if_needed(screen_player_all_damage);
 }
 
 static void open_multiplayer_counter_edit_screen(counter_type_t type)
 {
-    if (counter_edit_is_singleplayer) {
-        begin_singleplayer_counter_edit(type);
-    } else {
-        begin_multiplayer_counter_edit(multiplayer_menu_player, type);
-    }
+    begin_counter_edit(menu_player, type);
     refresh_multiplayer_counter_edit_ui();
     load_screen_if_needed(screen_player_counter_edit);
 }
@@ -541,7 +533,7 @@ static int quad_to_player(int quad)
 static void select_timeout_cb(lv_timer_t *timer)
 {
     (void)timer;
-    multiplayer_selected = -1;
+    selected_player = -1;
     if (select_timeout_timer != NULL)
         lv_timer_pause(select_timeout_timer);
     refresh_multiplayer_ui();
@@ -556,7 +548,7 @@ void select_kick_timer(void)
         select_timeout_timer = lv_timer_create(select_timeout_cb, 15000, NULL);
         lv_timer_pause(select_timeout_timer);
     }
-    if (multiplayer_selected >= 0 && ms > 0) {
+    if (selected_player >= 0 && ms > 0) {
         lv_timer_set_period(select_timeout_timer, (uint32_t)ms);
         lv_timer_reset(select_timeout_timer);
         lv_timer_resume(select_timeout_timer);
@@ -572,22 +564,22 @@ static void event_multiplayer_select(lv_event_t *e)
     int player = quad_to_player(quad);
 
     if (player < 0) return;
-    if (multiplayer_eliminated[player]) return;
+    if (player_eliminated[player]) return;
 
-    if (multiplayer_life_preview_active && multiplayer_preview_player != player) {
-        multiplayer_life_preview_commit_cb(NULL);
+    if (life_preview_active && preview_player != player) {
+        life_preview_commit_cb(NULL);
     }
 
-    if (multiplayer_selected == player) {
+    if (selected_player == player) {
         /* Deselecting the same player: if there's an active preview for
          * this player, commit it immediately so the altered life total is
          * shown (same behavior as selecting another player). */
-        if (multiplayer_life_preview_active && multiplayer_preview_player == player) {
-            multiplayer_life_preview_commit_cb(NULL);
+        if (life_preview_active && preview_player == player) {
+            life_preview_commit_cb(NULL);
         }
-        multiplayer_selected = -1;
+        selected_player = -1;
     } else {
-        multiplayer_selected = player;
+        selected_player = player;
     }
     select_kick_timer();
     refresh_multiplayer_ui();
@@ -599,19 +591,19 @@ static void event_multiplayer_open_menu(lv_event_t *e)
     int player = quad_to_player(quad);
 
     if (player < 0) return;
-    if (multiplayer_eliminated[player]) {
-        multiplayer_menu_player = player;
+    if (player_eliminated[player]) {
+        menu_player = player;
         load_screen_if_needed(screen_eliminated_player_menu);
         return;
     }
 
-    if (multiplayer_life_preview_active && multiplayer_preview_player != player) {
-        multiplayer_life_preview_commit_cb(NULL);
+    if (life_preview_active && preview_player != player) {
+        life_preview_commit_cb(NULL);
     }
 
-    multiplayer_selected = player;
+    selected_player = player;
     refresh_multiplayer_ui();
-    open_multiplayer_menu_screen(multiplayer_selected);
+    open_multiplayer_menu_screen(selected_player);
 }
 
 static void event_multiplayer_menu_rename(lv_event_t *e)
@@ -629,7 +621,7 @@ static void event_multiplayer_menu_rename_all(lv_event_t *e)
 static void event_multiplayer_menu_cmd_damage(lv_event_t *e)
 {
     (void)e;
-    prepare_cmd_damage_for_player(multiplayer_menu_player);
+    prepare_cmd_damage_for_player(menu_player);
     open_select_screen();
 }
 
@@ -648,8 +640,8 @@ static void event_multiplayer_menu_counters(lv_event_t *e)
 static void event_eliminated_player_menu_undo(lv_event_t *e)
 {
     (void)e;
-    undo_multiplayer_elimination_action(multiplayer_menu_player);
-    open_multiplayer_screen();
+    undo_elimination_action(menu_player);
+    back_to_main();
 }
 
 static void event_multiplayer_counter_commander_tax(lv_event_t *e)
@@ -682,28 +674,21 @@ static void event_multiplayer_all_damage_apply(lv_event_t *e)
 
     (void)e;
     for (i = 0; i < nvs_get_players_to_track(); i++) {
-        damage_log_add(i, -multiplayer_all_damage_value, LOG_EVT_LIFE, -1);
-        multiplayer_life[i] = clamp_life(multiplayer_life[i] - multiplayer_all_damage_value);
+        damage_log_add(i, -all_damage_value, LOG_EVT_LIFE, -1);
+        player_life[i] = clamp_life(player_life[i] - all_damage_value);
     }
 
-    refresh_multiplayer_ui();
-    open_multiplayer_screen();
+    refresh_player_ui();
+    back_to_main();
 }
 
 static void event_multiplayer_counter_apply(lv_event_t *e)
 {
     (void)e;
-    if (counter_edit_is_singleplayer) {
-        apply_singleplayer_counter_edit();
-        refresh_multiplayer_counter_edit_ui();
-        refresh_main_ui();
-        back_to_main();
-    } else {
-        apply_multiplayer_counter_edit();
-        refresh_multiplayer_counter_edit_ui();
-        refresh_multiplayer_ui();
-        open_multiplayer_screen();
-    }
+    apply_counter_edit();
+    refresh_multiplayer_counter_edit_ui();
+    refresh_player_ui();
+    back_to_main();
 }
 
 // ---------- screen builders ----------
@@ -740,11 +725,11 @@ void build_multiplayer_screen(void)
         lv_obj_set_style_text_font(label_multiplayer_name[i], &lv_font_montserrat_22, 0);
         lv_obj_align(label_multiplayer_name[i], LV_ALIGN_CENTER, 0, 30);
 
-        label_multiplayer_life[i] = lv_label_create(multiplayer_quadrants[i]);
-        lv_label_set_text(label_multiplayer_life[i], "40");
-        lv_obj_set_style_text_color(label_multiplayer_life[i], lv_color_white(), 0);
-        lv_obj_set_style_text_font(label_multiplayer_life[i], &lv_font_montserrat_bold_56, 0);
-        lv_obj_align(label_multiplayer_life[i], LV_ALIGN_CENTER, 0, -30);
+        label_player_life[i] = lv_label_create(multiplayer_quadrants[i]);
+        lv_label_set_text(label_player_life[i], "40");
+        lv_obj_set_style_text_color(label_player_life[i], lv_color_white(), 0);
+        lv_obj_set_style_text_font(label_player_life[i], &lv_font_montserrat_bold_56, 0);
+        lv_obj_align(label_player_life[i], LV_ALIGN_CENTER, 0, -30);
 
         create_counter_row(multiplayer_quadrants[i], COUNTER_TYPE_COMMANDER_TAX,
             &counter_row_4p[i][COUNTER_TYPE_COMMANDER_TAX],
@@ -849,10 +834,10 @@ void build_multiplayer_all_damage_screen(void)
     lv_obj_set_style_text_font(label_multiplayer_all_damage_title, &lv_font_montserrat_22, 0);
     lv_obj_align(label_multiplayer_all_damage_title, LV_ALIGN_TOP_MID, 0, 26);
 
-    label_multiplayer_all_damage_value = lv_label_create(screen_player_all_damage);
-    lv_obj_set_style_text_color(label_multiplayer_all_damage_value, lv_color_white(), 0);
-    lv_obj_set_style_text_font(label_multiplayer_all_damage_value, &lv_font_montserrat_32, 0);
-    lv_obj_align(label_multiplayer_all_damage_value, LV_ALIGN_CENTER, 0, -8);
+    label_all_damage_value = lv_label_create(screen_player_all_damage);
+    lv_obj_set_style_text_color(label_all_damage_value, lv_color_white(), 0);
+    lv_obj_set_style_text_font(label_all_damage_value, &lv_font_montserrat_32, 0);
+    lv_obj_align(label_all_damage_value, LV_ALIGN_CENTER, 0, -8);
 
     label_multiplayer_all_damage_hint = lv_label_create(screen_player_all_damage);
     lv_label_set_text(label_multiplayer_all_damage_hint, "Turn knob, then apply");
@@ -887,11 +872,11 @@ void build_multiplayer_counter_edit_screen(void)
     lv_obj_set_style_text_align(label_multiplayer_counter_edit_title, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_align(label_multiplayer_counter_edit_title, LV_ALIGN_TOP_MID, 0, 42);
 
-    label_multiplayer_counter_edit_value = lv_label_create(screen_player_counter_edit);
-    lv_label_set_text(label_multiplayer_counter_edit_value, "0");
-    lv_obj_set_style_text_color(label_multiplayer_counter_edit_value, lv_color_white(), 0);
-    lv_obj_set_style_text_font(label_multiplayer_counter_edit_value, &lv_font_montserrat_32, 0);
-    lv_obj_align(label_multiplayer_counter_edit_value, LV_ALIGN_CENTER, 0, -4);
+    label_counter_edit_value = lv_label_create(screen_player_counter_edit);
+    lv_label_set_text(label_counter_edit_value, "0");
+    lv_obj_set_style_text_color(label_counter_edit_value, lv_color_white(), 0);
+    lv_obj_set_style_text_font(label_counter_edit_value, &lv_font_montserrat_32, 0);
+    lv_obj_align(label_counter_edit_value, LV_ALIGN_CENTER, 0, -4);
 
     label_multiplayer_counter_edit_hint = lv_label_create(screen_player_counter_edit);
     lv_label_set_text(label_multiplayer_counter_edit_hint, "Turn knob, then apply");
@@ -932,7 +917,7 @@ void build_multiplayer_2p_screen(void)
         lv_obj_add_event_cb(mp2_panels[i], event_multiplayer_open_menu, LV_EVENT_LONG_PRESSED, (void *)(intptr_t)p);
 
         label_mp2_name[i] = lv_label_create(mp2_panels[i]);
-        lv_label_set_text(label_mp2_name[i], multiplayer_names[p]);
+        lv_label_set_text(label_mp2_name[i], player_names[p]);
         lv_obj_set_style_text_color(label_mp2_name[i], lv_color_white(), 0);
         lv_obj_set_style_text_font(label_mp2_name[i], &lv_font_montserrat_22, 0);
         lv_obj_align(label_mp2_name[i], LV_ALIGN_CENTER, 0, 30);
@@ -991,7 +976,7 @@ void build_multiplayer_3p_screen(void)
         lv_obj_add_event_cb(mp3_panels[i], event_multiplayer_open_menu, LV_EVENT_LONG_PRESSED, (void *)(intptr_t)p);
 
         label_mp3_name[i] = lv_label_create(mp3_panels[i]);
-        lv_label_set_text(label_mp3_name[i], multiplayer_names[p]);
+        lv_label_set_text(label_mp3_name[i], player_names[p]);
         lv_obj_set_style_text_color(label_mp3_name[i], lv_color_white(), 0);
         lv_obj_set_style_text_font(label_mp3_name[i], &lv_font_montserrat_22, 0);
         lv_obj_align(label_mp3_name[i], LV_ALIGN_CENTER, 0, 30);

@@ -1,7 +1,7 @@
-#ifndef _KNOB_SCR_MULTIPLAYER_H
-#define _KNOB_SCR_MULTIPLAYER_H
+#ifndef _UI_MP_H
+#define _UI_MP_H
 
-#include "knob_types.h"
+#include "types.h"
 
 // ---------- screens ----------
 extern lv_obj_t *screen_4p;
@@ -32,4 +32,4 @@ void open_multiplayer_menu_screen(int player_index);
 void open_multiplayer_counter_menu_screen(void);
 void select_kick_timer(void);
 
-#endif // _KNOB_SCR_MULTIPLAYER_H
+#endif // _UI_MP_H

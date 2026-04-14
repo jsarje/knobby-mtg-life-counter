@@ -1,7 +1,7 @@
-#ifndef _KNOB_SCR_MENUS_H
-#define _KNOB_SCR_MENUS_H
+#ifndef _SETTINGS_H
+#define _SETTINGS_H
 
-#include "knob_types.h"
+#include "types.h"
 
 // ---------- screens ----------
 extern lv_obj_t *screen_quad_menu;
@@ -23,4 +23,4 @@ void refresh_battery_ui(void);
 void open_quad_menu(void);
 void open_settings_screen(void);
 
-#endif // _KNOB_SCR_MENUS_H
+#endif // _SETTINGS_H

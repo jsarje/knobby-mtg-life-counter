@@ -1,4 +1,4 @@
-#include "knob_timer.h"
+#include "timer.h"
 
 // Forward declaration
 extern void refresh_turn_ui(void);

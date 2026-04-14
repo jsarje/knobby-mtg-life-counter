@@ -1,5 +1,5 @@
-#include "knob_dice.h"
-#include "knob_life.h"
+#include "dice.h"
+#include "game.h"
 #include "esp_random.h"
 
 // ---------- state ----------

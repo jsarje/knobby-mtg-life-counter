@@ -5,18 +5,18 @@
 #include "board_detect.h"
 #include <lvgl.h>
 #include "knob.h"
-#include "knob_hw.h"
-#include "knob_nvs.h"
-#include "knob_life.h"
-#include "knob_scr_main.h"
-#include "knob_scr_multiplayer.h"
-#include "knob_scr_menus.h"
-#include "knob_intro.h"
-#include "knob_dice.h"
-#include "knob_timer.h"
-#include "knob_damage_log.h"
-#include "knob_game_mode.h"
-#include "knob_rename.h"
+#include "hw.h"
+#include "storage.h"
+#include "game.h"
+#include "ui_1p.h"
+#include "ui_mp.h"
+#include "settings.h"
+#include "intro.h"
+#include "dice.h"
+#include "timer.h"
+#include "damage_log.h"
+#include "game_mode.h"
+#include "rename.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -131,13 +131,13 @@ static void nav_damage(void) {
 static void nav_player_menu(void)  { open_multiplayer_menu_screen(0); }
 static void nav_rename(void)       { open_rename_screen(); }
 static void nav_all_damage(void) {
-    multiplayer_all_damage_value = 5;
+    all_damage_value = 5;
     refresh_multiplayer_all_damage_ui();
     lv_scr_load(screen_player_all_damage);
 }
 static void nav_counters_menu(void) { lv_scr_load(screen_player_counters_menu); }
 static void nav_counter_edit(void) {
-    begin_multiplayer_counter_edit(0, COUNTER_TYPE_POISON);
+    begin_counter_edit(0, COUNTER_TYPE_POISON);
     refresh_multiplayer_counter_edit_ui();
     lv_scr_load(screen_player_counter_edit);
 }
@@ -250,9 +250,7 @@ static void populate_random_counters(void)
     int p, t;
     for (p = 0; p < MAX_PLAYERS; p++)
         for (t = 0; t < COUNTER_TYPE_COUNT; t++)
-            multiplayer_counter_values[p][t] = rand() % 100;
-    for (t = 0; t < COUNTER_TYPE_COUNT; t++)
-        singleplayer_counter_values[t] = rand() % 100;
+            player_counters[p][t] = rand() % 100;
 }
 
 static void populate_random_log(void)
@@ -286,7 +284,7 @@ int main(int argc, char *argv[])
     int selected_set = 0;
     int preview_delta = 0;
     int preview_delta_set = 0;
-    int preview_player = -1;
+    int arg_preview_player = -1;
     int dice_val = 0;
     int dice_set = 0;
     int counter_type_val = 2; /* default: poison */
@@ -334,7 +332,7 @@ int main(int argc, char *argv[])
             preview_delta = atoi(argv[++i]);
             preview_delta_set = 1;
         } else if (strcmp(argv[i], "--preview-player") == 0 && i + 1 < argc) {
-            preview_player = atoi(argv[++i]);
+            arg_preview_player = atoi(argv[++i]);
         } else if (strcmp(argv[i], "--color-mode") == 0 && i + 1 < argc) {
             sim_nvs_preset_i8("color_mode", (int8_t)atoi(argv[++i]));
         } else if (strcmp(argv[i], "--orientation") == 0 && i + 1 < argc) {
@@ -408,28 +406,23 @@ int main(int argc, char *argv[])
     /* Apply RAM-only overrides after navigation */
     #define APPLY_RAM_OVERRIDES() do { \
         if (life_set) { \
-            life_total = life_values[0]; \
             for (i = 0; i < MAX_PLAYERS; i++) \
-                multiplayer_life[i] = life_values[i]; \
+                player_life[i] = life_values[i]; \
         } \
         if (names_set) { \
             for (i = 0; i < MAX_PLAYERS; i++) { \
                 if (name_values[i][0]) \
-                    snprintf(multiplayer_names[i], sizeof(multiplayer_names[i]), "%s", name_values[i]); \
+                    snprintf(player_names[i], sizeof(player_names[i]), "%s", name_values[i]); \
             } \
         } \
         if (selected_set) \
-            multiplayer_selected = selected_val; \
+            selected_player = selected_val; \
         if (preview_delta_set) { \
-            if (preview_player < 0) { \
-                pending_life_delta = preview_delta; \
-                life_preview_active = true; \
-            } else { \
-                multiplayer_preview_player = preview_player; \
-                multiplayer_pending_life_delta = preview_delta; \
-                multiplayer_life_preview_active = true; \
-                multiplayer_selected = preview_player; \
-            } \
+            if (arg_preview_player < 0) arg_preview_player = 0; \
+            preview_player = arg_preview_player; \
+            pending_life_delta = preview_delta; \
+            life_preview_active = true; \
+            selected_player = arg_preview_player; \
         } \
         if (brightness_set) { \
             brightness_percent = brightness_val; \
@@ -440,8 +433,8 @@ int main(int argc, char *argv[])
             refresh_dice_ui(); \
         } \
         if (counter_type_set || counter_value_set) { \
-            begin_multiplayer_counter_edit(counter_player_val, (counter_type_t)counter_type_val); \
-            if (counter_value_set) multiplayer_counter_edit_value = counter_value_val; \
+            begin_counter_edit(counter_player_val, (counter_type_t)counter_type_val); \
+            if (counter_value_set) counter_edit_value = counter_value_val; \
             refresh_multiplayer_counter_edit_ui(); \
         } \
         if (enemy_damage_set) { \
@@ -451,11 +444,11 @@ int main(int argc, char *argv[])
             refresh_damage_ui(); \
         } \
         if (all_damage_set) { \
-            multiplayer_all_damage_value = all_damage_val; \
+            all_damage_value = all_damage_val; \
             refresh_multiplayer_all_damage_ui(); \
         } \
         if (menu_player_set) { \
-            multiplayer_menu_player = menu_player_val; \
+            menu_player = menu_player_val; \
         } \
         if (do_random_counters) \
             populate_random_counters(); \

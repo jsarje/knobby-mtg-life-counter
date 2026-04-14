@@ -1,5 +1,5 @@
-#include "knob_damage_log.h"
-#include "knob_life.h"
+#include "damage_log.h"
+#include "game.h"
 
 // ---------- data ----------
 typedef struct {
@@ -119,26 +119,23 @@ static void format_log_line(damage_log_entry_t *entry, char *buf, size_t buf_sz)
     if (entry->event_type == LOG_EVT_CMD_DAMAGE && entry->source >= 0) {
         snprintf(buf, buf_sz, "%s: %s dealt %d cmd to %s",
                  time_str,
-                 multiplayer_names[entry->source],
+                 player_names[entry->source],
                  abs_delta,
-                 multiplayer_names[entry->player]);
+                 player_names[entry->player]);
     } else if (entry->event_type == LOG_EVT_COUNTER && entry->source >= 0 && entry->player >= 0) {
         const counter_definition_t *definition = get_counter_definition((counter_type_t)entry->source);
         const char *action = entry->delta > 0 ? "increased" : "decreased";
         const char *counter_name = (definition != NULL) ? definition->display_name : "Counter";
         snprintf(buf, buf_sz, "%s: %s %s %s by %d",
                  time_str,
-                 multiplayer_names[entry->player],
+                 player_names[entry->player],
                  action,
                  counter_name,
                  abs_delta);
-    } else if (entry->player < 0) {
-        const char *action = entry->delta > 0 ? "gained" : "lost";
-        snprintf(buf, buf_sz, "%s: %s %d life", time_str, action, abs_delta);
-    } else {
+    } else if (entry->player >= 0 && entry->player < MAX_PLAYERS) {
         const char *action = entry->delta > 0 ? "gained" : "lost";
         snprintf(buf, buf_sz, "%s: %s %s %d life",
-                 time_str, multiplayer_names[entry->player], action, abs_delta);
+                 time_str, player_names[entry->player], action, abs_delta);
     }
 }
 
