@@ -10,6 +10,7 @@
 #include "game.h"
 #include "ui_1p.h"
 #include "ui_mp.h"
+#include "ui_player_menu.h"
 #include "settings.h"
 #include "intro.h"
 #include "dice.h"
@@ -128,18 +129,18 @@ static void nav_damage(void) {
     refresh_damage_ui();
     lv_scr_load(screen_damage);
 }
-static void nav_player_menu(void)  { open_multiplayer_menu_screen(0); }
+static void nav_player_menu(void)  { open_player_menu(0); }
 static void nav_rename(void)       { open_rename_screen(); }
 static void nav_all_damage(void) {
     all_damage_value = 5;
-    refresh_multiplayer_all_damage_ui();
+    refresh_all_damage_ui();
     lv_scr_load(screen_player_all_damage);
 }
-static void nav_counters_menu(void) { lv_scr_load(screen_player_counters_menu); }
+static void nav_counters_menu(void) { lv_scr_load(screen_counter_menu); }
 static void nav_counter_edit(void) {
     begin_counter_edit(0, COUNTER_TYPE_POISON);
-    refresh_multiplayer_counter_edit_ui();
-    lv_scr_load(screen_player_counter_edit);
+    refresh_counter_edit_ui();
+    lv_scr_load(screen_counter_edit);
 }
 
 static const screen_entry_t all_screens[] = {
@@ -435,7 +436,7 @@ int main(int argc, char *argv[])
         if (counter_type_set || counter_value_set) { \
             begin_counter_edit(counter_player_val, (counter_type_t)counter_type_val); \
             if (counter_value_set) counter_edit_value = counter_value_val; \
-            refresh_multiplayer_counter_edit_ui(); \
+            refresh_counter_edit_ui(); \
         } \
         if (enemy_damage_set) { \
             for (i = 0; i < MAX_ENEMY_COUNT; i++) \
@@ -445,7 +446,7 @@ int main(int argc, char *argv[])
         } \
         if (all_damage_set) { \
             all_damage_value = all_damage_val; \
-            refresh_multiplayer_all_damage_ui(); \
+            refresh_all_damage_ui(); \
         } \
         if (menu_player_set) { \
             menu_player = menu_player_val; \

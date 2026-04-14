@@ -1,6 +1,7 @@
 #include "ui_1p.h"
 #include "settings.h"
 #include "ui_mp.h"
+#include "ui_player_menu.h"
 #include "game.h"
 #include "timer.h"
 #include "storage.h"
@@ -292,7 +293,7 @@ static void open_damage_screen(int enemy_index)
 static void event_open_1p_menu(lv_event_t *e)
 {
     (void)e;
-    open_multiplayer_menu_screen(0);
+    open_player_menu(0);
 }
 
 static void event_select_enemy(lv_event_t *e)

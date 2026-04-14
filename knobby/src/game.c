@@ -6,7 +6,7 @@
 extern void refresh_player_ui(void);
 extern void refresh_select_ui(void);
 extern void refresh_damage_ui(void);
-extern void refresh_multiplayer_all_damage_ui(void);
+extern void refresh_all_damage_ui(void);
 extern void select_kick_timer(void);
 
 // ---------- state ----------
@@ -412,7 +412,7 @@ void change_all_damage(int delta)
 {
     all_damage_value += delta;
     if (all_damage_value < 0) all_damage_value = 0;
-    refresh_multiplayer_all_damage_ui();
+    refresh_all_damage_ui();
 }
 
 // ---------- undo ----------

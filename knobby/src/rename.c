@@ -1,5 +1,6 @@
 #include "rename.h"
 #include "ui_mp.h"
+#include "ui_player_menu.h"
 #include "ui_1p.h"
 #include "game.h"
 #include "storage.h"
@@ -110,7 +111,7 @@ static void apply_name_and_return(const char *name)
         refresh_rename_ui();
         refresh_select_ui();
         refresh_damage_ui();
-        open_multiplayer_menu_screen(menu_player);
+        open_player_menu(menu_player);
     }
 }
 
@@ -135,7 +136,7 @@ static void event_name_save(lv_event_t *e)
             refresh_rename_ui();
             refresh_select_ui();
             refresh_damage_ui();
-            open_multiplayer_menu_screen(menu_player);
+            open_player_menu(menu_player);
         }
     } else {
         apply_name_and_return(txt);

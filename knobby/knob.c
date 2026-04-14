@@ -7,6 +7,7 @@
 #include "src/intro.h"
 #include "src/ui_1p.h"
 #include "src/ui_mp.h"
+#include "src/ui_player_menu.h"
 #include "src/settings.h"
 #include "src/game_mode.h"
 #include "src/damage_log.h"
@@ -97,13 +98,13 @@ static void handle_back_navigation(lv_obj_t *screen)
         back_to_main();
     } else if (screen == screen_player_name) {
         if (!name_screen_handle_back())
-            open_multiplayer_menu_screen(menu_player);
-    } else if (screen == screen_player_counters_menu) {
-        open_multiplayer_menu_screen(menu_player);
-    } else if (screen == screen_player_counter_edit) {
-        open_multiplayer_counter_menu_screen();
+            open_player_menu(menu_player);
+    } else if (screen == screen_counter_menu) {
+        open_player_menu(menu_player);
+    } else if (screen == screen_counter_edit) {
+        open_counter_menu();
     } else if (screen == screen_player_all_damage) {
-        open_multiplayer_menu_screen(menu_player);
+        open_player_menu(menu_player);
     }
 }
 
@@ -124,8 +125,8 @@ void reset_all_values(void)
     refresh_multiplayer_ui();
 
     refresh_rename_ui();
-    refresh_multiplayer_all_damage_ui();
-    refresh_multiplayer_counter_edit_ui();
+    refresh_all_damage_ui();
+    refresh_counter_edit_ui();
 }
 
 void knob_cb(lv_event_t *e)
@@ -147,12 +148,12 @@ void knob_gui(void)
     build_multiplayer_screen();
     build_multiplayer_2p_screen();
     build_multiplayer_3p_screen();
-    build_multiplayer_menu_screen();
+    build_player_menu_screen();
     build_eliminated_player_menu_screen();
     build_rename_screen();
-    build_multiplayer_all_damage_screen();
-    build_multiplayer_counter_menu_screen();
-    build_multiplayer_counter_edit_screen();
+    build_all_damage_screen();
+    build_counter_menu_screen();
+    build_counter_edit_screen();
     build_select_screen();
     build_damage_screen();
     build_settings_screen();
@@ -168,8 +169,8 @@ void knob_gui(void)
     refresh_rename_ui();
     refresh_select_ui();
     refresh_damage_ui();
-    refresh_multiplayer_all_damage_ui();
-    refresh_multiplayer_counter_edit_ui();
+    refresh_all_damage_ui();
+    refresh_counter_edit_ui();
     refresh_settings_ui();
 
     knob_timer_init();
@@ -221,11 +222,11 @@ static void handle_knob_event(knob_event_t k)
         if (k == KNOB_LEFT)      change_custom_life(-1);
         else if (k == KNOB_RIGHT) change_custom_life(+1);
     }
-    else if (lv_scr_act() == screen_player_counter_edit)
+    else if (lv_scr_act() == screen_counter_edit)
     {
         if (k == KNOB_LEFT)      change_counter_edit(-1);
         else if (k == KNOB_RIGHT) change_counter_edit(+1);
-        refresh_multiplayer_counter_edit_ui();
+        refresh_counter_edit_ui();
     }
     else if (lv_scr_act() == screen_damage_log)
     {
