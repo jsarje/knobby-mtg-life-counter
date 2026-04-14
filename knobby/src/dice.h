@@ -1,7 +1,7 @@
-#ifndef _KNOB_DICE_H
-#define _KNOB_DICE_H
+#ifndef _DICE_H
+#define _DICE_H
 
-#include "knob_types.h"
+#include "types.h"
 
 // ---------- state ----------
 extern lv_obj_t *screen_dice;
@@ -14,4 +14,4 @@ void open_dice_screen(void);
 // event callback used in menu builder
 void event_tool_dice(lv_event_t *e);
 
-#endif // _KNOB_DICE_H
+#endif // _DICE_H

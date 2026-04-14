@@ -1,7 +1,7 @@
-#ifndef _KNOB_NVS_H
-#define _KNOB_NVS_H
+#ifndef _STORAGE_H
+#define _STORAGE_H
 
-#include "knob_types.h"
+#include "types.h"
 
 void knob_nvs_init(void);
 void settings_save(void);
@@ -30,4 +30,4 @@ void nvs_set_life_total(int value);
 void nvs_get_name_list(char (*out)[NAME_LIST_LEN]);
 void nvs_set_name_list(const char (*list)[NAME_LIST_LEN]);
 
-#endif // _KNOB_NVS_H
+#endif // _STORAGE_H

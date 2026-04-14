@@ -1,5 +1,5 @@
-#include "knob_damage_log.h"
-#include "knob_life.h"
+#include "damage_log.h"
+#include "game.h"
 
 // ---------- data ----------
 typedef struct {

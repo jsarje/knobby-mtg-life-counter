@@ -1,6 +1,6 @@
-#include "knob_game_mode.h"
-#include "knob_nvs.h"
-#include "knob_scr_menus.h"
+#include "game_mode.h"
+#include "storage.h"
+#include "settings.h"
 
 // Forward declarations
 extern void reset_all_values(void);

@@ -1,7 +1,7 @@
-#ifndef _KNOB_DAMAGE_LOG_H
-#define _KNOB_DAMAGE_LOG_H
+#ifndef _DAMAGE_LOG_H
+#define _DAMAGE_LOG_H
 
-#include "knob_types.h"
+#include "types.h"
 
 #define DAMAGE_LOG_MAX 256
 
@@ -23,4 +23,4 @@ void damage_log_undo_selected(void);
 void build_damage_log_screen(void);
 void open_damage_log_screen(void);
 
-#endif // _KNOB_DAMAGE_LOG_H
+#endif // _DAMAGE_LOG_H

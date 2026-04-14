@@ -1,9 +1,9 @@
-#include "knob_scr_main.h"
-#include "knob_scr_menus.h"
-#include "knob_scr_multiplayer.h"
-#include "knob_life.h"
-#include "knob_timer.h"
-#include "knob_nvs.h"
+#include "ui_1p.h"
+#include "settings.h"
+#include "ui_mp.h"
+#include "game.h"
+#include "timer.h"
+#include "storage.h"
 
 // Forward declarations for multiplayer routing
 extern lv_obj_t *screen_4p;

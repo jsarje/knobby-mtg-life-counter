@@ -1,7 +1,7 @@
-#ifndef _KNOB_LIFE_H
-#define _KNOB_LIFE_H
+#ifndef _GAME_H
+#define _GAME_H
 
-#include "knob_types.h"
+#include "types.h"
 
 typedef enum {
 	COUNTER_TYPE_COMMANDER_TAX = 0,
@@ -73,4 +73,4 @@ lv_color_t get_player_preview_color(int index, int delta);
 int get_main_player_index(void);
 int get_cmd_target_player_index(int row);
 
-#endif // _KNOB_LIFE_H
+#endif // _GAME_H

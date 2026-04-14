@@ -1,7 +1,7 @@
-#ifndef _KNOB_RENAME_H
-#define _KNOB_RENAME_H
+#ifndef _RENAME_H
+#define _RENAME_H
 
-#include "knob_types.h"
+#include "types.h"
 
 extern lv_obj_t *screen_player_name;
 
@@ -14,4 +14,4 @@ void mru_select_next(void);
 void mru_select_prev(void);
 bool name_screen_handle_back(void);
 
-#endif // _KNOB_RENAME_H
+#endif // _RENAME_H

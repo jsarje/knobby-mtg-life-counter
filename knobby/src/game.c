@@ -1,6 +1,6 @@
-#include "knob_life.h"
-#include "knob_nvs.h"
-#include "knob_damage_log.h"
+#include "game.h"
+#include "storage.h"
+#include "damage_log.h"
 
 // Forward declarations for UI refresh (defined in screen modules)
 extern void refresh_player_ui(void);

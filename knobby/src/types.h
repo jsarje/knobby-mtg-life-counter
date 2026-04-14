@@ -1,5 +1,5 @@
-#ifndef _KNOB_TYPES_H
-#define _KNOB_TYPES_H
+#ifndef _TYPES_H
+#define _TYPES_H
 
 #include "knob.h"
 #include <stdint.h>
@@ -176,4 +176,4 @@ static inline void load_screen_if_needed(lv_obj_t *screen)
     }
 }
 
-#endif // _KNOB_TYPES_H
+#endif // _TYPES_H

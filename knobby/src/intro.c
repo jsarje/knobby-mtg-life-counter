@@ -1,4 +1,4 @@
-#include "knob_intro.h"
+#include "intro.h"
 
 // Forward declaration
 extern void back_to_main(void);

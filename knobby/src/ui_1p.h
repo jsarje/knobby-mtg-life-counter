@@ -1,7 +1,7 @@
-#ifndef _KNOB_SCR_MAIN_H
-#define _KNOB_SCR_MAIN_H
+#ifndef _UI_1P_H
+#define _UI_1P_H
 
-#include "knob_types.h"
+#include "types.h"
 
 // ---------- screens ----------
 extern lv_obj_t *screen_1p;
@@ -21,4 +21,4 @@ void refresh_damage_ui(void);
 void open_select_screen(void);
 void back_to_main(void);
 
-#endif // _KNOB_SCR_MAIN_H
+#endif // _UI_1P_H

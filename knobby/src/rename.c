@@ -1,8 +1,8 @@
-#include "knob_rename.h"
-#include "knob_scr_multiplayer.h"
-#include "knob_scr_main.h"
-#include "knob_life.h"
-#include "knob_nvs.h"
+#include "rename.h"
+#include "ui_mp.h"
+#include "ui_1p.h"
+#include "game.h"
+#include "storage.h"
 #include <string.h>
 
 // ---------- screens ----------

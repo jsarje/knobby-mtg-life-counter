@@ -9,7 +9,7 @@
 #include <lvgl.h>
 #include "hal/lv_hal.h"
 #include "knob.h"
-#include "knob_hw.h"
+#include "src/hw.h"
 
 static const float BATTERY_DIVIDER_RATIO = 2.0f;
 static const float BATTERY_CALIBRATION_SCALE = 1.0f;

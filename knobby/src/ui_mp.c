@@ -1,10 +1,10 @@
-#include "knob_scr_multiplayer.h"
-#include "knob_scr_main.h"
-#include "knob_life.h"
-#include "knob_nvs.h"
-#include "knob_damage_log.h"
-#include "knob_rename.h"
-#include "knob_scr_menus.h"
+#include "ui_mp.h"
+#include "ui_1p.h"
+#include "game.h"
+#include "storage.h"
+#include "damage_log.h"
+#include "rename.h"
+#include "settings.h"
 
 // ---------- screens ----------
 lv_obj_t *screen_4p = NULL;
