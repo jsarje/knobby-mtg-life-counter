@@ -13,16 +13,36 @@
 # C compiler — auto-detected by config.sh, passed in from shell
 CC        ?= clang
 
-# LVGL path — auto-detected by config.sh, passed in from shell
-# Linux default: ~/Arduino/libraries/lvgl
-# macOS default: ~/Documents/Arduino/libraries/lvgl
-LVGL_PATH ?= $(HOME)/Arduino/libraries/lvgl
-
-# Python — auto-detected by config.sh as python3/python
-PYTHON    ?= python3
-
-# Emscripten compiler — passed in from shell when available
-EMCC      ?= emcc
+# OS-Specific Defaults
+ifeq ($(OS),Windows_NT)
+    # Make command — use mingw32-make if make is missing
+    MAKE_CMD := $(shell where make 2>nul)
+    ifndef MAKE_CMD
+        MAKE := mingw32-make
+    else
+        MAKE := make
+    endif
+    
+    # LVGL path — Windows default
+    LVGL_PATH ?= $(USERPROFILE)/Documents/Arduino/libraries/lvgl
+    
+    # Python — Windows prefers 'python' over 'python3'
+    PYTHON    ?= python
+    
+    # Emscripten compiler — Windows requires .bat extension
+    EMCC      ?= emcc.bat
+else
+    MAKE      := make
+    
+    # LVGL path — Linux default: ~/Arduino/libraries/lvgl (macOS uses Documents)
+    LVGL_PATH ?= $(HOME)/Arduino/libraries/lvgl
+    
+    # Python — auto-detected as python3/python
+    PYTHON    ?= python3
+    
+    # Emscripten compiler — passed in from shell when available
+    EMCC      ?= emcc
+endif
 
 # Arduino CLI — standard install path (rarely needs changing)
 ARDUINO_CLI ?= arduino-cli
