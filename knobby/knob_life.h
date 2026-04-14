@@ -40,6 +40,8 @@ extern int dice_result;
 extern int multiplayer_counter_values[MAX_PLAYERS][COUNTER_TYPE_COUNT];
 extern counter_type_t multiplayer_counter_edit_type;
 extern int multiplayer_counter_edit_value;
+extern int singleplayer_counter_values[COUNTER_TYPE_COUNT];
+extern bool counter_edit_is_singleplayer;
 
 // ---------- functions ----------
 void knob_life_init(void);
@@ -60,6 +62,9 @@ void begin_multiplayer_counter_edit(int player, counter_type_t type);
 void change_multiplayer_counter_edit(int delta);
 int apply_multiplayer_counter_edit(void);
 int get_multiplayer_counter_value(int player, counter_type_t type);
+void begin_singleplayer_counter_edit(counter_type_t type);
+int apply_singleplayer_counter_edit(void);
+int get_singleplayer_counter_value(counter_type_t type);
 const counter_definition_t *get_counter_definition(counter_type_t type);
 bool counter_type_is_enabled(counter_type_t type);
 

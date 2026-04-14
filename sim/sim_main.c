@@ -206,6 +206,9 @@ static void print_usage(void)
            "  --battery-voltage <f>  Battery voltage for battery screen (default: 4.0)\n"
            "  --random-counters      Set all player counters to random values 0-99\n"
            "  --random-log           Populate event log with random entries\n"
+           "\nTimer state (1p only):\n"
+           "  --turn-number <n>      Turn number (enables timer display when > 0)\n"
+           "  --turn-elapsed <ms>    Elapsed game time in milliseconds\n"
            "\n  --help, -h             Show this message\n"
            "\nAvailable screens:\n"
            "  main 1p 2p 3p 4p intro menu tools settings-menu settings-more\n"
@@ -248,6 +251,8 @@ static void populate_random_counters(void)
     for (p = 0; p < MAX_PLAYERS; p++)
         for (t = 0; t < COUNTER_TYPE_COUNT; t++)
             multiplayer_counter_values[p][t] = rand() % 100;
+    for (t = 0; t < COUNTER_TYPE_COUNT; t++)
+        singleplayer_counter_values[t] = rand() % 100;
 }
 
 static void populate_random_log(void)
@@ -299,6 +304,10 @@ int main(int argc, char *argv[])
     int brightness_set = 0;
     int do_random_counters = 0;
     int do_random_log = 0;
+    int turn_number_val = 0;
+    int turn_number_set = 0;
+    uint32_t turn_elapsed_val = 0;
+    int turn_elapsed_set = 0;
     int i;
 
     srand((unsigned int)time(NULL));
@@ -363,6 +372,12 @@ int main(int argc, char *argv[])
             do_random_counters = 1;
         } else if (strcmp(argv[i], "--random-log") == 0) {
             do_random_log = 1;
+        } else if (strcmp(argv[i], "--turn-number") == 0 && i + 1 < argc) {
+            turn_number_val = atoi(argv[++i]);
+            turn_number_set = 1;
+        } else if (strcmp(argv[i], "--turn-elapsed") == 0 && i + 1 < argc) {
+            turn_elapsed_val = (uint32_t)atol(argv[++i]);
+            turn_elapsed_set = 1;
         } else if (strcmp(argv[i], "--outdir") == 0 && i + 1 < argc) {
             outdir = argv[++i];
         } else if (strcmp(argv[i], "--output") == 0 && i + 1 < argc) {
@@ -447,6 +462,16 @@ int main(int argc, char *argv[])
         if (do_random_log) { \
             populate_random_log(); \
             open_damage_log_screen(); \
+        } \
+        if (turn_number_set) { \
+            turn_number = turn_number_val; \
+            turn_timer_enabled = (turn_number_val > 0); \
+            turn_ui_visible = (turn_number_val > 0); \
+            turn_started_ms = lv_tick_get(); \
+            if (turn_elapsed_set) \
+                turn_elapsed_ms = turn_elapsed_val; \
+            else \
+                turn_elapsed_ms = 0; \
         } \
         refresh_main_ui(); \
         lv_obj_update_layout(lv_scr_act()); \

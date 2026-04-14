@@ -99,7 +99,11 @@ static void handle_back_navigation(lv_obj_t *screen)
         if (!name_screen_handle_back())
             open_multiplayer_menu_screen(multiplayer_menu_player);
     } else if (screen == screen_player_counters_menu) {
-        open_multiplayer_menu_screen(multiplayer_menu_player);
+        if (counter_edit_is_singleplayer) {
+            back_to_main();
+        } else {
+            open_multiplayer_menu_screen(multiplayer_menu_player);
+        }
     } else if (screen == screen_player_counter_edit) {
         open_multiplayer_counter_menu_screen();
     } else if (screen == screen_player_all_damage) {

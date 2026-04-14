@@ -440,8 +440,12 @@ void refresh_multiplayer_counter_edit_ui(void)
     if (definition == NULL) return;
 
     if (label_multiplayer_counter_edit_title != NULL) {
-        snprintf(title_buf, sizeof(title_buf), "%s\n%s",
-            multiplayer_names[multiplayer_menu_player], definition->display_name);
+        if (counter_edit_is_singleplayer) {
+            snprintf(title_buf, sizeof(title_buf), "%s", definition->display_name);
+        } else {
+            snprintf(title_buf, sizeof(title_buf), "%s\n%s",
+                multiplayer_names[multiplayer_menu_player], definition->display_name);
+        }
         lv_label_set_text(label_multiplayer_counter_edit_title, title_buf);
     }
 
@@ -481,7 +485,11 @@ static void open_multiplayer_all_damage_screen(void)
 
 static void open_multiplayer_counter_edit_screen(counter_type_t type)
 {
-    begin_multiplayer_counter_edit(multiplayer_menu_player, type);
+    if (counter_edit_is_singleplayer) {
+        begin_singleplayer_counter_edit(type);
+    } else {
+        begin_multiplayer_counter_edit(multiplayer_menu_player, type);
+    }
     refresh_multiplayer_counter_edit_ui();
     load_screen_if_needed(screen_player_counter_edit);
 }
@@ -637,10 +645,17 @@ static void event_multiplayer_all_damage_apply(lv_event_t *e)
 static void event_multiplayer_counter_apply(lv_event_t *e)
 {
     (void)e;
-    apply_multiplayer_counter_edit();
-    refresh_multiplayer_counter_edit_ui();
-    refresh_multiplayer_ui();
-    open_multiplayer_screen();
+    if (counter_edit_is_singleplayer) {
+        apply_singleplayer_counter_edit();
+        refresh_multiplayer_counter_edit_ui();
+        refresh_main_ui();
+        back_to_main();
+    } else {
+        apply_multiplayer_counter_edit();
+        refresh_multiplayer_counter_edit_ui();
+        refresh_multiplayer_ui();
+        open_multiplayer_screen();
+    }
 }
 
 // ---------- screen builders ----------

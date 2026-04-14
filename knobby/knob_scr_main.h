@@ -18,6 +18,7 @@ void refresh_select_ui(void);
 void refresh_damage_ui(void);
 
 void open_select_screen(void);
+void open_1p_counter_menu_screen(void);
 void back_to_main(void);
 
 #endif // _KNOB_SCR_MAIN_H

@@ -38,6 +38,8 @@ bool multiplayer_life_preview_active = false;
 int multiplayer_counter_values[MAX_PLAYERS][COUNTER_TYPE_COUNT] = {{0}};
 counter_type_t multiplayer_counter_edit_type = COUNTER_TYPE_COMMANDER_TAX;
 int multiplayer_counter_edit_value = 0;
+int singleplayer_counter_values[COUNTER_TYPE_COUNT] = {0};
+bool counter_edit_is_singleplayer = false;
 static lv_timer_t *life_preview_timer = NULL;
 static lv_timer_t *multiplayer_life_preview_timer = NULL;
 
@@ -160,6 +162,7 @@ void begin_multiplayer_counter_edit(int player, counter_type_t type)
     if (player < 0 || player >= MAX_PLAYERS) return;
     if (type < 0 || type >= COUNTER_TYPE_COUNT) return;
 
+    counter_edit_is_singleplayer = false;
     multiplayer_menu_player = player;
     multiplayer_counter_edit_type = type;
     multiplayer_counter_edit_value = multiplayer_counter_values[player][type];
@@ -186,6 +189,40 @@ int apply_multiplayer_counter_edit(void)
 
     if (change_delta != 0) {
         damage_log_add(player, change_delta, LOG_EVT_COUNTER, multiplayer_counter_edit_type);
+    }
+
+    return change_delta;
+}
+
+int get_singleplayer_counter_value(counter_type_t type)
+{
+    if (type < 0 || type >= COUNTER_TYPE_COUNT) return 0;
+    return singleplayer_counter_values[type];
+}
+
+void begin_singleplayer_counter_edit(counter_type_t type)
+{
+    if (type < 0 || type >= COUNTER_TYPE_COUNT) return;
+
+    counter_edit_is_singleplayer = true;
+    multiplayer_counter_edit_type = type;
+    multiplayer_counter_edit_value = singleplayer_counter_values[type];
+}
+
+int apply_singleplayer_counter_edit(void)
+{
+    int old_value;
+    int change_delta;
+
+    if (multiplayer_counter_edit_type < 0 || multiplayer_counter_edit_type >= COUNTER_TYPE_COUNT) return 0;
+
+    old_value = singleplayer_counter_values[multiplayer_counter_edit_type];
+    multiplayer_counter_edit_value = clamp_counter(multiplayer_counter_edit_value);
+    change_delta = multiplayer_counter_edit_value - old_value;
+    singleplayer_counter_values[multiplayer_counter_edit_type] = multiplayer_counter_edit_value;
+
+    if (change_delta != 0) {
+        damage_log_add(-1, change_delta, LOG_EVT_COUNTER, multiplayer_counter_edit_type);
     }
 
     return change_delta;
@@ -384,13 +421,19 @@ void undo_cmd_damage(int source, int target, int delta)
 
 void undo_counter_change(int player, int counter_type, int delta)
 {
-    if (player < 0 || player >= MAX_PLAYERS) return;
     if (counter_type < 0 || counter_type >= COUNTER_TYPE_COUNT) return;
 
-    multiplayer_counter_values[player][counter_type] = clamp_counter(
-        multiplayer_counter_values[player][counter_type] - delta
-    );
-    refresh_multiplayer_ui();
+    if (player < 0) {
+        singleplayer_counter_values[counter_type] = clamp_counter(
+            singleplayer_counter_values[counter_type] - delta
+        );
+        refresh_main_ui();
+    } else if (player < MAX_PLAYERS) {
+        multiplayer_counter_values[player][counter_type] = clamp_counter(
+            multiplayer_counter_values[player][counter_type] - delta
+        );
+        refresh_multiplayer_ui();
+    }
 }
 
 // ---------- reset ----------
@@ -426,9 +469,11 @@ void knob_life_reset(void)
     cmd_damage_target = -1;
     memset(multiplayer_cmd_damage_totals, 0, sizeof(multiplayer_cmd_damage_totals));
     memset(multiplayer_counter_values, 0, sizeof(multiplayer_counter_values));
+    memset(singleplayer_counter_values, 0, sizeof(singleplayer_counter_values));
     multiplayer_all_damage_value = 0;
     multiplayer_counter_edit_type = COUNTER_TYPE_COMMANDER_TAX;
     multiplayer_counter_edit_value = 0;
+    counter_edit_is_singleplayer = false;
 
     if (life_preview_timer != NULL) {
         lv_timer_pause(life_preview_timer);
@@ -454,8 +499,10 @@ void knob_life_init(void)
         multiplayer_life[i] = starting_life;
     }
     memset(multiplayer_counter_values, 0, sizeof(multiplayer_counter_values));
+    memset(singleplayer_counter_values, 0, sizeof(singleplayer_counter_values));
     multiplayer_counter_edit_type = COUNTER_TYPE_COMMANDER_TAX;
     multiplayer_counter_edit_value = 0;
+    counter_edit_is_singleplayer = false;
 
     life_preview_timer = lv_timer_create(life_preview_commit_cb, 3000, NULL);
     if (life_preview_timer != NULL) {
