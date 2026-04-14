@@ -113,7 +113,7 @@ static const uint32_t life_color_table[LIFE_TIER_COUNT][LIFE_VIB_COUNT] = {
     /* dim        mid        vivid */
     {0x4D1C1C, 0xF44336, 0xFF0000},  /* red    */
     {0x4D4D00, 0xFFEB3B, 0xFFFF00},  /* yellow */
-    {0x1A4D1A, 0x4CAF50, 0x00FF00},  /* green  */
+    {0x06D6A0, 0x06D6A0, 0x06D6A0},  /* green  */
     {0x2E004D, 0x7B1FA2, 0xAA00FF},  /* purple */
 };
 

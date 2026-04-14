@@ -138,7 +138,7 @@ void check_player_elimination(int player)
 // ---------- player colors ----------
 static const uint32_t player_color_table[MAX_PLAYERS][LIFE_VIB_COUNT] = {
     /*  dim        mid        vivid  */
-    {0x1A3D1A, 0xA5D6A7, 0x4CAF50},  /* P1 green  (bottom-left) */
+    {0x06D6A0, 0x06D6A0, 0x06D6A0},  /* P1 green  (bottom-left) */
     {0x2A0A4D, 0x7B1FE0, 0x9C4DFF},  /* P2 purple (top-left)    */
     {0x0A3A4D, 0x29B6F6, 0x4FC3F7},  /* P3 blue   (top-right)   */
     {0x4D4400, 0xFFD600, 0xFFEA61},  /* P4 yellow (bottom-right) */

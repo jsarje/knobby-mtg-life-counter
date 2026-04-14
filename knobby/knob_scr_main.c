@@ -104,8 +104,8 @@ static void refresh_life_digits(void)
     char buf[16];
 
     if (life_preview_active) {
-        c = negative ? lv_palette_main(LV_PALETTE_RED)
-                     : lv_palette_main(LV_PALETTE_GREEN);
+        c = negative ? lv_color_hex(0xFF1744)
+                     : lv_color_hex(0x06D6A0);
         if (display_value > 0)
             snprintf(buf, sizeof(buf), "+%d", display_value);
         else
@@ -418,7 +418,7 @@ void build_main_screen(void)
 
     label_life_preview_total = lv_label_create(screen_1p);
     lv_label_set_text(label_life_preview_total, "");
-    lv_obj_set_style_text_color(label_life_preview_total, lv_palette_main(LV_PALETTE_GREEN), 0);
+    lv_obj_set_style_text_color(label_life_preview_total, lv_color_hex(0x06D6A0), 0);
     lv_obj_set_style_text_font(label_life_preview_total, &lv_font_montserrat_regular_48, 0);
     lv_obj_align(label_life_preview_total, LV_ALIGN_CENTER, 0, 80);
     lv_obj_add_flag(label_life_preview_total, LV_OBJ_FLAG_HIDDEN);
