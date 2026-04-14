@@ -93,13 +93,19 @@ static void handle_back_navigation(lv_obj_t *screen)
     } else if (screen == screen_custom_life) {
         refresh_game_mode_menu_ui();
         lv_scr_load(screen_game_mode_menu);
+    } else if (screen == screen_1p_menu) {
+        back_to_main();
     } else if (screen == screen_player_menu) {
         open_multiplayer_screen();
     } else if (screen == screen_player_name) {
         if (!name_screen_handle_back())
             open_multiplayer_menu_screen(multiplayer_menu_player);
     } else if (screen == screen_player_counters_menu) {
-        open_multiplayer_menu_screen(multiplayer_menu_player);
+        if (counter_edit_is_singleplayer) {
+            back_to_main();
+        } else {
+            open_multiplayer_menu_screen(multiplayer_menu_player);
+        }
     } else if (screen == screen_player_counter_edit) {
         open_multiplayer_counter_menu_screen();
     } else if (screen == screen_player_all_damage) {
@@ -144,10 +150,12 @@ void knob_gui(void)
     brightness_apply();
     build_dice_screen();
     build_main_screen();
+    build_1p_menu_screen();
     build_multiplayer_screen();
     build_multiplayer_2p_screen();
     build_multiplayer_3p_screen();
     build_multiplayer_menu_screen();
+    build_eliminated_player_menu_screen();
     build_rename_screen();
     build_multiplayer_all_damage_screen();
     build_multiplayer_counter_menu_screen();

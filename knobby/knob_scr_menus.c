@@ -70,12 +70,22 @@ void build_quad_screen(lv_obj_t **screen, quad_item_t items[4])
             lv_obj_clear_flag(btn, LV_OBJ_FLAG_CLICKABLE);
         }
 
+        if (items[i].icon != NULL && items[i].icon_font != NULL) {
+            lv_obj_t *icon_lbl = lv_label_create(btn);
+            lv_label_set_text(icon_lbl, items[i].icon);
+            lv_obj_set_style_text_font(icon_lbl, items[i].icon_font, 0);
+            lv_obj_set_style_text_color(icon_lbl,
+                items[i].enabled ? lv_color_white() : lv_color_hex(0x555555), 0);
+            lv_obj_align(icon_lbl, LV_ALIGN_CENTER, lx[i], ly[i] - 18);
+        }
+
         lv_obj_t *lbl = lv_label_create(btn);
         lv_label_set_text(lbl, items[i].label);
         lv_obj_set_style_text_color(lbl, lv_color_white(), 0);
         lv_obj_set_style_text_font(lbl, &lv_font_montserrat_16, 0);
         lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_CENTER, 0);
-        lv_obj_align(lbl, LV_ALIGN_CENTER, lx[i], ly[i]);
+        lv_obj_align(lbl, LV_ALIGN_CENTER, lx[i],
+            (items[i].icon != NULL) ? ly[i] + 10 : ly[i]);
 
         if (!items[i].enabled) {
             lv_obj_set_style_text_color(lbl, lv_color_hex(0x555555), 0);

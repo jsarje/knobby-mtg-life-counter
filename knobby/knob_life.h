@@ -15,6 +15,7 @@ typedef struct {
 	const char *menu_label;
 	const char *display_name;
 	const char *badge_text;
+	const char *icon_text;
 	uint32_t accent_color;
 	bool enabled;
 } counter_definition_t;
@@ -40,6 +41,9 @@ extern int dice_result;
 extern int multiplayer_counter_values[MAX_PLAYERS][COUNTER_TYPE_COUNT];
 extern counter_type_t multiplayer_counter_edit_type;
 extern int multiplayer_counter_edit_value;
+extern bool multiplayer_eliminated[MAX_PLAYERS];
+extern int singleplayer_counter_values[COUNTER_TYPE_COUNT];
+extern bool counter_edit_is_singleplayer;
 
 // ---------- functions ----------
 void knob_life_init(void);
@@ -60,8 +64,14 @@ void begin_multiplayer_counter_edit(int player, counter_type_t type);
 void change_multiplayer_counter_edit(int delta);
 int apply_multiplayer_counter_edit(void);
 int get_multiplayer_counter_value(int player, counter_type_t type);
+void begin_singleplayer_counter_edit(counter_type_t type);
+int apply_singleplayer_counter_edit(void);
+int get_singleplayer_counter_value(counter_type_t type);
 const counter_definition_t *get_counter_definition(counter_type_t type);
 bool counter_type_is_enabled(counter_type_t type);
+
+bool multiplayer_elimination_action_available(int player);
+void undo_multiplayer_elimination_action(int player);
 
 // ---------- player colors ----------
 lv_color_t get_player_color_vib(int index, int vibrancy);

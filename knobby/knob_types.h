@@ -64,6 +64,8 @@ typedef struct {
     lv_event_cb_t cb;
     bool enabled;
     lv_event_code_t event;
+    const char *icon;
+    const lv_font_t *icon_font;
 } quad_item_t;
 
 // ---------- utility functions ----------

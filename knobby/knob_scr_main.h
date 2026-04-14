@@ -5,11 +5,13 @@
 
 // ---------- screens ----------
 extern lv_obj_t *screen_1p;
+extern lv_obj_t *screen_1p_menu;
 extern lv_obj_t *screen_select;
 extern lv_obj_t *screen_damage;
 
 // ---------- functions ----------
 void build_main_screen(void);
+void build_1p_menu_screen(void);
 void build_select_screen(void);
 void build_damage_screen(void);
 
@@ -18,6 +20,7 @@ void refresh_select_ui(void);
 void refresh_damage_ui(void);
 
 void open_select_screen(void);
+void open_1p_counter_menu_screen(void);
 void back_to_main(void);
 
 #endif // _KNOB_SCR_MAIN_H

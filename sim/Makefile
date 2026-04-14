@@ -34,7 +34,8 @@ LDFLAGS   := $(SDL_LDFLAGS) -lm
 KNOBBY_SRCS := $(addprefix $(KNOBBY)/, \
 	knob.c knob_scr_main.c knob_scr_multiplayer.c knob_scr_menus.c \
 	knob_intro.c knob_timer.c knob_life.c knob_damage_log.c \
-	knob_game_mode.c knob_rename.c knob_dice.c knob_hw.c knob_nvs.c)
+	knob_game_mode.c knob_rename.c knob_dice.c knob_hw.c knob_nvs.c \
+	mana_counter_icons_16.c mana_poison_icon_bold_16.c)
 
 # Sim files
 SIM_SRCS := sim_main.c sim_stubs.c

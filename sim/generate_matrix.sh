@@ -110,8 +110,9 @@ for track in 2 3 4; do
 done
 
 # ============================================================
-# 6. Random counters — multiplayer × orientations
+# 6. Random counters — multiplayer × orientations + 1p
 # ============================================================
+shot "1p_counters.png" --screen 1p --random-counters
 for track in 2 3 4; do
     for orient in 0 1 2; do
         orient_name=("absolute" "centric" "tabletop")
@@ -211,7 +212,22 @@ shot "dice_$((RANDOM % 20 + 1)).png" --screen dice --dice $((RANDOM % 20 + 1))
 shot "damage_log_random.png" --screen damage-log --random-log
 
 # ============================================================
-# 19. Intro screen
+# 19. Timer overlay — 1p mode at various life totals
+# ============================================================
+for life in 0 20 40 444; do
+    shot "1p_timer_life${life}.png" --screen 1p --track 1 \
+        --starting-life "$life" --life "$life" \
+        --turn-number $((RANDOM % 31)) --turn-elapsed $((RANDOM % 21600 * 1000))
+done
+
+# Timer with preview delta +444
+shot "1p_timer_preview_p444.png" --screen 1p --track 1 \
+    --preview-delta +444 --preview-player -1 \
+    --turn-number $((RANDOM % 31)) --turn-elapsed $((RANDOM % 21600 * 1000)) \
+    --random-counters
+
+# ============================================================
+# 20. Intro screen
 # ============================================================
 shot "intro.png" --screen intro
 
@@ -260,6 +276,7 @@ write_section() {
 SEC_1P_PREV=(); SEC_2P_PREV=(); SEC_3P_PREV=(); SEC_4P_PREV=()
 SEC_LIFE=(); SEC_LIFECOLOR=(); SEC_SELECTED=(); SEC_COUNTERS=()
 SEC_BRIGHT=(); SEC_COUNTER_EDIT=(); SEC_DAMAGE=(); SEC_SETTINGS=()
+SEC_TIMER=()
 SEC_OTHER=()
 
 for f in "${FILES[@]}"; do
@@ -268,6 +285,7 @@ for f in "${FILES[@]}"; do
         2p_*_preview_*)       SEC_2P_PREV+=("$f") ;;
         3p_*_preview_*)       SEC_3P_PREV+=("$f") ;;
         4p_*_preview_*)       SEC_4P_PREV+=("$f") ;;
+        1p_timer_*)           SEC_TIMER+=("$f") ;;
         *_lifecolor_*)        SEC_LIFECOLOR+=("$f") ;;
         *_life[0-9]*)         SEC_LIFE+=("$f") ;;
         *_selected_*)         SEC_SELECTED+=("$f") ;;
@@ -284,6 +302,7 @@ write_section "1-Player Life Preview" "${SEC_1P_PREV[@]}"
 write_section "2-Player Life Preview" "${SEC_2P_PREV[@]}"
 write_section "3-Player Life Preview" "${SEC_3P_PREV[@]}"
 write_section "4-Player Life Preview" "${SEC_4P_PREV[@]}"
+write_section "1-Player Timer Overlay" "${SEC_TIMER[@]}"
 write_section "Life Totals (Player Colors)" "${SEC_LIFE[@]}"
 write_section "Life Totals (Life Colors)" "${SEC_LIFECOLOR[@]}"
 write_section "Selected Player" "${SEC_SELECTED[@]}"
