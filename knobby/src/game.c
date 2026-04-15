@@ -473,7 +473,6 @@ void knob_life_reset(void)
 
     for (i = 0; i < MAX_PLAYERS; i++) {
         player_life[i] = starting_life;
-        snprintf(player_names[i], sizeof(player_names[i]), "P%d", i + 1);
     }
     selected_player = -1;
     menu_player = 0;
