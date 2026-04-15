@@ -7,7 +7,7 @@
 MAKE ?= make
 
 # ---- Arduino CLI ----
-ARDUINO_CLI ?= "C:\Program Files\Arduino CLI\arduino-cli.exe"
+# ARDUINO_CLI is set by config.mk (defaults to 'arduino-cli' in PATH)
 FQBN        := esp32:esp32:esp32s3:FlashSize=16M,PSRAM=opi,USBMode=hwcdc,CDCOnBoot=cdc,FlashMode=qio
 EXTRA_URLS  := https://espressif.github.io/arduino-esp32/package_esp32_index.json
 

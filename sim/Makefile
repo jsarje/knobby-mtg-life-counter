@@ -9,24 +9,33 @@ LLVM_BIN  ?=
 LVGL_PATH ?= $(HOME)/Arduino/libraries/lvgl
 PYTHON    ?= python3
 
-SDL2_ROOT := SDL2/x86_64-w64-mingw32
-
 KNOBBY    := ../knobby
 BUILD     := build
 BIN       := knobby_sim
-BIN_GUI   := knobby_sim_gui.exe
 
-CC        := $(LLVM_BIN)/clang.exe
-SDL_CFLAGS := -I$(SDL2_ROOT)/include
-SDL_LDFLAGS := -L$(SDL2_ROOT)/lib -lSDL2main -lSDL2
+ifeq ($(OS),Windows_NT)
+    SDL2_ROOT   := SDL2/x86_64-w64-mingw32
+    BIN_GUI     := knobby_sim_gui.exe
+    CC          ?= $(LLVM_BIN)/clang.exe
+    SDL_CFLAGS  := -I$(SDL2_ROOT)/include
+    SDL_LDFLAGS := -L$(SDL2_ROOT)/lib -lSDL2main -lSDL2
+else
+    BIN_GUI     := knobby_sim_gui
+    CC          ?= gcc
+    SDL_CFLAGS  := $(shell pkg-config --cflags sdl2 2>/dev/null)
+    SDL_LDFLAGS := $(shell pkg-config --libs sdl2 2>/dev/null || echo "-lSDL2")
+endif
 
 CFLAGS    := -Wall -Wno-unused-function \
              -DLV_CONF_INCLUDE_SIMPLE -DSIMULATOR=1 \
              -I. -Iesp_stubs -I$(LVGL_PATH) -I$(LVGL_PATH)/src -I$(KNOBBY) -I$(KNOBBY)/src \
-             $(SDL_CFLAGS) \
              -O2 -g
 
-LDFLAGS   := $(SDL_LDFLAGS) -lm
+LDFLAGS   := -lm
+
+# SDL2 flags are only used for the GUI build, not the headless screenshot simulator
+GUI_CFLAGS  := $(CFLAGS) $(SDL_CFLAGS)
+GUI_LDFLAGS := $(SDL_LDFLAGS) $(LDFLAGS)
 
 # ---- Source files ----
 
@@ -70,7 +79,7 @@ gui: $(BIN_GUI)
 	./$(BIN_GUI)
 
 $(BIN_GUI): $(ALL_OBJS_GUI)
-	$(CC) $(ALL_OBJS_GUI) -o $@ $(LDFLAGS)
+	$(CC) $(ALL_OBJS_GUI) -o $@ $(GUI_LDFLAGS)
 
 web:
 	$(PYTHON) gen_web_sources.py $(LVGL_PATH) $(KNOBBY)
@@ -80,7 +89,7 @@ web:
 		-s EXPORTED_RUNTIME_METHODS='["ccall", "cwrap"]'
 
 screenshot: $(BIN)
-	@if not exist screenshots mkdir screenshots
+	@mkdir -p screenshots
 	./$(BIN) $(ARGS)
 
 generate-matrix: $(BIN)
@@ -92,11 +101,20 @@ clean:
 # ---- Build rules ----
 
 $(BUILD):
-	@if not exist $(BUILD) mkdir $(BUILD)
+	@mkdir -p $(BUILD)
 
 define compile_rule
 $(call obj_name,$(1)): $(1) | $(BUILD)
 	$(CC) $(CFLAGS) -c $$< -o $$@
 endef
 
-$(foreach src,$(sort $(ALL_SRCS) $(ALL_SRCS_GUI)),$(eval $(call compile_rule,$(src))))
+# GUI-only sources (sim_sdl2.c) need SDL2 include paths
+define gui_compile_rule
+$(call obj_name,$(1)): $(1) | $(BUILD)
+	$(CC) $(GUI_CFLAGS) -c $$< -o $$@
+endef
+
+GUI_ONLY_SRCS := $(filter-out $(ALL_SRCS),$(ALL_SRCS_GUI))
+
+$(foreach src,$(ALL_SRCS),$(eval $(call compile_rule,$(src))))
+$(foreach src,$(GUI_ONLY_SRCS),$(eval $(call gui_compile_rule,$(src))))
