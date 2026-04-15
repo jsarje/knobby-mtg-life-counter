@@ -220,8 +220,7 @@ const esp_lcd_panel_vendor_init_cmd_t lcd_init_cmd[] = {
     {0xF3, (uint8_t[]){0x01}, 1, 0},
     {0xF0, (uint8_t[]){0x00}, 1, 0},
     {0x21, (uint8_t[]){0x00}, 1, 0},
-    {0x11, (uint8_t[]){0x00}, 1, 120},
-    {0x29, (uint8_t[]){0x00}, 1, 0}
+    {0x11, (uint8_t[]){0x00}, 1, 120}
 };
 
 
