@@ -312,14 +312,15 @@ static void refresh_counter_rows(lv_obj_t *panel, lv_obj_t **rows, lv_obj_t **va
 static lv_color_t refresh_mp_panel(lv_obj_t *panel, lv_obj_t *life_lbl, lv_obj_t *name_lbl, int i, int color_i)
 {
     char buf[8];
-    bool preview_here = life_preview_active && (preview_player == i);
-    bool selected = (i == selected_player);
+    int preview_delta = get_player_preview_delta(i);
+    bool preview_here = life_preview_active && is_player_previewed(i);
+    bool selected = is_player_selected(i);
     lv_color_t bg_color;
     lv_color_t text_color;
 
     {
         int vib;
-        if (selected_player < 0) vib = LIFE_VIB_MID;
+        if (get_selected_player_count() == 0) vib = LIFE_VIB_MID;
         else vib = selected ? LIFE_VIB_VIV : LIFE_VIB_DIM;
         bg_color = get_effective_player_color(i, color_i, vib);
         text_color = color_is_light(bg_color) ? lv_color_black() : lv_color_white();
@@ -340,12 +341,12 @@ static lv_color_t refresh_mp_panel(lv_obj_t *panel, lv_obj_t *life_lbl, lv_obj_t
 
     if (life_lbl != NULL) {
         if (preview_here) {
-            snprintf(buf, sizeof(buf), "%+d", pending_life_delta);
+            snprintf(buf, sizeof(buf), "%+d", preview_delta);
             lv_label_set_text(life_lbl, buf);
             {
                 lv_color_t preview_c;
                 if (nvs_get_color_mode() == COLOR_MODE_PLAYER && !player_has_override[i]) {
-                    preview_c = get_player_preview_color(color_i, pending_life_delta);
+                    preview_c = get_player_preview_color(color_i, preview_delta);
                     if (color_is_light(bg_color) && color_is_light(preview_c))
                         preview_c = lv_color_black();
                     else if (!color_is_light(bg_color) && !color_is_light(preview_c))
@@ -365,7 +366,7 @@ static lv_color_t refresh_mp_panel(lv_obj_t *panel, lv_obj_t *life_lbl, lv_obj_t
     if (name_lbl != NULL) {
         if (preview_here) {
             char total_buf[16];
-            int new_total = player_life[i] + pending_life_delta;
+            int new_total = player_life[i] + preview_delta;
             snprintf(total_buf, sizeof(total_buf), "= %d", new_total);
             lv_label_set_text(name_lbl, total_buf);
         } else {
@@ -437,17 +438,18 @@ static void event_multiplayer_select(lv_event_t *e)
     if (player < 0 || player >= MULTIPLAYER_COUNT) return;
     if (player_eliminated[player]) return;
 
-    if (life_preview_active && preview_player != player) {
+    if (life_preview_active &&
+        (get_selected_player_count() != 1 || !is_player_selected(player))) {
         life_preview_commit_cb(NULL);
     }
 
-    if (selected_player == player) {
-        if (life_preview_active && preview_player == player) {
+    if (get_selected_player_count() == 1 && is_player_selected(player)) {
+        if (life_preview_active && is_player_previewed(player)) {
             life_preview_commit_cb(NULL);
         }
-        selected_player = -1;
+        clear_selected_players();
     } else {
-        selected_player = player;
+        select_only_player(player);
     }
     select_kick_timer();
     refresh_multiplayer_ui();
@@ -464,20 +466,42 @@ static void event_multiplayer_open_menu(lv_event_t *e)
         return;
     }
 
-    if (life_preview_active && preview_player != player) {
+    if (life_preview_active &&
+        (!is_player_selected(player) || get_selected_player_count() > 1)) {
         life_preview_commit_cb(NULL);
     }
 
-    selected_player = player;
+    if (get_selected_player_count() == 0) {
+        select_only_player(player);
+        refresh_multiplayer_ui();
+        open_player_menu(player);
+        return;
+    }
+
+    if (!is_player_selected(player)) {
+        add_selected_player(player);
+        select_kick_timer();
+        refresh_multiplayer_ui();
+        return;
+    }
+
+    if (get_selected_player_count() > 1) {
+        deselect_player(player);
+        select_kick_timer();
+        refresh_multiplayer_ui();
+        return;
+    }
+
+    select_only_player(player);
     refresh_multiplayer_ui();
-    open_player_menu(selected_player);
+    open_player_menu(player);
 }
 
 /* ---------- selection timeout ---------- */
 static void select_timeout_cb(lv_timer_t *timer)
 {
     (void)timer;
-    selected_player = -1;
+    clear_selected_players();
     if (select_timeout_timer != NULL)
         lv_timer_pause(select_timeout_timer);
     refresh_multiplayer_ui();
@@ -492,7 +516,7 @@ void select_kick_timer(void)
         select_timeout_timer = lv_timer_create(select_timeout_cb, 15000, NULL);
         lv_timer_pause(select_timeout_timer);
     }
-    if (selected_player >= 0 && ms > 0) {
+    if (get_selected_player_count() > 0 && ms > 0) {
         lv_timer_set_period(select_timeout_timer, (uint32_t)ms);
         lv_timer_reset(select_timeout_timer);
         lv_timer_resume(select_timeout_timer);

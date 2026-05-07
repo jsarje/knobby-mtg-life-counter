@@ -22,6 +22,7 @@ int dice_result = 0;
 
 int player_life[MAX_DISPLAY_PLAYERS] = {40, 40, 40, 40};
 int selected_player = -1;
+uint8_t selected_players_mask = 0;
 char player_names[MAX_GAME_PLAYERS][16] = {
     "P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8"
 };
@@ -32,11 +33,13 @@ int cmd_damage_target = -1;
 static int damage_start_value = 0;
 int pending_life_delta = 0;
 int preview_player = -1;
+uint8_t preview_players_mask = 0;
 bool life_preview_active = false;
 int player_counters[MAX_DISPLAY_PLAYERS][COUNTER_TYPE_COUNT] = {{0}};
 counter_type_t counter_edit_type = COUNTER_TYPE_COMMANDER_TAX;
 int counter_edit_value = 0;
 bool player_eliminated[MAX_DISPLAY_PLAYERS] = {false};
+static int preview_base_life[MAX_DISPLAY_PLAYERS] = {0};
 
 typedef struct {
     bool valid;
@@ -50,6 +53,158 @@ static elimination_action_t elimination_action[MAX_DISPLAY_PLAYERS] = {{0}};
 
 
 static lv_timer_t *life_preview_timer = NULL;
+static bool life_preview_commit_in_progress = false;
+
+static uint8_t player_mask_bit(int player)
+{
+    if (player < 0 || player >= MAX_DISPLAY_PLAYERS) return 0;
+    return (uint8_t)(1u << player);
+}
+
+static uint8_t valid_player_mask(int track)
+{
+    if (track <= 0) return 0;
+    if (track >= MAX_DISPLAY_PLAYERS) {
+        return (uint8_t)((1u << MAX_DISPLAY_PLAYERS) - 1u);
+    }
+    return (uint8_t)((1u << track) - 1u);
+}
+
+static int count_players_in_mask(uint8_t mask)
+{
+    int count = 0;
+
+    while (mask != 0) {
+        count += (mask & 1u) ? 1 : 0;
+        mask >>= 1;
+    }
+
+    return count;
+}
+
+static int first_player_in_mask(uint8_t mask)
+{
+    int i;
+
+    for (i = 0; i < MAX_DISPLAY_PLAYERS; i++) {
+        if ((mask & player_mask_bit(i)) != 0) return i;
+    }
+
+    return -1;
+}
+
+static void sync_selected_player_from_mask(void)
+{
+    int track = nvs_get_players_to_track();
+    int i;
+
+    selected_players_mask &= valid_player_mask(track);
+    for (i = 0; i < track; i++) {
+        if (player_eliminated[i]) {
+            selected_players_mask &= (uint8_t)~player_mask_bit(i);
+        }
+    }
+
+    if (selected_players_mask == 0) {
+        selected_player = -1;
+    } else if ((selected_players_mask & player_mask_bit(selected_player)) == 0) {
+        selected_player = first_player_in_mask(selected_players_mask);
+    }
+}
+
+static void sync_preview_player_from_mask(void)
+{
+    int track = nvs_get_players_to_track();
+    int i;
+
+    preview_players_mask &= valid_player_mask(track);
+    for (i = 0; i < track; i++) {
+        if (player_eliminated[i]) {
+            preview_players_mask &= (uint8_t)~player_mask_bit(i);
+        }
+    }
+
+    if (preview_players_mask == 0) {
+        preview_player = -1;
+    } else if ((preview_players_mask & player_mask_bit(preview_player)) == 0) {
+        preview_player = first_player_in_mask(preview_players_mask);
+    }
+}
+
+static uint8_t get_active_selected_players_mask(void)
+{
+    sync_selected_player_from_mask();
+    return selected_players_mask;
+}
+
+static void clear_life_preview(void)
+{
+    pending_life_delta = 0;
+    preview_players_mask = 0;
+    preview_player = -1;
+    life_preview_active = false;
+    if (life_preview_timer != NULL) {
+        lv_timer_pause(life_preview_timer);
+    }
+}
+
+bool is_player_selected(int player)
+{
+    return (selected_players_mask & player_mask_bit(player)) != 0;
+}
+
+bool is_player_previewed(int player)
+{
+    return (preview_players_mask & player_mask_bit(player)) != 0;
+}
+
+int get_selected_player_count(void)
+{
+    sync_selected_player_from_mask();
+    return count_players_in_mask(selected_players_mask);
+}
+
+int get_player_preview_delta(int player)
+{
+    if (!life_preview_active || !is_player_previewed(player)) return 0;
+    if (player < 0 || player >= MAX_DISPLAY_PLAYERS) return 0;
+
+    return clamp_life(preview_base_life[player] + pending_life_delta) - preview_base_life[player];
+}
+
+void clear_selected_players(void)
+{
+    selected_players_mask = 0;
+    selected_player = -1;
+}
+
+void select_only_player(int player)
+{
+    if (player < 0 || player >= MAX_DISPLAY_PLAYERS) return;
+    if (player_eliminated[player]) return;
+
+    selected_players_mask = player_mask_bit(player);
+    selected_player = player;
+}
+
+void add_selected_player(int player)
+{
+    if (player < 0 || player >= MAX_DISPLAY_PLAYERS) return;
+    if (player_eliminated[player]) return;
+
+    selected_players_mask |= player_mask_bit(player);
+    if (selected_player < 0) {
+        selected_player = player;
+    }
+}
+
+void deselect_player(int player)
+{
+    if (player < 0 || player >= MAX_DISPLAY_PLAYERS) return;
+
+    selected_players_mask &= (uint8_t)~player_mask_bit(player);
+    sync_selected_player_from_mask();
+}
 
 #define MANA_ICON_COMMANDER "\xEE\xA7\x86"
 #define MANA_ICON_PARTY     "\xEE\xA6\x87"
@@ -128,6 +283,17 @@ void check_player_elimination(int player)
         clear_player_elimination_action(player);
     }
 
+    if (now_eliminated) {
+        deselect_player(player);
+        if (!life_preview_commit_in_progress) {
+            preview_players_mask &= (uint8_t)~player_mask_bit(player);
+            sync_preview_player_from_mask();
+        }
+        if (!life_preview_commit_in_progress && preview_players_mask == 0) {
+            clear_life_preview();
+        }
+    }
+
     if (was_eliminated != now_eliminated) {
         refresh_player_ui();
     }
@@ -138,6 +304,12 @@ void manual_eliminate_player(int player)
     if (player < 0 || player >= MAX_DISPLAY_PLAYERS) return;
     if (player_eliminated[player]) return;
     player_eliminated[player] = true;
+    deselect_player(player);
+    preview_players_mask &= (uint8_t)~player_mask_bit(player);
+    sync_preview_player_from_mask();
+    if (preview_players_mask == 0) {
+        clear_life_preview();
+    }
     clear_player_elimination_action(player);
     refresh_player_ui();
 }
@@ -383,31 +555,37 @@ int apply_counter_edit(void)
 // ---------- life preview ----------
 void life_preview_commit_cb(lv_timer_t *timer)
 {
+    int track = nvs_get_players_to_track();
+    int i;
+
     (void)timer;
 
-    if (!life_preview_active ||
-        preview_player < 0 ||
-        preview_player >= nvs_get_players_to_track()) {
-        if (life_preview_timer != NULL) {
-            lv_timer_pause(life_preview_timer);
-        }
+    sync_preview_player_from_mask();
+
+    if (!life_preview_active || preview_players_mask == 0) {
+        clear_life_preview();
         return;
     }
 
-    damage_log_add(preview_player, pending_life_delta, LOG_EVT_LIFE, -1);
-    player_life[preview_player] = clamp_life(
-        player_life[preview_player] + pending_life_delta
-    );
-    if (player_life[preview_player] <= 0) {
-        set_player_elimination_action(preview_player, LOG_EVT_LIFE, -1, pending_life_delta);
+    life_preview_commit_in_progress = true;
+    for (i = 0; i < track; i++) {
+        int applied_delta;
+
+        if ((preview_players_mask & player_mask_bit(i)) == 0) continue;
+
+        applied_delta = get_player_preview_delta(i);
+        if (applied_delta == 0) continue;
+
+        damage_log_add(i, applied_delta, LOG_EVT_LIFE, -1);
+        player_life[i] = clamp_life(player_life[i] + applied_delta);
+        if (player_life[i] <= 0) {
+            set_player_elimination_action(i, LOG_EVT_LIFE, -1, applied_delta);
+        }
+        check_player_elimination(i);
     }
-    check_player_elimination(preview_player);
-    pending_life_delta = 0;
-    preview_player = -1;
-    life_preview_active = false;
-    if (life_preview_timer != NULL) {
-        lv_timer_pause(life_preview_timer);
-    }
+    life_preview_commit_in_progress = false;
+
+    clear_life_preview();
     refresh_player_ui();
 }
 
@@ -461,32 +639,66 @@ void damage_cancel(void)
 
 void change_player_life(int delta)
 {
-    int preview_base;
+    uint8_t target_mask;
     int track = nvs_get_players_to_track();
+    int i;
+    int min_requested_delta = LIFE_MAX;
+    int max_requested_delta = LIFE_MIN;
 
-    if (selected_player < 0 || selected_player >= track) return;
-    if (player_eliminated[selected_player]) return;
+    if (track <= 1) {
+        if (selected_player < 0 || selected_player >= track) return;
+        if (player_eliminated[selected_player]) return;
+        target_mask = player_mask_bit(selected_player);
+    } else {
+        target_mask = get_active_selected_players_mask();
+        if (target_mask == 0) return;
+    }
 
     select_kick_timer();
 
-    if (life_preview_active &&
-        preview_player != selected_player) {
+    if (life_preview_active && preview_players_mask != target_mask) {
         life_preview_commit_cb(NULL);
     }
 
-    preview_player = selected_player;
-    preview_base = player_life[preview_player];
+    if (preview_players_mask != target_mask) {
+        preview_players_mask = target_mask;
+        preview_player = first_player_in_mask(preview_players_mask);
+        for (i = 0; i < track; i++) {
+            if ((preview_players_mask & player_mask_bit(i)) != 0) {
+                preview_base_life[i] = player_life[i];
+            }
+        }
+    }
+
     pending_life_delta += delta;
-    pending_life_delta = clamp_life(preview_base + pending_life_delta) - preview_base;
-    life_preview_active = (pending_life_delta != 0);
+    for (i = 0; i < track; i++) {
+        if ((preview_players_mask & player_mask_bit(i)) == 0) continue;
+
+        if (LIFE_MIN - preview_base_life[i] < min_requested_delta) {
+            min_requested_delta = LIFE_MIN - preview_base_life[i];
+        }
+        if (LIFE_MAX - preview_base_life[i] > max_requested_delta) {
+            max_requested_delta = LIFE_MAX - preview_base_life[i];
+        }
+    }
+    if (pending_life_delta < min_requested_delta) pending_life_delta = min_requested_delta;
+    if (pending_life_delta > max_requested_delta) pending_life_delta = max_requested_delta;
+
+    life_preview_active = false;
+    for (i = 0; i < track; i++) {
+        if ((preview_players_mask & player_mask_bit(i)) == 0) continue;
+        if (get_player_preview_delta(i) != 0) {
+            life_preview_active = true;
+            break;
+        }
+    }
 
     if (life_preview_timer != NULL) {
         lv_timer_reset(life_preview_timer);
     }
 
-    if (!life_preview_active && life_preview_timer != NULL) {
-        lv_timer_pause(life_preview_timer);
-        preview_player = -1;
+    if (!life_preview_active) {
+        clear_life_preview();
     } else if (life_preview_timer != NULL) {
         lv_timer_resume(life_preview_timer);
     }
@@ -565,6 +777,7 @@ void knob_life_reset(void)
 
     pending_life_delta = 0;
     preview_player = -1;
+    preview_players_mask = 0;
     life_preview_active = false;
     selected_enemy = -1;
     dice_result = 0;
@@ -577,6 +790,7 @@ void knob_life_reset(void)
         player_life[i] = starting_life;
     }
     selected_player = -1;
+    selected_players_mask = 0;
     menu_player = 0;
     cmd_damage_target = -1;
     memset(cmd_damage_totals, 0, sizeof(cmd_damage_totals));
@@ -632,6 +846,7 @@ static void player_select_anim_cb(lv_timer_t *timer)
 
     // Move to next player (clockwise logic mapping to bottom/left/top/right)
     selected_player = (selected_player + 1) % track;
+    selected_players_mask = player_mask_bit(selected_player);
     refresh_player_ui();
 
     player_select_anim_steps--;
@@ -665,6 +880,7 @@ void start_player_selection_animation(void)
     player_select_anim_period = 40; // start fast
 
     if (selected_player < 0) selected_player = 0;
+    selected_players_mask = player_mask_bit(selected_player);
 
     lv_timer_set_period(player_select_anim_timer, player_select_anim_period);
     lv_timer_resume(player_select_anim_timer);

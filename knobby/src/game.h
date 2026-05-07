@@ -26,6 +26,7 @@ extern enemy_state_t enemies[MAX_ENEMY_COUNT];
 extern int selected_enemy;
 extern int player_life[MAX_DISPLAY_PLAYERS];
 extern int selected_player;
+extern uint8_t selected_players_mask;
 extern char player_names[MAX_GAME_PLAYERS][16];
 extern int menu_player;
 extern int cmd_damage_totals[MAX_GAME_PLAYERS][MAX_DISPLAY_PLAYERS];
@@ -33,6 +34,7 @@ extern int cmd_damage_target;
 extern int all_damage_value;
 extern int pending_life_delta;
 extern int preview_player;
+extern uint8_t preview_players_mask;
 extern bool life_preview_active;
 extern int dice_result;
 extern int player_counters[MAX_DISPLAY_PLAYERS][COUNTER_TYPE_COUNT];
@@ -68,6 +70,14 @@ void manual_eliminate_player(int player);
 void manual_uneliminate_player(int player);
 
 void check_player_elimination(int player);
+bool is_player_selected(int player);
+bool is_player_previewed(int player);
+int get_selected_player_count(void);
+int get_player_preview_delta(int player);
+void clear_selected_players(void);
+void select_only_player(int player);
+void add_selected_player(int player);
+void deselect_player(int player);
 
 // ---------- player colors ----------
 extern int player_color_index[MAX_DISPLAY_PLAYERS];

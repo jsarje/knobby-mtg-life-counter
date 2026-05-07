@@ -96,7 +96,8 @@ void refresh_turn_ui(void)
 
 static void refresh_life_digits(void)
 {
-    int display_value = life_preview_active ? pending_life_delta : player_life[0];
+    int preview_delta = get_player_preview_delta(0);
+    int display_value = life_preview_active ? preview_delta : player_life[0];
     bool negative = (display_value < 0);
     lv_color_t c;
     char buf[16];
@@ -118,7 +119,7 @@ static void refresh_life_digits(void)
     lv_obj_align(label_life_total, LV_ALIGN_CENTER, 0, -6);
 
     if (life_preview_active && label_life_preview_total != NULL) {
-        int new_total = player_life[0] + pending_life_delta;
+        int new_total = player_life[0] + preview_delta;
         snprintf(buf, sizeof(buf), "= %d", new_total);
         lv_label_set_text(label_life_preview_total, buf);
         lv_obj_clear_flag(label_life_preview_total, LV_OBJ_FLAG_HIDDEN);
