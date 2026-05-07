@@ -143,6 +143,7 @@ static void clear_life_preview(void)
     preview_players_mask = 0;
     preview_player = -1;
     life_preview_active = false;
+    memset(preview_base_life, 0, sizeof(preview_base_life));
     if (life_preview_timer != NULL) {
         lv_timer_pause(life_preview_timer);
     }

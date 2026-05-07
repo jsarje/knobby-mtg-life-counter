@@ -431,6 +431,11 @@ void refresh_multiplayer_ui(void)
 }
 
 /* ---------- events ---------- */
+static bool is_single_selected_player(int player)
+{
+    return get_selected_player_count() == 1 && is_player_selected(player);
+}
+
 static void event_multiplayer_select(lv_event_t *e)
 {
     int player = (int)(intptr_t)lv_event_get_user_data(e);
@@ -438,12 +443,11 @@ static void event_multiplayer_select(lv_event_t *e)
     if (player < 0 || player >= MULTIPLAYER_COUNT) return;
     if (player_eliminated[player]) return;
 
-    if (life_preview_active &&
-        (get_selected_player_count() != 1 || !is_player_selected(player))) {
+    if (life_preview_active && !is_single_selected_player(player)) {
         life_preview_commit_cb(NULL);
     }
 
-    if (get_selected_player_count() == 1 && is_player_selected(player)) {
+    if (is_single_selected_player(player)) {
         if (life_preview_active && is_player_previewed(player)) {
             life_preview_commit_cb(NULL);
         }
@@ -466,8 +470,7 @@ static void event_multiplayer_open_menu(lv_event_t *e)
         return;
     }
 
-    if (life_preview_active &&
-        (!is_player_selected(player) || get_selected_player_count() > 1)) {
+    if (life_preview_active && !is_single_selected_player(player)) {
         life_preview_commit_cb(NULL);
     }
 
