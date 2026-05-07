@@ -59,7 +59,7 @@ static int preview_max_requested_delta = 0;
 
 static uint8_t player_mask_bit(int player)
 {
-    if (player < 0 || player >= MAX_DISPLAY_PLAYERS || player >= 8) return 0;
+    if (player < 0 || player >= MAX_DISPLAY_PLAYERS) return 0;
     return (uint8_t)(1u << player);
 }
 
@@ -171,13 +171,13 @@ int get_selected_player_count(void)
 
 int get_player_preview_delta(int player)
 {
-    int clamped_value;
+    int clamped_life;
 
     if (!life_preview_active || !is_player_previewed(player)) return 0;
     if (player < 0 || player >= MAX_DISPLAY_PLAYERS) return 0;
 
-    clamped_value = clamp_life(preview_base_life[player] + pending_life_delta);
-    return clamped_value - preview_base_life[player];
+    clamped_life = clamp_life(preview_base_life[player] + pending_life_delta);
+    return clamped_life - preview_base_life[player];
 }
 
 void clear_selected_players(void)
@@ -673,12 +673,17 @@ void change_player_life(int delta)
         preview_max_requested_delta = LIFE_MIN;
         for (i = 0; i < track; i++) {
             if ((preview_players_mask & player_mask_bit(i)) != 0) {
+                int min_delta;
+                int max_delta;
+
                 preview_base_life[i] = player_life[i];
-                if (LIFE_MIN - preview_base_life[i] < preview_min_requested_delta) {
-                    preview_min_requested_delta = LIFE_MIN - preview_base_life[i];
+                min_delta = LIFE_MIN - preview_base_life[i];
+                max_delta = LIFE_MAX - preview_base_life[i];
+                if (min_delta < preview_min_requested_delta) {
+                    preview_min_requested_delta = min_delta;
                 }
-                if (LIFE_MAX - preview_base_life[i] > preview_max_requested_delta) {
-                    preview_max_requested_delta = LIFE_MAX - preview_base_life[i];
+                if (max_delta > preview_max_requested_delta) {
+                    preview_max_requested_delta = max_delta;
                 }
             }
         }
@@ -692,8 +697,7 @@ void change_player_life(int delta)
         pending_life_delta = preview_max_requested_delta;
     }
 
-    life_preview_active = false;
-    for (i = 0; i < track; i++) {
+    for (i = 0, life_preview_active = false; i < track; i++) {
         if ((preview_players_mask & player_mask_bit(i)) == 0) continue;
         if (get_player_preview_delta(i) != 0) {
             life_preview_active = true;
