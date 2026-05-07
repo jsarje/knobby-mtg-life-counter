@@ -54,10 +54,12 @@ static elimination_action_t elimination_action[MAX_DISPLAY_PLAYERS] = {{0}};
 
 static lv_timer_t *life_preview_timer = NULL;
 static bool life_preview_commit_in_progress = false;
+static int preview_min_requested_delta = 0;
+static int preview_max_requested_delta = 0;
 
 static uint8_t player_mask_bit(int player)
 {
-    if (player < 0 || player >= MAX_DISPLAY_PLAYERS) return 0;
+    if (player < 0 || player >= MAX_DISPLAY_PLAYERS || player >= 8) return 0;
     return (uint8_t)(1u << player);
 }
 
@@ -143,6 +145,8 @@ static void clear_life_preview(void)
     preview_players_mask = 0;
     preview_player = -1;
     life_preview_active = false;
+    preview_min_requested_delta = 0;
+    preview_max_requested_delta = 0;
     memset(preview_base_life, 0, sizeof(preview_base_life));
     if (life_preview_timer != NULL) {
         lv_timer_pause(life_preview_timer);
@@ -167,10 +171,13 @@ int get_selected_player_count(void)
 
 int get_player_preview_delta(int player)
 {
+    int clamped_value;
+
     if (!life_preview_active || !is_player_previewed(player)) return 0;
     if (player < 0 || player >= MAX_DISPLAY_PLAYERS) return 0;
 
-    return clamp_life(preview_base_life[player] + pending_life_delta) - preview_base_life[player];
+    clamped_value = clamp_life(preview_base_life[player] + pending_life_delta);
+    return clamped_value - preview_base_life[player];
 }
 
 void clear_selected_players(void)
@@ -643,8 +650,6 @@ void change_player_life(int delta)
     uint8_t target_mask;
     int track = nvs_get_players_to_track();
     int i;
-    int min_requested_delta = LIFE_MAX;
-    int max_requested_delta = LIFE_MIN;
 
     if (track <= 1) {
         if (selected_player < 0 || selected_player >= track) return;
@@ -664,26 +669,28 @@ void change_player_life(int delta)
     if (preview_players_mask != target_mask) {
         preview_players_mask = target_mask;
         preview_player = first_player_in_mask(preview_players_mask);
+        preview_min_requested_delta = LIFE_MAX;
+        preview_max_requested_delta = LIFE_MIN;
         for (i = 0; i < track; i++) {
             if ((preview_players_mask & player_mask_bit(i)) != 0) {
                 preview_base_life[i] = player_life[i];
+                if (LIFE_MIN - preview_base_life[i] < preview_min_requested_delta) {
+                    preview_min_requested_delta = LIFE_MIN - preview_base_life[i];
+                }
+                if (LIFE_MAX - preview_base_life[i] > preview_max_requested_delta) {
+                    preview_max_requested_delta = LIFE_MAX - preview_base_life[i];
+                }
             }
         }
     }
 
     pending_life_delta += delta;
-    for (i = 0; i < track; i++) {
-        if ((preview_players_mask & player_mask_bit(i)) == 0) continue;
-
-        if (LIFE_MIN - preview_base_life[i] < min_requested_delta) {
-            min_requested_delta = LIFE_MIN - preview_base_life[i];
-        }
-        if (LIFE_MAX - preview_base_life[i] > max_requested_delta) {
-            max_requested_delta = LIFE_MAX - preview_base_life[i];
-        }
+    if (pending_life_delta < preview_min_requested_delta) {
+        pending_life_delta = preview_min_requested_delta;
     }
-    if (pending_life_delta < min_requested_delta) pending_life_delta = min_requested_delta;
-    if (pending_life_delta > max_requested_delta) pending_life_delta = max_requested_delta;
+    if (pending_life_delta > preview_max_requested_delta) {
+        pending_life_delta = preview_max_requested_delta;
+    }
 
     life_preview_active = false;
     for (i = 0; i < track; i++) {
