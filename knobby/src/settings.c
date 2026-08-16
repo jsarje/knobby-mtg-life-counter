@@ -301,6 +301,7 @@ static bool screen_is_player_menu(lv_obj_t *screen)
            screen == screen_counter_edit ||
            screen == screen_player_color_menu ||
            screen == screen_player_color_picker ||
+           screen == screen_player_partner_menu ||
            screen == screen_player_name;
 }
 

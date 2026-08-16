@@ -10,6 +10,11 @@
 #define MAX_GAME_PLAYERS 8
 #define MAX_DISPLAY_PLAYERS 4
 #define MAX_ENEMY_COUNT (MAX_GAME_PLAYERS - 1)
+/* Worst case row count for the commander-damage select/damage screens:
+   up to MAX_ENEMY_COUNT opponent slots (solo-vs-many mode) plus up to
+   MAX_DISPLAY_PLAYERS-1 extra partner rows from tracked opponents. The
+   common 4-tracked-all-partnered case yields exactly 6 rows. */
+#define MAX_CMD_DAMAGE_ROWS (MAX_ENEMY_COUNT + MAX_DISPLAY_PLAYERS - 1)
 #define LIFE_MIN -999
 #define LIFE_MAX 999
 #define COUNTER_MIN 0

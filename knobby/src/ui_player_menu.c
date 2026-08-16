@@ -14,6 +14,7 @@ lv_obj_t *screen_counter_edit = NULL;
 lv_obj_t *screen_eliminated_player_menu = NULL;
 lv_obj_t *screen_player_color_menu = NULL;
 lv_obj_t *screen_player_color_picker = NULL;
+lv_obj_t *screen_player_partner_menu = NULL;
 
 // ---------- widgets ----------
 static lv_obj_t *label_all_damage_title = NULL;
@@ -25,10 +26,14 @@ static lv_obj_t *label_counter_edit_value = NULL;
 static lv_obj_t *label_counter_edit_hint = NULL;
 static lv_obj_t *label_counter_edit_icon = NULL;
 static lv_obj_t *label_counter_edit_delta = NULL;
+static lv_obj_t *label_partner_title = NULL;
+static lv_obj_t *cb_partner_enabled = NULL;
 
 // ---------- forward declarations ----------
 static void open_all_damage_screen(void);
 static void open_counter_edit_screen(counter_type_t type);
+static void open_partner_menu(void);
+static void refresh_counter_menu_ui(void);
 
 // ---------- refresh ----------
 void refresh_all_damage_ui(void) {
@@ -102,7 +107,40 @@ void open_player_menu(int player_index) {
   load_screen_if_needed(screen_player_menu);
 }
 
-void open_counter_menu(void) { load_screen_if_needed(screen_counter_menu); }
+/* Greys out/disables the Partner Tax tile (same visual treatment
+   build_quad_screen applies to a disabled tile) for a player without
+   partner enabled. */
+static void refresh_counter_menu_ui(void) {
+  lv_obj_t *tile;
+  lv_obj_t *icon_lbl;
+  lv_obj_t *lbl;
+  bool available = counter_type_available_for_player(menu_player, COUNTER_TYPE_PARTNER_TAX);
+
+  if (screen_counter_menu == NULL) return;
+  tile = lv_obj_get_child(screen_counter_menu, 1);
+  if (tile == NULL) return;
+  icon_lbl = lv_obj_get_child(tile, 0);
+  lbl = lv_obj_get_child(tile, 1);
+
+  if (available) {
+    lv_obj_set_style_bg_color(tile, lv_color_hex(0x1A1A2E), 0);
+    lv_obj_set_style_bg_opa(tile, LV_OPA_COVER, 0);
+    lv_obj_add_flag(tile, LV_OBJ_FLAG_CLICKABLE);
+    if (icon_lbl != NULL) lv_obj_set_style_text_color(icon_lbl, lv_color_white(), 0);
+    if (lbl != NULL) lv_obj_set_style_text_color(lbl, lv_color_white(), 0);
+  } else {
+    lv_obj_set_style_bg_color(tile, lv_color_hex(0x111111), 0);
+    lv_obj_set_style_bg_opa(tile, LV_OPA_60, 0);
+    lv_obj_clear_flag(tile, LV_OBJ_FLAG_CLICKABLE);
+    if (icon_lbl != NULL) lv_obj_set_style_text_color(icon_lbl, lv_color_hex(0x555555), 0);
+    if (lbl != NULL) lv_obj_set_style_text_color(lbl, lv_color_hex(0x555555), 0);
+  }
+}
+
+void open_counter_menu(void) {
+  refresh_counter_menu_ui();
+  load_screen_if_needed(screen_counter_menu);
+}
 
 static void open_all_damage_screen(void) {
   all_damage_value = 0;
@@ -122,6 +160,24 @@ static void open_counter_edit_screen(counter_type_t type) {
   load_screen_if_needed(screen_counter_edit);
 }
 
+/* Checkbox + Apply screen toggling Partner Commander for menu_player,
+   built the same way as build_all_damage_screen's cb_include_myself. */
+static void open_partner_menu(void) {
+  if (label_partner_title != NULL) {
+    char title_buf[48];
+    snprintf(title_buf, sizeof(title_buf), "%s\nPartner Commander", player_names[menu_player]);
+    lv_label_set_text(label_partner_title, title_buf);
+  }
+  if (cb_partner_enabled != NULL) {
+    if (menu_player >= 0 && menu_player < MAX_DISPLAY_PLAYERS && player_has_partner[menu_player]) {
+      lv_obj_add_state(cb_partner_enabled, LV_STATE_CHECKED);
+    } else {
+      lv_obj_clear_state(cb_partner_enabled, LV_STATE_CHECKED);
+    }
+  }
+  load_screen_if_needed(screen_player_partner_menu);
+}
+
 // ---------- events ----------
 static void event_menu_rename(lv_event_t *e) {
   (void)e;
@@ -138,6 +194,11 @@ static void event_menu_cmd_damage(lv_event_t *e) {
   (void)e;
   prepare_cmd_damage_for_player(menu_player);
   open_select_screen();
+}
+
+static void event_menu_partner_toggle(lv_event_t *e) {
+  (void)e;
+  open_partner_menu();
 }
 
 static void event_menu_all_damage(lv_event_t *e) {
@@ -174,6 +235,7 @@ static void event_counter_commander_tax(lv_event_t *e) {
 
 static void event_counter_partner_tax(lv_event_t *e) {
   (void)e;
+  if (!counter_type_available_for_player(menu_player, COUNTER_TYPE_PARTNER_TAX)) return;
   open_counter_edit_screen(COUNTER_TYPE_PARTNER_TAX);
 }
 
@@ -216,6 +278,18 @@ static void event_counter_apply(lv_event_t *e) {
   (void)e;
   apply_counter_edit();
   refresh_counter_edit_ui();
+  refresh_player_ui();
+  back_to_main();
+}
+
+static void event_partner_apply(lv_event_t *e) {
+  bool enabled = false;
+  (void)e;
+  if (cb_partner_enabled != NULL) {
+    enabled = lv_obj_has_state(cb_partner_enabled, LV_STATE_CHECKED);
+  }
+  set_player_partner(menu_player, enabled);
+  refresh_counter_menu_ui();
   refresh_player_ui();
   back_to_main();
 }
@@ -312,6 +386,11 @@ void build_player_menu_screen(void) {
       {"Counters", event_menu_counters, true, LV_EVENT_SHORT_CLICKED},
   };
   build_quad_screen(&screen_player_menu, items);
+
+  /* Long-press Commander Damage to toggle Partner Commander */
+  lv_obj_t *cmd_damage_btn = lv_obj_get_child(screen_player_menu, 1);
+  lv_obj_add_event_cb(cmd_damage_btn, event_menu_partner_toggle,
+                      LV_EVENT_LONG_PRESSED, NULL);
 
   /* Long-press Counters to manually eliminate */
   lv_obj_t *counters_btn = lv_obj_get_child(screen_player_menu, 3);
@@ -419,6 +498,41 @@ void build_all_damage_screen(void) {
   lv_obj_t *btn = make_button(screen_player_all_damage, "Apply", 120, 46,
                               event_all_damage_apply);
   lv_obj_align(btn, LV_ALIGN_BOTTOM_MID, 0, -35);
+}
+
+void build_player_partner_menu_screen(void) {
+  screen_player_partner_menu = lv_obj_create(NULL);
+  lv_obj_set_size(screen_player_partner_menu, 360, 360);
+  lv_obj_set_style_bg_color(screen_player_partner_menu, lv_color_black(), 0);
+  lv_obj_set_style_border_width(screen_player_partner_menu, 0, 0);
+  lv_obj_set_scrollbar_mode(screen_player_partner_menu, LV_SCROLLBAR_MODE_OFF);
+
+  label_partner_title = lv_label_create(screen_player_partner_menu);
+  lv_label_set_text(label_partner_title, "P1\nPartner Commander");
+  lv_obj_set_style_text_color(label_partner_title, lv_color_white(), 0);
+  lv_obj_set_style_text_font(label_partner_title, &lv_font_montserrat_22, 0);
+  lv_obj_set_style_text_align(label_partner_title, LV_TEXT_ALIGN_CENTER, 0);
+  lv_obj_align(label_partner_title, LV_ALIGN_TOP_MID, 0, 40);
+
+  cb_partner_enabled = lv_checkbox_create(screen_player_partner_menu);
+  lv_checkbox_set_text(cb_partner_enabled, "Enabled");
+  lv_obj_set_style_text_color(cb_partner_enabled, lv_color_white(), 0);
+  lv_obj_set_style_text_font(cb_partner_enabled, &lv_font_montserrat_16, 0);
+
+  // Make the checkbox box larger
+  lv_obj_set_style_width(cb_partner_enabled, 28, LV_PART_INDICATOR);
+  lv_obj_set_style_height(cb_partner_enabled, 28, LV_PART_INDICATOR);
+  lv_obj_set_style_text_font(cb_partner_enabled, &lv_font_montserrat_16, LV_PART_INDICATOR);
+
+  // Increase click target area by adding padding
+  lv_obj_set_style_pad_all(cb_partner_enabled, 10, 0);
+  lv_obj_set_style_pad_column(cb_partner_enabled, 12, 0); // gap between box and text
+
+  lv_obj_align(cb_partner_enabled, LV_ALIGN_CENTER, 0, 10);
+
+  lv_obj_t *btn = make_button(screen_player_partner_menu, "Apply", 120, 46,
+                              event_partner_apply);
+  lv_obj_align(btn, LV_ALIGN_BOTTOM_MID, 0, -46);
 }
 
 void build_counter_edit_screen(void) {

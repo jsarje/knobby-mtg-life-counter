@@ -27,12 +27,14 @@ static lv_obj_t *counter_value_1p[COUNTER_TYPE_COUNT];
 
 // ---------- select UI ----------
 static lv_obj_t *label_select_title = NULL;
-static lv_obj_t *select_rows[MAX_ENEMY_COUNT];
-static lv_obj_t *label_enemy_name[MAX_ENEMY_COUNT];
-static lv_obj_t *label_enemy_damage[MAX_ENEMY_COUNT];
+static lv_obj_t *select_rows[MAX_CMD_DAMAGE_ROWS];
+static lv_obj_t *label_enemy_name[MAX_CMD_DAMAGE_ROWS];
+static lv_obj_t *label_enemy_damage[MAX_CMD_DAMAGE_ROWS];
+static lv_obj_t *label_enemy_badge[MAX_CMD_DAMAGE_ROWS];
 
 // ---------- damage UI ----------
 static lv_obj_t *label_damage_title = NULL;
+static lv_obj_t *label_damage_badge = NULL;
 static lv_obj_t *label_damage_value = NULL;
 static lv_obj_t *label_damage_hint = NULL;
 static lv_obj_t *label_damage_delta = NULL;
@@ -141,7 +143,7 @@ static void refresh_1p_counters(void)
     for (type = 0; type < COUNTER_TYPE_COUNT; type++) {
         if (counter_row_1p[type] == NULL || counter_value_1p[type] == NULL) continue;
 
-        if (!counter_type_is_enabled((counter_type_t)type) ||
+        if (!counter_type_available_for_player(0, (counter_type_t)type) ||
             get_counter_value(0, (counter_type_t)type) <= 0) {
             lv_obj_add_flag(counter_row_1p[type], LV_OBJ_FLAG_HIDDEN);
             continue;
@@ -201,6 +203,9 @@ static void style_select_entry(int i, int player_index)
     char buf[32];
     lv_color_t text_color = get_player_text_color(player_index);
     bool eliminated = is_enemy_eliminated(player_index);
+    bool is_partner = get_cmd_row_is_partner(i);
+    const counter_definition_t *badge_def = get_counter_definition(
+        is_partner ? COUNTER_TYPE_PARTNER_TAX : COUNTER_TYPE_COMMANDER_TAX);
 
     lv_label_set_text(label_enemy_name[i], player_names[player_index]);
     snprintf(buf, sizeof(buf), "%d", enemies[i].damage);
@@ -211,16 +216,27 @@ static void style_select_entry(int i, int player_index)
         lv_color_t disabled_text = lv_color_hex(0x808080);
         lv_obj_set_style_text_color(label_enemy_name[i], disabled_text, 0);
         lv_obj_set_style_text_color(label_enemy_damage[i], disabled_text, 0);
+        lv_obj_set_style_text_color(label_enemy_badge[i], disabled_text, 0);
         lv_obj_set_style_bg_color(select_rows[i], disabled_bg, 0);
         lv_obj_set_style_bg_opa(select_rows[i], LV_OPA_COVER, 0);
         lv_obj_clear_flag(select_rows[i], LV_OBJ_FLAG_CLICKABLE);
     } else {
         lv_obj_set_style_text_color(label_enemy_name[i], text_color, 0);
         lv_obj_set_style_text_color(label_enemy_damage[i], text_color, 0);
+        lv_obj_set_style_text_color(label_enemy_badge[i], text_color, 0);
         lv_obj_set_style_bg_color(select_rows[i], get_player_base_color(player_index), 0);
         lv_obj_set_style_bg_opa(select_rows[i], LV_OPA_COVER, 0);
         lv_obj_add_flag(select_rows[i], LV_OBJ_FLAG_CLICKABLE);
     }
+
+    /* Small corner badge distinguishing a primary vs. partner commander
+       damage row, reusing the same icons/font as the Commander Tax /
+       Partner Tax counter definitions. */
+    if (badge_def != NULL) {
+        lv_label_set_text(label_enemy_badge[i], badge_def->icon_text);
+    }
+    lv_obj_set_style_text_font(label_enemy_badge[i], &mana_counter_icons_16, 0);
+    lv_obj_align(label_enemy_badge[i], LV_ALIGN_TOP_LEFT, 4, 2);
 
     lv_obj_set_style_text_font(label_enemy_name[i], &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_font(label_enemy_damage[i], &lv_font_montserrat_22, 0);
@@ -239,7 +255,7 @@ void refresh_select_ui(void)
     int grid_x = (240 - grid_w) / 2;
     int grid_y = (260 - grid_h) / 2;
 
-    for (i = 0; i < MAX_ENEMY_COUNT; i++) {
+    for (i = 0; i < MAX_CMD_DAMAGE_ROWS; i++) {
         if (select_rows[i] == NULL) continue;
 
         if (i < n) {
@@ -270,6 +286,7 @@ void refresh_damage_ui(void)
     lv_color_t bg_color;
     int player_index;
     int delta = damage_pending_delta();
+    const counter_definition_t *badge_def;
 
     if (selected_enemy < 0 || selected_enemy >= active_enemy_count) return;
 
@@ -280,6 +297,18 @@ void refresh_damage_ui(void)
     lv_obj_set_style_bg_color(screen_damage, bg_color, 0);
     lv_obj_set_style_text_color(label_damage_title, text_color, 0);
     lv_obj_set_style_text_color(label_damage_hint, text_color, 0);
+
+    /* Same primary-vs-partner badge as the select screen, anchored next
+       to the player name. */
+    badge_def = get_counter_definition(
+        get_cmd_row_is_partner(selected_enemy) ? COUNTER_TYPE_PARTNER_TAX
+                                                : COUNTER_TYPE_COMMANDER_TAX);
+    if (badge_def != NULL) {
+        lv_label_set_text(label_damage_badge, badge_def->icon_text);
+    }
+    lv_obj_set_style_text_color(label_damage_badge, text_color, 0);
+    lv_obj_update_layout(label_damage_title);
+    lv_obj_align_to(label_damage_badge, label_damage_title, LV_ALIGN_OUT_RIGHT_MID, 8, 0);
 
     snprintf(buf, sizeof(buf), "Damage: %d", enemies[selected_enemy].damage);
     lv_label_set_text(label_damage_value, buf);
@@ -523,7 +552,7 @@ void build_select_screen(void)
     lv_obj_set_style_pad_all(container, 0, 0);
     lv_obj_set_scrollbar_mode(container, LV_SCROLLBAR_MODE_AUTO);
 
-    for (i = 0; i < MAX_ENEMY_COUNT; i++) {
+    for (i = 0; i < MAX_CMD_DAMAGE_ROWS; i++) {
         select_rows[i] = lv_btn_create(container);
         lv_obj_remove_style_all(select_rows[i]);
         lv_obj_set_style_bg_opa(select_rows[i], LV_OPA_COVER, 0);
@@ -540,6 +569,11 @@ void build_select_screen(void)
         lv_obj_set_style_text_font(label_enemy_damage[i], &lv_font_montserrat_22, 0);
         lv_obj_set_style_text_color(label_enemy_damage[i], lv_palette_main(LV_PALETTE_RED), 0);
         lv_obj_align(label_enemy_damage[i], LV_ALIGN_RIGHT_MID, -16, 0);
+
+        label_enemy_badge[i] = lv_label_create(select_rows[i]);
+        lv_obj_set_style_text_font(label_enemy_badge[i], &mana_counter_icons_16, 0);
+        lv_obj_set_style_text_color(label_enemy_badge[i], lv_color_white(), 0);
+        lv_obj_align(label_enemy_badge[i], LV_ALIGN_TOP_LEFT, 4, 2);
     }
 }
 
@@ -556,6 +590,12 @@ void build_damage_screen(void)
     lv_obj_set_style_text_color(label_damage_title, lv_color_white(), 0);
     lv_obj_set_style_text_font(label_damage_title, &lv_font_montserrat_22, 0);
     lv_obj_align(label_damage_title, LV_ALIGN_TOP_MID, 0, 28);
+
+    label_damage_badge = lv_label_create(screen_damage);
+    lv_label_set_text(label_damage_badge, "");
+    lv_obj_set_style_text_color(label_damage_badge, lv_color_white(), 0);
+    lv_obj_set_style_text_font(label_damage_badge, &mana_counter_icons_16, 0);
+    lv_obj_align_to(label_damage_badge, label_damage_title, LV_ALIGN_OUT_RIGHT_MID, 8, 0);
 
     label_damage_value = lv_label_create(screen_damage);
     lv_label_set_text(label_damage_value, "Damage: 0");

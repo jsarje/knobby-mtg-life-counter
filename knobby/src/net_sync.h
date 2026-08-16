@@ -20,13 +20,17 @@
 #define NET_SYNC_ELIM      0x01 /* eliminated flag bits */
 #define NET_SYNC_ELIM_MANUAL 0x02
 
+#define NET_SYNC_HAS_PARTNER 0x01 /* flags bit: owner has partner enabled */
+
 typedef struct __attribute__((packed)) {
     uint16_t version;    /* per-player Lamport version, wraps (serial arithmetic) */
     int16_t  life;
     int16_t  counters[4];                    /* == COUNTER_TYPE_COUNT */
     uint8_t  cmd_damage[NET_SYNC_MAX_SOURCES]; /* column of cmd_damage_totals */
+    uint8_t  cmd_damage_partner[NET_SYNC_MAX_PLAYERS]; /* column of cmd_damage_partner_totals;
+                                                           only tracked players can be partner sources */
     uint8_t  eliminated;                     /* NET_SYNC_ELIM* bits */
-    uint8_t  reserved;                       /* keeps u16 fields even-aligned */
+    uint8_t  flags;                          /* NET_SYNC_HAS_PARTNER bit */
 } net_sync_player_t;
 
 typedef struct __attribute__((packed)) {

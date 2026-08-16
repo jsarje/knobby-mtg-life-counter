@@ -22,13 +22,18 @@ typedef struct {
 
 // ---------- state ----------
 extern int active_enemy_count;
-extern enemy_state_t enemies[MAX_ENEMY_COUNT];
+extern enemy_state_t enemies[MAX_CMD_DAMAGE_ROWS];
 extern int selected_enemy;
 extern int player_life[MAX_DISPLAY_PLAYERS];
 extern bool player_selected[MAX_DISPLAY_PLAYERS];
 extern char player_names[MAX_GAME_PLAYERS][16];
 extern int menu_player;
 extern int cmd_damage_totals[MAX_GAME_PLAYERS][MAX_DISPLAY_PLAYERS];
+/* Damage dealt by each tracked source's *partner* commander (source x
+   target). Only ever written when player_has_partner[source] is true,
+   but always safe to read (0 if unused). Tracked 21-lethal threshold
+   independently of cmd_damage_totals, matching actual MTG rules. */
+extern int cmd_damage_partner_totals[MAX_DISPLAY_PLAYERS][MAX_DISPLAY_PLAYERS];
 extern int cmd_damage_target;
 extern int all_damage_value;
 extern int pending_life_delta;
@@ -58,7 +63,7 @@ void selection_clear(void);
 void selection_toggle(int player);
 void selection_set_single(int player);
 void undo_life_change(int player, int delta);
-void undo_cmd_damage(int source, int target, int delta);
+void undo_cmd_damage(int source, int target, int delta, bool is_partner);
 void undo_counter_change(int player, int counter_type, int delta);
 void prepare_cmd_damage_for_player(int target);
 void life_preview_commit_cb(lv_timer_t *timer);
@@ -69,6 +74,7 @@ int apply_counter_edit(void);
 int get_counter_value(int player, counter_type_t type);
 const counter_definition_t *get_counter_definition(counter_type_t type);
 bool counter_type_is_enabled(counter_type_t type);
+bool counter_type_available_for_player(int player, counter_type_t type);
 void start_player_selection_animation(void);
 void stop_player_selection_animation(void);
 bool player_selection_animation_active(void);
@@ -79,6 +85,13 @@ void manual_eliminate_player(int player);
 void manual_uneliminate_player(int player);
 
 void check_player_elimination(int player);
+
+// ---------- partner commander ----------
+/* RAM-only, same tier/reset behavior as player_has_override: not
+   persisted to NVS, resets on reboot, survives knob_life_reset(). */
+extern bool player_has_partner[MAX_DISPLAY_PLAYERS];
+void set_player_partner(int player, bool enabled);
+bool get_cmd_row_is_partner(int row);
 
 // ---------- player colors ----------
 extern int player_color_index[MAX_DISPLAY_PLAYERS];

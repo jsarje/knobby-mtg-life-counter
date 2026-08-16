@@ -372,7 +372,7 @@ static void refresh_counter_rows(const mp_panel_spec_t *spec, int16_t wedge_bis,
     for (type = 0; type < COUNTER_TYPE_COUNT; type++) {
         if (rows[type] == NULL || value_labels[type] == NULL) continue;
 
-        if (!counter_type_is_enabled((counter_type_t)type) ||
+        if (!counter_type_available_for_player(player_index, (counter_type_t)type) ||
             get_counter_value(player_index, (counter_type_t)type) <= 0) {
             lv_obj_add_flag(rows[type], LV_OBJ_FLAG_HIDDEN);
             continue;

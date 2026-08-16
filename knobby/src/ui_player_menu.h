@@ -11,6 +11,7 @@ extern lv_obj_t *screen_counter_edit;
 extern lv_obj_t *screen_eliminated_player_menu;
 extern lv_obj_t *screen_player_color_menu;
 extern lv_obj_t *screen_player_color_picker;
+extern lv_obj_t *screen_player_partner_menu;
 
 // ---------- functions ----------
 void build_player_menu_screen(void);
@@ -20,6 +21,7 @@ void build_counter_menu_screen(void);
 void build_counter_edit_screen(void);
 void build_player_color_menu_screen(void);
 void build_player_color_picker_screen(void);
+void build_player_partner_menu_screen(void);
 
 void refresh_all_damage_ui(void);
 void refresh_counter_edit_ui(void);

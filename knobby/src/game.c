@@ -14,9 +14,10 @@ extern void select_kick_timer(void);
 // ---------- state ----------
 int active_enemy_count = 3;
 
-enemy_state_t enemies[MAX_ENEMY_COUNT] = {
+enemy_state_t enemies[MAX_CMD_DAMAGE_ROWS] = {
     {"P1", 0}, {"P2", 0}, {"P3", 0}, {"P4", 0},
-    {"P5", 0}, {"P6", 0}, {"P7", 0}
+    {"P5", 0}, {"P6", 0}, {"P7", 0}, {"P8", 0},
+    {"P9", 0}, {"P10", 0}
 };
 
 int selected_enemy = -1;
@@ -29,6 +30,7 @@ char player_names[MAX_GAME_PLAYERS][16] = {
 };
 int menu_player = 0;
 int cmd_damage_totals[MAX_GAME_PLAYERS][MAX_DISPLAY_PLAYERS] = {{0}};
+int cmd_damage_partner_totals[MAX_DISPLAY_PLAYERS][MAX_DISPLAY_PLAYERS] = {{0}};
 int all_damage_value = 0;
 int cmd_damage_target = -1;
 static int damage_start_value = 0;
@@ -150,8 +152,10 @@ void undo_elimination_action(int player)
     if (action.event_type == LOG_EVT_LIFE) {
         undo_life_change(player, action.delta);
     } else if (action.event_type == LOG_EVT_CMD_DAMAGE) {
+        bool is_partner = (action.source & CMD_DAMAGE_SOURCE_PARTNER_BIT) != 0;
+        int source_player = action.source & ~CMD_DAMAGE_SOURCE_PARTNER_BIT;
         undo_life_change(player, action.delta);
-        undo_cmd_damage(action.source, player, action.delta);
+        undo_cmd_damage(source_player, player, action.delta, is_partner);
     } else if (action.event_type == LOG_EVT_COUNTER) {
         undo_counter_change(player, action.source, action.delta);
     }
@@ -179,6 +183,16 @@ void check_player_elimination(int player)
                 if (i != player && cmd_damage_totals[i][player] >= 21) {
                     now_eliminated = true;
                     break;
+                }
+            }
+            /* Partner commander damage is tracked independently and
+               never combines with the primary total (real MTG rules). */
+            if (!now_eliminated) {
+                for (int i = 0; i < MAX_DISPLAY_PLAYERS; i++) {
+                    if (i != player && cmd_damage_partner_totals[i][player] >= 21) {
+                        now_eliminated = true;
+                        break;
+                    }
                 }
             }
             if (!now_eliminated && player_counters[player][COUNTER_TYPE_POISON] >= 10) {
@@ -248,6 +262,10 @@ void manual_uneliminate_player(int player)
             if (cmd_damage_totals[i][player] > 20)
                 cmd_damage_totals[i][player] = 20;
         }
+        for (i = 0; i < MAX_DISPLAY_PLAYERS; i++) {
+            if (cmd_damage_partner_totals[i][player] > 20)
+                cmd_damage_partner_totals[i][player] = 20;
+        }
     }
     net_sync_commit_player(player);
     refresh_player_ui();
@@ -301,6 +319,17 @@ static const char *custom_color_names[CUSTOM_COLOR_COUNT] = {
 int player_color_index[MAX_DISPLAY_PLAYERS] = {0, 1, 2, 3};
 bool player_life_color[MAX_DISPLAY_PLAYERS] = {false, false, false, false};
 bool player_has_override[MAX_DISPLAY_PLAYERS] = {false, false, false, false};
+
+// ---------- partner commander (runtime only, lost on reboot) ----------
+bool player_has_partner[MAX_DISPLAY_PLAYERS] = {false, false, false, false};
+
+void set_player_partner(int player, bool enabled)
+{
+    if (player < 0 || player >= MAX_DISPLAY_PLAYERS) return;
+    if (player_has_partner[player] == enabled) return;
+    player_has_partner[player] = enabled;
+    net_sync_commit_player(player);
+}
 
 lv_color_t get_player_color_vib(int index, int vibrancy)
 {
@@ -376,32 +405,50 @@ lv_color_t get_effective_player_color(int player_i, int color_i, int vibrancy)
     return get_player_color_vib(color_i, vibrancy);
 }
 
+// ---------- commander-damage row cache ----------
+/* Built once per prepare_cmd_damage_for_player() call: one row per
+   non-target player, plus an extra partner row immediately after any
+   tracked player with player_has_partner[] set. get_cmd_target_player_index()
+   and get_cmd_row_is_partner() just read this cache. */
+typedef struct {
+    int8_t player;
+    bool is_partner;
+} cmd_damage_row_t;
+
+static cmd_damage_row_t cmd_damage_rows[MAX_CMD_DAMAGE_ROWS];
+static int cmd_damage_row_count = 0;
+
 int get_cmd_target_player_index(int row)
 {
-    int skip_player;
-    int num = nvs_get_num_players();
-    int count = 0;
-    int i;
+    int num, count, i;
 
-    if (row < 0 || row >= active_enemy_count) return row;
-
-    if (cmd_damage_target >= 0) {
-        skip_player = cmd_damage_target;
-    } else {
+    if (cmd_damage_target < 0) {
         /* No explicit target — only hidden-screen repaints and the
-           sim's direct navigation reach this (every live flow sets
-           cmd_damage_target first): map as if the owner, player 0,
-           were the target, so the enemy rows show players 1..n-1. */
-        skip_player = 0;
+           sim's direct navigation reach this (every live flow calls
+           prepare_cmd_damage_for_player first, which always sets a
+           target): map as if the owner, player 0, were the target, so
+           the enemy rows show players 1..n-1 with no partner rows,
+           matching the historical fallback. */
+        num = nvs_get_num_players();
+        if (row < 0 || row >= num - 1) return row;
+        count = 0;
+        for (i = 0; i < num; i++) {
+            if (i == 0) continue;
+            if (count == row) return i;
+            count++;
+        }
+        return row;
     }
 
-    for (i = 0; i < num; i++) {
-        if (i == skip_player) continue;
-        if (count == row) return i;
-        count++;
-    }
+    if (row < 0 || row >= cmd_damage_row_count) return row;
+    return cmd_damage_rows[row].player;
+}
 
-    return row;
+bool get_cmd_row_is_partner(int row)
+{
+    if (cmd_damage_target < 0) return false;
+    if (row < 0 || row >= cmd_damage_row_count) return false;
+    return cmd_damage_rows[row].is_partner;
 }
 
 const counter_definition_t *get_counter_definition(counter_type_t type)
@@ -415,6 +462,17 @@ bool counter_type_is_enabled(counter_type_t type)
     const counter_definition_t *definition = get_counter_definition(type);
 
     return (definition != NULL) && definition->enabled;
+}
+
+/* Per-player gate on top of counter_type_is_enabled(): Partner Tax is
+   only meaningful (and editable) for a player with partner enabled. */
+bool counter_type_available_for_player(int player, counter_type_t type)
+{
+    if (type == COUNTER_TYPE_PARTNER_TAX) {
+        if (player < 0 || player >= MAX_DISPLAY_PLAYERS) return false;
+        if (!player_has_partner[player]) return false;
+    }
+    return counter_type_is_enabled(type);
 }
 
 int get_counter_value(int player, counter_type_t type)
@@ -603,6 +661,9 @@ void damage_apply(void)
 {
     int delta;
     int source;
+    bool is_partner;
+    int encoded_source;
+    int new_total;
 
     if (selected_enemy < 0 || selected_enemy >= active_enemy_count) return;
     if (cmd_damage_target < 0 || cmd_damage_target >= MAX_DISPLAY_PLAYERS) return;
@@ -616,11 +677,20 @@ void damage_apply(void)
     if (delta == 0) return;
 
     source = get_cmd_target_player_index(selected_enemy);
-    cmd_damage_totals[source][cmd_damage_target] = enemies[selected_enemy].damage;
-    damage_log_add(cmd_damage_target, -delta, LOG_EVT_CMD_DAMAGE, source);
+    is_partner = get_cmd_row_is_partner(selected_enemy);
+    encoded_source = is_partner ? (source | CMD_DAMAGE_SOURCE_PARTNER_BIT) : source;
+
+    if (is_partner && source >= 0 && source < MAX_DISPLAY_PLAYERS) {
+        cmd_damage_partner_totals[source][cmd_damage_target] = enemies[selected_enemy].damage;
+        new_total = cmd_damage_partner_totals[source][cmd_damage_target];
+    } else {
+        cmd_damage_totals[source][cmd_damage_target] = enemies[selected_enemy].damage;
+        new_total = cmd_damage_totals[source][cmd_damage_target];
+    }
+    damage_log_add(cmd_damage_target, -delta, LOG_EVT_CMD_DAMAGE, encoded_source);
     player_life[cmd_damage_target] = clamp_life(player_life[cmd_damage_target] - delta);
-    if (cmd_damage_totals[source][cmd_damage_target] >= 21 || player_life[cmd_damage_target] <= 0) {
-        set_player_elimination_action(cmd_damage_target, LOG_EVT_CMD_DAMAGE, source, -delta);
+    if (new_total >= 21 || player_life[cmd_damage_target] <= 0) {
+        set_player_elimination_action(cmd_damage_target, LOG_EVT_CMD_DAMAGE, encoded_source, -delta);
     }
     check_player_elimination(cmd_damage_target);
     net_sync_commit_player(cmd_damage_target);
@@ -685,11 +755,24 @@ void prepare_cmd_damage_for_player(int target)
 
     for (i = 0; i < num; i++) {
         if (i == target) continue;
-        if (row < MAX_ENEMY_COUNT) {
-            enemies[row].damage = cmd_damage_totals[i][target];
+        if (row >= MAX_CMD_DAMAGE_ROWS) break;
+
+        cmd_damage_rows[row].player = (int8_t)i;
+        cmd_damage_rows[row].is_partner = false;
+        enemies[row].damage = cmd_damage_totals[i][target];
+        row++;
+
+        if (i < MAX_DISPLAY_PLAYERS && player_has_partner[i] &&
+            row < MAX_CMD_DAMAGE_ROWS) {
+            cmd_damage_rows[row].player = (int8_t)i;
+            cmd_damage_rows[row].is_partner = true;
+            enemies[row].damage = cmd_damage_partner_totals[i][target];
             row++;
         }
     }
+
+    cmd_damage_row_count = row;
+    active_enemy_count = row;
 }
 
 void change_all_damage(int delta)
@@ -711,13 +794,21 @@ void undo_life_change(int player, int delta)
     refresh_select_ui();
 }
 
-void undo_cmd_damage(int source, int target, int delta)
+void undo_cmd_damage(int source, int target, int delta, bool is_partner)
 {
     if (source < 0 || source >= MAX_GAME_PLAYERS) return;
     if (target < 0 || target >= MAX_DISPLAY_PLAYERS) return;
-    cmd_damage_totals[source][target] += delta;
-    if (cmd_damage_totals[source][target] < 0)
-        cmd_damage_totals[source][target] = 0;
+
+    if (is_partner) {
+        if (source >= MAX_DISPLAY_PLAYERS) return;
+        cmd_damage_partner_totals[source][target] += delta;
+        if (cmd_damage_partner_totals[source][target] < 0)
+            cmd_damage_partner_totals[source][target] = 0;
+    } else {
+        cmd_damage_totals[source][target] += delta;
+        if (cmd_damage_totals[source][target] < 0)
+            cmd_damage_totals[source][target] = 0;
+    }
     check_player_elimination(target);
     net_sync_commit_player(target);
 }
@@ -756,7 +847,7 @@ void knob_life_reset(void)
     selected_enemy = -1;
     dice_result = 0;
 
-    for (i = 0; i < MAX_ENEMY_COUNT; i++) {
+    for (i = 0; i < MAX_CMD_DAMAGE_ROWS; i++) {
         enemies[i].damage = 0;
     }
 
@@ -765,7 +856,9 @@ void knob_life_reset(void)
     }
     menu_player = 0;
     cmd_damage_target = -1;
+    cmd_damage_row_count = 0;
     memset(cmd_damage_totals, 0, sizeof(cmd_damage_totals));
+    memset(cmd_damage_partner_totals, 0, sizeof(cmd_damage_partner_totals));
     memset(player_counters, 0, sizeof(player_counters));
     memset(player_eliminated, 0, sizeof(player_eliminated));
     memset(player_manually_eliminated, 0, sizeof(player_manually_eliminated));
@@ -891,6 +984,8 @@ _Static_assert(NET_SYNC_MAX_PLAYERS == MAX_DISPLAY_PLAYERS, "packet layout");
 _Static_assert(NET_SYNC_MAX_SOURCES == MAX_GAME_PLAYERS, "packet layout");
 _Static_assert(sizeof(((net_sync_player_t *)0)->counters) / sizeof(int16_t)
                == COUNTER_TYPE_COUNT, "packet layout");
+_Static_assert(sizeof(((net_sync_player_t *)0)->cmd_damage_partner)
+               == MAX_DISPLAY_PLAYERS, "packet layout");
 _Static_assert(sizeof(((net_sync_names_t *)0)->names) == sizeof(player_names),
                "packet layout");
 
@@ -950,8 +1045,13 @@ void net_sync_fill_state(net_sync_state_t *out)
             int v = cmd_damage_totals[s][p];
             rp->cmd_damage[s] = (uint8_t)((v < 0) ? 0 : (v > 255) ? 255 : v);
         }
+        for (s = 0; s < MAX_DISPLAY_PLAYERS; s++) {
+            int v = cmd_damage_partner_totals[s][p];
+            rp->cmd_damage_partner[s] = (uint8_t)((v < 0) ? 0 : (v > 255) ? 255 : v);
+        }
         if (player_eliminated[p]) rp->eliminated |= NET_SYNC_ELIM;
         if (player_manually_eliminated[p]) rp->eliminated |= NET_SYNC_ELIM_MANUAL;
+        if (player_has_partner[p]) rp->flags |= NET_SYNC_HAS_PARTNER;
     }
 }
 
@@ -1038,6 +1138,12 @@ void net_sync_apply_state(const net_sync_state_t *in, int wins_ties)
                 p_changed = true;
             }
         }
+        for (s = 0; s < MAX_DISPLAY_PLAYERS; s++) {
+            if (cmd_damage_partner_totals[s][p] != rp->cmd_damage_partner[s]) {
+                cmd_damage_partner_totals[s][p] = rp->cmd_damage_partner[s];
+                p_changed = true;
+            }
+        }
         if (was_eliminated != now_eliminated) {
             player_eliminated[p] = now_eliminated;
             if (!now_eliminated) {
@@ -1055,6 +1161,13 @@ void net_sync_apply_state(const net_sync_state_t *in, int wins_ties)
                to the old elimination and would restore the wrong
                amount. Undo then falls back to the revive clamps. */
             clear_player_elimination_action(p);
+        }
+        {
+            bool remote_has_partner = (rp->flags & NET_SYNC_HAS_PARTNER) != 0;
+            if (player_has_partner[p] != remote_has_partner) {
+                player_has_partner[p] = remote_has_partner;
+                p_changed = true;
+            }
         }
         player_manually_eliminated[p] =
             now_eliminated && (rp->eliminated & NET_SYNC_ELIM_MANUAL) != 0;
