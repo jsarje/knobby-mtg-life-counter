@@ -39,6 +39,7 @@ void turn_timer_start_fresh(void)
     turn_ui_visible = true;
     turn_blink_steps_remaining = 10;
 
+    turn_timer_resume_from_idle();
     if (turn_blink_timer != NULL) {
         lv_timer_resume(turn_blink_timer);
     }
@@ -56,11 +57,34 @@ void turn_timer_reset(void)
     turn_ui_visible = false;
     turn_blink_steps_remaining = 0;
 
+    turn_timer_pause_for_idle();
     if (turn_blink_timer != NULL) {
         lv_timer_pause(turn_blink_timer);
     }
 
     refresh_turn_ui();
+}
+
+void turn_timer_pause_for_idle(void)
+{
+    if (turn_timer != NULL) {
+        lv_timer_pause(turn_timer);
+    }
+    if (turn_blink_timer != NULL) {
+        lv_timer_pause(turn_blink_timer);
+    }
+}
+
+void turn_timer_resume_from_idle(void)
+{
+    if (turn_timer != NULL && turn_timer_enabled) {
+        lv_timer_reset(turn_timer);
+        lv_timer_resume(turn_timer);
+    }
+    if (turn_blink_timer != NULL && turn_blink_steps_remaining > 0) {
+        lv_timer_reset(turn_blink_timer);
+        lv_timer_resume(turn_blink_timer);
+    }
 }
 
 // ---------- timer callbacks ----------
@@ -110,6 +134,7 @@ void event_turn_tap(lv_event_t *e)
 
     turn_started_ms = lv_tick_get();
     turn_timer_enabled = true;
+    turn_timer_resume_from_idle();
     refresh_turn_ui();
 }
 
@@ -118,7 +143,7 @@ void knob_timer_init(void)
 {
     turn_timer = lv_timer_create(turn_timer_tick_cb, 1000, NULL);
     if (turn_timer != NULL) {
-        lv_timer_ready(turn_timer);
+        lv_timer_pause(turn_timer);
     }
 
     turn_blink_timer = lv_timer_create(turn_blink_timer_cb, 500, NULL);

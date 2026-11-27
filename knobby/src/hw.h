@@ -15,8 +15,6 @@ extern int battery_percent;
 
 // ---------- tunable power / timing constants (shared) ----------
 // Auto-dim timeout is now configurable via NVS (see auto_dim_ms[] in knob_types.h).
-// Reducing AUTO_DIM_BRIGHTNESS below 5 further cuts backlight draw while dimmed.
-#define AUTO_DIM_BRIGHTNESS     5       /* % brightness while dimmed */
 // UNDIM_GRACE_MS suppresses input for this long after wake to avoid accidental presses.
 #define UNDIM_GRACE_MS          225     /* ms */
 #define CPU_FREQ_ACTIVE         160     /* MHz – APB bus stays 80 MHz at 80/160/240 */

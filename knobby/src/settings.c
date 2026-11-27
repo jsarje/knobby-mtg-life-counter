@@ -258,10 +258,7 @@ static int autodim_get(void) { return nvs_get_auto_dim(); }
 static void autodim_set(int v)
 {
     nvs_set_auto_dim(v);
-    if (v == AUTO_DIM_OFF && dimmed) {
-        dimmed = false;
-        brightness_apply();
-    }
+    activity_kick();
 }
 
 static uint32_t toggle_color(int val)
@@ -425,6 +422,10 @@ static void event_table_sync_leave(lv_event_t *e)
    itself when the user navigates away and is resumed on open. */
 static void table_sync_timer_cb(lv_timer_t *timer)
 {
+    if (dimmed) {
+        lv_timer_pause(timer);
+        return;
+    }
     if (lv_scr_act() != screen_table_sync) {
         lv_timer_pause(timer);
         return;
@@ -437,6 +438,23 @@ void open_table_sync_screen(void)
     refresh_table_sync_ui();
     lv_timer_resume(table_sync_timer);
     lv_scr_load(screen_table_sync);
+}
+
+void table_sync_timer_pause_for_idle(void)
+{
+    if (table_sync_timer != NULL) {
+        lv_timer_pause(table_sync_timer);
+    }
+}
+
+void table_sync_timer_resume_from_idle(void)
+{
+    if (table_sync_timer != NULL &&
+        lv_scr_act() == screen_table_sync &&
+        !dimmed) {
+        lv_timer_reset(table_sync_timer);
+        lv_timer_resume(table_sync_timer);
+    }
 }
 
 void build_table_sync_screen(void)

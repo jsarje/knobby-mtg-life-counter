@@ -213,6 +213,7 @@ float knob_read_battery_voltage(void) { return sim_battery_voltage; }
 /* ---- Display ---- */
 
 void scr_display_on(void) { /* no-op in simulator */ }
+void scr_display_off(void) { /* no-op in simulator */ }
 
 /* Physical display rotation: firmware sets the panel's MADCTL flags; the
    sim records the value and the flush callbacks remap pixels to match. */

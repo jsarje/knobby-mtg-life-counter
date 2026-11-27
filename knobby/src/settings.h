@@ -56,5 +56,7 @@ void open_rotate_screen(void);
 void change_display_rotation(int dir);
 void menu_facing_refresh(void);
 void open_table_sync_screen(void);
+void table_sync_timer_pause_for_idle(void);
+void table_sync_timer_resume_from_idle(void);
 
 #endif // _SETTINGS_H

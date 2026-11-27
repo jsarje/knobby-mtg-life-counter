@@ -298,6 +298,11 @@ void scr_display_on(void)
   if (lcd != NULL) lcd->displayOn();
 }
 
+void scr_display_off(void)
+{
+  if (lcd != NULL) lcd->displayOff();
+}
+
 /* Rotate the whole display in 90-degree steps via the panel's MADCTL flags.
    The user rotation composes with the per-board base mirrors (XOR); the same
    swap/mirror triple goes to the touch controller so touch and swipe

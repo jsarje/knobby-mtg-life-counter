@@ -15,6 +15,8 @@ extern int turn_number;
 void knob_timer_init(void);
 void turn_timer_start_fresh(void);
 void turn_timer_reset(void);
+void turn_timer_pause_for_idle(void);
+void turn_timer_resume_from_idle(void);
 uint32_t get_turn_elapsed_ms(void);
 
 // event callbacks used in screen builders
