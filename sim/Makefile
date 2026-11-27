@@ -53,7 +53,11 @@ SIM_SRCS := sim_main.c sim_stubs.c
 
 # LVGL sources (recursive wildcard)
 rwildcard = $(wildcard $1$2) $(foreach d,$(wildcard $1*),$(call rwildcard,$d/,$2))
+ifeq ($(OS),Windows_NT)
+LVGL_SRCS := $(shell sh -lc 'find "$(LVGL_PATH)/src" -type f -name "*.c"')
+else
 LVGL_SRCS := $(call rwildcard,$(LVGL_PATH)/src/,*.c)
+endif
 
 FONT_SRCS := $(wildcard $(KNOBBY)/src/fonts/*.c)
 
